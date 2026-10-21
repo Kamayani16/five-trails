@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#1846c9">
+<!-- Leave empty to use this page's own host (ws(s)://<host>/ws). -->
+<meta name="five-trails-server" content="">
+<title>Five Trails</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='6' width='52' height='52' rx='14' fill='%232468e6' stroke='%230b1640' stroke-width='4'/%3E%3Cpath d='M18 46 32 16l14 30Z' fill='%23ffd23a' stroke='%230b1640' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap">
+<link rel="stylesheet" href="app.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="app">
+  <!-- ================= LOBBY ================= -->
+  <section class="home" id="home">
+    <div class="topbar">
+      <button class="prof" id="topProf" aria-label="Profile and settings"></button>
+      <div class="trp" id="topTr" aria-label="Trophies"></div>
+      <button class="gb blue sq" id="gearBtn" aria-label="Settings"></button>
+    </div>
+
+    <div class="tab" id="tab-battle">
+      <div class="arena" id="arenaCard"></div>
+      <button class="gb battle" id="playAi">Battle<small id="aiTier">vs Computer</small></button>
+      <button class="gb blue friendbtn" id="openFriend">Play online<small id="onlineLine"><span class="netdot wait"></span>Connecting…</small></button>
+      <div class="pn pad seg">
+        <div class="seg-l" id="clkLbl">Clock each</div>
+        <div class="seg-b" role="radiogroup" aria-label="Clock for each player" id="clkpick">
+          <button role="radio" data-clk="0">Off</button><button role="radio" data-clk="180">3m</button><button role="radio" data-clk="300">5m</button><button role="radio" data-clk="600">10m</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab" id="tab-records" hidden></div>
+    <div class="tab" id="tab-guide" hidden></div>
+
+    <nav class="nav" aria-label="Lobby">
+      <div class="nav-in" role="tablist">
+        <button role="tab" data-tab="battle" aria-selected="true" id="navBattle"></button>
+        <button role="tab" data-tab="records" aria-selected="false" id="navRecords"></button>
+        <button role="tab" data-tab="guide" aria-selected="false" id="navGuide"></button>
+      </div>
+    </nav>
+  </section>
+
+  <!-- ================= WAIT ================= -->
+  <section class="wait" id="wait" hidden>
+    <div class="pn">
+      <div class="pn-h ol" style="width:calc(100% + 34px);text-align:center" id="waitLbl">Room code</div>
+      <div class="code ol" id="waitCode">----</div>
+      <div class="radar"></div>
+      <p class="note" id="waitMsg">Waiting for your opponent to join…</p>
+      <button class="gb red" id="waitCancel">Cancel</button>
+    </div>
+  </section>
+
+  <!-- ================= BATTLE ================= -->
+  <section class="game" id="game" hidden>
+    <div class="gtop">
+      <button class="gb red sq" id="leave" aria-label="Leave battle"></button>
+      <div class="gtag ol" id="roomTag"></div>
+      <button class="gb blue sq" id="sfx" aria-label="Sound"></button>
+    </div>
+    <div class="pbar opp" id="oppBar">
+      <div id="oppAv"></div>
+      <div class="pmid"><div class="pname" id="oppName">Computer</div><div class="psub" id="oppSub"></div><div class="pws" id="oppPw"></div></div>
+      <div class="backs" id="oppHand"></div>
+      <div class="clk" id="oppClk" hidden></div>
+      <div class="pscore ol" id="oppScore">0</div>
+      <div class="bubble" id="oppBub" hidden></div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="strip">
+      <button class="deck" id="deck" aria-label="Draw from the deck"><span id="deckN">44</span></button>
+      <div class="msg" id="msg"></div>
+    </div>
+    <div class="pbar me" id="meBar">
+      <div id="meAv"></div>
+      <div class="pmid"><div class="pname" id="meName">You</div><div class="psub" id="meSub"></div><div class="pws" id="mePw"></div></div>
+      <div class="clk" id="meClk" hidden></div>
+      <div class="pscore ol" id="meScore">0</div>
+      <div class="bubble" id="meBub" hidden></div>
+    </div>
+    <div class="hand" id="hand"></div>
+    <div class="actrow">
+      <div class="acts" id="acts"></div>
+      <button class="gb blue sq" id="emoBtn" aria-label="Emotes" aria-expanded="false"></button>
+    </div>
+    <div class="pn emo-pn" id="emoPn" hidden></div>
+  </section>
+</div>
+
+<!-- Sheets -->
+<div class="sheet" id="friendSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol">Play online</div>
+    <button class="gb red sq xbtn" data-close aria-label="Close"></button>
+    <button class="gb quick" id="quickBtn">Quick match<small>Ranked · win +30, lose −20</small></button>
+    <div class="or">or play a friend</div>
+    <button class="gb green" id="create">Create room<small>Get a code to share</small></button>
+    <div class="joinrow"><input id="joinCode" maxlength="6" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code"><button class="gb" id="join">Join</button></div>
+    <p class="note" id="roomNote">Connecting to the game server…</p>
+  </div>
+</div>
+<div class="sheet" id="setSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol">Settings</div>
+    <button class="gb red sq xbtn" data-close aria-label="Close"></button>
+    <label class="note" for="nick">Your name</label>
+    <input id="nick" maxlength="16" placeholder="Explorer" autocomplete="nickname">
+    <div class="setrow"><span>Music</span><button class="tog" id="musTog" role="switch" aria-checked="true" aria-label="Music"></button></div>
+    <div class="setrow"><span>Sound effects</span><button class="tog" id="sndTog" role="switch" aria-checked="true" aria-label="Sound effects"></button></div>
+    <button class="gb blue sm" id="replayIntro">Replay the intro</button>
+  </div>
+</div>
+<div class="sheet" id="leaveSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol">Leave the battle?</div>
+    <p class="note" style="font-size:15px;color:var(--ink)">Leaving now counts as a loss.</p>
+    <div class="rbtns"><button class="gb green" id="stay">Keep playing</button><button class="gb red" id="forfeit">Leave</button></div>
+  </div>
+</div>
+<div class="sheet intro" id="intro" hidden><div class="pn" id="introPn"></div></div>
+<div class="overlay" id="over" hidden></div>
+<div class="vs" id="vs" hidden></div>
+<div id="callouts"></div>
+<canvas id="fx" aria-hidden="true"></canvas>
+</body>
+</html>

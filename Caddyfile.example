@@ -1,0 +1,6 @@
+# Replace play.example.com with your domain. Caddy obtains and renews the HTTPS certificate.
+# Run the server with: FT_BIND=127.0.0.1:8080 FT_TRUST_PROXY=1 FT_HSTS=1
+play.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+}
