@@ -427,7 +427,7 @@ a.gb{display:inline-block;text-align:center;text-decoration:none;color:#fff}
 .lbseason{text-align:center;font-size:13px;color:var(--ink2)}
 
 
-/* ---------- Evil Eye: an 8-second take-over when a rival's card is exposed ---------- */
+/* ---------- Evil Eye: a take-over (4 s build-up, reveal held until a tap) when a rival's card is exposed ---------- */
 .eye{position:fixed;inset:0;z-index:94;overflow:hidden;background:#0a0006;color:#fff;animation:eyIn .35s ease-out both;touch-action:none}
 .eye.out{animation:eyOut .6s ease-in both}
 @keyframes eyIn{from{opacity:0}}
@@ -691,6 +691,6 @@ body.tb-volcano .board{box-shadow:0 4px 0 var(--ol),inset 0 0 0 2px rgba(255,122
 .piggypop.bye{animation:pgOut .35s ease-in both}
 @keyframes pgIn{from{transform:translate(-50%,40px) scale(.6);opacity:0}}
 @keyframes pgOut{to{transform:translate(-50%,40px) scale(.7);opacity:0}}
-.eye .ey-cap::after{content:'Tap to continue';display:block;margin-top:6px;font-size:11px;letter-spacing:.08em;opacity:0;animation:tapHint 1s ease 5.2s both}
-@keyframes tapHint{to{opacity:.7}}
+.eye .ey-cap::after{content:'Tap to continue';display:block;margin-top:8px;font-size:13px;letter-spacing:.08em;opacity:0;animation:tapHint 1.6s ease-in-out 5s infinite both}
+@keyframes tapHint{0%,100%{opacity:.45}50%{opacity:1}}
 .eye.calm .ey-cap::after{opacity:.7}
