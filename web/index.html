@@ -36,7 +36,7 @@
         </div>
       </div>
       <div class="rew" id="rewards" hidden>
-        <div class="coinbox" id="coinBox" aria-label="Coins"></div>
+        <button class="coinbox" id="coinBox" type="button" aria-label="Coins and shop"></button>
         <button class="gb green chestbtn" id="chestBtn" type="button"></button>
         <button class="gb blue questbtn" id="questBtn" type="button"></button>
       </div>
@@ -136,6 +136,7 @@
     <p class="note" id="nickNote" aria-live="polite"></p>
     <span class="note">Card style · one unlocks per arena</span>
     <div class="cardpick" id="cardPick"></div>
+    <button class="gb blue sm" id="shopOpen" type="button" style="align-self:flex-start;margin-top:6px">Table & card back</button>
     <div class="acct">
       <span class="note">Your account</span>
       <p class="note">Saved on the server. Keep this code to restore on a new phone. Never share it.</p>
@@ -147,6 +148,13 @@
     <div class="setrow"><span>Music</span><button class="tog" id="musTog" role="switch" aria-checked="true" aria-label="Music"></button></div>
     <div class="setrow"><span>Sound effects</span><button class="tog" id="sndTog" role="switch" aria-checked="true" aria-label="Sound effects"></button></div>
     <button class="gb blue sm" id="replayIntro">Replay the intro</button>
+  </div>
+</div>
+<div class="sheet" id="shopSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol">Shop</div>
+    <button class="gb red sq xbtn" data-close aria-label="Close"></button>
+    <div id="shopBody"></div>
   </div>
 </div>
 <div class="sheet" id="questSheet" hidden>

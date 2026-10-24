@@ -17,7 +17,7 @@
 //! The data lives in memory and is written to one JSON file (atomically, via a temp file
 //! and rename). The hub task owns the `Store`, so there are no locks.
 
-use crate::economy::{self, Chest, ClaimError, PlayEvent, Quests, Tuning, CHEST_COINS, CHEST_MAX, DAILY_SLOTS, WEEKLY_SLOTS};
+use crate::economy::{self, Chest, ClaimError, ItemKind, ShopError, PlayEvent, Quests, Tuning, CHEST_COINS, CHEST_MAX, DAILY_SLOTS, WEEKLY_SLOTS};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -110,6 +110,14 @@ pub struct PlayerRec {
     /// Online matches finished (any kind).
     #[serde(default)]
     pub plays: u32,
+    /// Shop items bought with coins (free and trophy items are never listed here).
+    #[serde(default)]
+    pub owned: Vec<String>,
+    /// Equipped table theme and card back. Empty means the default.
+    #[serde(default)]
+    pub table: String,
+    #[serde(default)]
+    pub back: String,
 }
 
 impl PlayerRec {
@@ -130,7 +138,30 @@ impl PlayerRec {
             reward: None,
             prog: None,
             plays: 0,
+            owned: Vec::new(),
+            table: String::new(),
+            back: String::new(),
         }
+    }
+
+    /// Best trophy count known for this player: ranked trophies, or the browser's own report.
+    fn trophies(&self) -> u32 {
+        self.tr.max(self.prog.map_or(0, |p| p.tr))
+    }
+
+    fn has(&self, it: &economy::Item) -> bool {
+        if it.trophies > 0 {
+            return self.trophies() >= it.trophies;
+        }
+        it.price == 0 || self.owned.iter().any(|o| o == it.id)
+    }
+
+    fn equipped(&self, kind: ItemKind) -> &str {
+        let (v, d) = match kind {
+            ItemKind::Table => (&self.table, economy::DEFAULT_TABLE),
+            ItemKind::Back => (&self.back, economy::DEFAULT_BACK),
+        };
+        if v.is_empty() { d } else { v }
     }
 
     pub fn games(&self) -> u32 {
@@ -139,7 +170,7 @@ impl PlayerRec {
 
     /// Nothing worth keeping if the owner never comes back.
     fn pristine(&self) -> bool {
-        self.plays == 0 && self.games() == 0 && self.coins == 0 && self.prog.is_none()
+        self.plays == 0 && self.games() == 0 && self.coins == 0 && self.prog.is_none() && self.owned.is_empty()
     }
 }
 
@@ -457,6 +488,52 @@ impl Store {
         Ok(CHEST_COINS)
     }
 
+    /// Buy a shop item with coins. Returns the coins left.
+    pub fn buy(&mut self, pid: &str, id: &str) -> Result<u32, ShopError> {
+        let it = economy::item(id).ok_or(ShopError::Unknown)?;
+        let p = self.players.get_mut(pid).ok_or(ShopError::Unknown)?;
+        if it.price == 0 {
+            return Err(ShopError::NotForSale);
+        }
+        if p.has(it) {
+            return Err(ShopError::Owned);
+        }
+        if p.coins < it.price {
+            return Err(ShopError::Poor);
+        }
+        p.coins -= it.price;
+        p.owned.push(it.id.to_owned());
+        self.dirty = true;
+        Ok(p.coins)
+    }
+
+    /// Use an item the player has. Returns the card back now equipped (rivals see it).
+    pub fn equip(&mut self, pid: &str, kind: &str, id: &str) -> Result<String, ShopError> {
+        let kind = ItemKind::parse(kind).ok_or(ShopError::Unknown)?;
+        let it = economy::item(id).filter(|i| i.kind == kind).ok_or(ShopError::Unknown)?;
+        let p = self.players.get_mut(pid).ok_or(ShopError::Unknown)?;
+        if !p.has(it) {
+            return Err(if it.trophies > 0 { ShopError::Locked } else { ShopError::Poor });
+        }
+        match kind {
+            ItemKind::Table => p.table = it.id.to_owned(),
+            ItemKind::Back => p.back = it.id.to_owned(),
+        }
+        self.dirty = true;
+        Ok(p.equipped(ItemKind::Back).to_owned())
+    }
+
+    /// The card back a player shows to rivals. Falls back to the default if they no longer
+    /// qualify for a trophy item.
+    pub fn back_of(&self, pid: &str) -> String {
+        let Some(p) = self.players.get(pid) else { return economy::DEFAULT_BACK.to_owned() };
+        let id = p.equipped(ItemKind::Back);
+        match economy::item(id) {
+            Some(it) if p.has(it) => id.to_owned(),
+            _ => economy::DEFAULT_BACK.to_owned(),
+        }
+    }
+
     /// Collect a finished quest ("d0".."d2", "w0", "w1"). Returns its coins.
     pub fn claim_quest(&mut self, pid: &str, slot: &str, now: u64) -> Result<u32, ClaimError> {
         let t = self.tuning;
@@ -536,6 +613,11 @@ impl Store {
             "dailyIn": economy::secs_to_next_day(now, &t), "weeklyIn": economy::secs_to_next_week(now, &t),
             "season": { "name": economy::season_name(season), "endsIn": economy::season_ends_in(now, &t) },
             "reward": reward,
+            "shop": {
+                "items": economy::SHOP.iter().map(|i| json!({ "id": i.id, "kind": i.kind.as_str(), "price": i.price, "tr": i.trophies, "have": p.has(i) })).collect::<Vec<_>>(),
+                "table": p.equipped(ItemKind::Table),
+                "back": p.equipped(ItemKind::Back),
+            },
         });
         if changed {
             self.dirty = true;
@@ -858,6 +940,34 @@ mod tests {
         assert_eq!(s.get("pid-aaaaaaaa").unwrap().coins, CHEST_COINS);
         assert_eq!(s.claim_chest("pid-aaaaaaaa", 1000 + 100), Ok(CHEST_COINS), "the next one arrives on time");
         assert_eq!(s.claim_chest("pid-nobody00", 1), Err(ClaimError::Unknown));
+    }
+
+    #[test]
+    fn the_shop_takes_coins_once_and_only_lets_you_equip_what_you_have() {
+        let mut s = store();
+        let pid = "pid-aaaaaaaa";
+        s.register(pid, "Ann", 1000);
+        assert_eq!(s.buy(pid, "candy"), Err(ShopError::Poor));
+        assert_eq!(s.equip(pid, "table", "candy"), Err(ShopError::Poor));
+        s.get_mut(pid).unwrap().coins = 700;
+        assert_eq!(s.buy(pid, "candy"), Ok(400));
+        assert_eq!(s.buy(pid, "candy"), Err(ShopError::Owned));
+        assert_eq!(s.buy(pid, "peach"), Err(ShopError::NotForSale), "free items are not sold");
+        assert_eq!(s.buy(pid, "summit"), Err(ShopError::NotForSale), "trophy items are not sold");
+        assert_eq!(s.buy(pid, "nope"), Err(ShopError::Unknown));
+        assert_eq!(s.equip(pid, "table", "candy"), Ok("stripes".to_owned()));
+        assert_eq!(s.equip(pid, "back", "candy"), Err(ShopError::Unknown), "a table is not a card back");
+        assert_eq!(s.equip(pid, "back", "summit"), Err(ShopError::Locked));
+        assert_eq!(s.equip(pid, "back", "dots"), Ok("dots".to_owned()));
+        assert_eq!(s.back_of(pid), "dots");
+        let me = s.me_json(pid, 0).unwrap();
+        assert_eq!((me["coins"].as_u64(), me["shop"]["table"].as_str(), me["shop"]["back"].as_str()), (Some(400), Some("candy"), Some("dots")));
+        let have: Vec<&str> = me["shop"]["items"].as_array().unwrap().iter().filter(|i| i["have"] == true).map(|i| i["id"].as_str().unwrap()).collect();
+        assert_eq!(have, ["classic", "peach", "slate", "candy", "stripes", "dots", "chevron"]);
+        s.get_mut(pid).unwrap().tr = 1400;
+        assert_eq!(s.equip(pid, "back", "summit"), Ok("summit".to_owned()));
+        s.get_mut(pid).unwrap().tr = 0;
+        assert_eq!(s.back_of(pid), "stripes", "a trophy back is not shown once you no longer qualify");
     }
 
     #[test]

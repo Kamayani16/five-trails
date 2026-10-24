@@ -159,6 +159,8 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                     ClientMsg::Me => Some(HubCmd::Me { id }),
                     ClientMsg::Sync { tr, best, xp, ai, pvp } => Some(HubCmd::Sync { id, prog: crate::store::Prog { tr, best, xp, ai, pvp } }),
                     ClientMsg::ClaimChest => Some(HubCmd::ClaimChest { id }),
+                    ClientMsg::Buy { item } => Some(HubCmd::Buy { id, item }),
+                    ClientMsg::Equip { kind, item } => Some(HubCmd::Equip { id, kind, item }),
                     ClientMsg::ClaimQuest { slot } => Some(HubCmd::ClaimQuest { id, slot }),
                     ClientMsg::AckSeason => Some(HubCmd::AckSeason { id }),
                     ClientMsg::Bot => Some(HubCmd::Bot { id }),

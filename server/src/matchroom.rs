@@ -67,7 +67,7 @@ impl Player {
 
     /// The computer. It is always "connected", never "leaves" and has nothing to send to.
     pub fn bot(name: &str, trophies: u32) -> Self {
-        let profile = Profile { name: name.to_owned(), pid: BOT_PID.to_owned(), trophies, level: 1 };
+        let profile = Profile { name: name.to_owned(), pid: BOT_PID.to_owned(), trophies, level: 1, back: crate::economy::DEFAULT_BACK.to_owned() };
         Self { profile, token: String::new(), conn: Some(BOT_CONN), tx: None, gone_since: None, left: true, rematch: false, last_emote: None, bot: true }
     }
 }
@@ -510,6 +510,9 @@ impl MatchRoom {
         if opp.bot {
             opp_json["bot"] = json!(true);
             opp_json["tier"] = json!(self.tier);
+            // The computer shows a card back that matches how tough it is.
+            const BOT_BACKS: [&str; 7] = ["stripes", "dots", "chevron", "paws", "flames", "circuit", "crest"];
+            opp_json["back"] = json!(BOT_BACKS[self.tier.min(BOT_BACKS.len() - 1)]);
         }
         let m = json!({
             "t": "match",

@@ -266,6 +266,43 @@ function callout(text,c1='#ffd23a',sub=''){coQ=coQ.then(()=>new Promise(res=>{co
  d.innerHTML=`<div class="co-t ol" style="--c1:${c1};color:${c1}">${esc(text)}</div>${sub?`<div class="co-s ol">${esc(sub)}</div>`:''}`;$('callouts').appendChild(d);
  setTimeout(()=>d.remove(),1300);setTimeout(res,reduced?250:720)}))}
 function popup(el,text,cls){if(!el)return;const[x,y]=centerOf(el);const d=document.createElement('div');d.className='popn ol '+cls;d.textContent=text;d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);setTimeout(()=>d.remove(),1300)}
+/* ================= Shop: table themes (your screen) and card backs (what rivals see) ================= */
+const SHOP0=[['classic','table',0],['peach','table',0],['slate','table',0],['candy','table',300],['bubble','table',300],['ocean','table',300],['blossom','table',450],['camo','table',450],['neon','table',450],['steel','table',600],['volcano','table',600],
+ ['stripes','back',0],['dots','back',0],['chevron','back',0],['paws','back',200],['stars','back',250],['flames','back',300],['bolt','back',300],['circuit','back',400],['crest','back',750],['summit','back',0,1400]].map(([id,kind,price,tr])=>({id,kind,price,tr:tr||0}));
+const SHOPN={classic:'Classic Blue',peach:'Peach Sorbet',slate:'Slate Night',candy:'Candy Pop',bubble:'Bubble Tea',ocean:'Ocean Breeze',blossom:'Cherry Blossom',camo:'Jungle Camo',neon:'Neon Arcade',steel:'Midnight Steel',volcano:'Volcanic',
+ stripes:'Classic Stripes',dots:'Polka Dots',chevron:'Chevron',paws:'Paw Prints',stars:'Stars & Moon',flames:'Flames',bolt:'Lightning Bolt',circuit:'Circuit Board',crest:'Golden Crest',summit:'Summit Crown'};
+const AI_BACKS=['stripes','dots','chevron','paws','flames','circuit','crest'];
+const okItem=(id,kind)=>SHOP0.some(i=>i.id===id&&i.kind===kind);
+let EQ={table:'classic',back:'stripes'},shopTab='table',shopArmed=null;
+function shopItems(){if(ME&&ME.shop)return ME.shop.items;const t=Math.max(REC.best,REC.tr);return SHOP0.map(i=>({...i,have:i.tr?t>=i.tr:i.price===0}))}
+function applyTheme(){const b=document.body;[...b.classList].filter(c=>c.startsWith('tb-')).forEach(c=>b.classList.remove(c));b.classList.add('tb-'+EQ.table)}
+function setBk(el,id){if(!el)return;[...el.classList].filter(c=>c.startsWith('bk-')).forEach(c=>el.classList.remove(c));if(id&&id!=='stripes')el.classList.add('bk-'+id)}
+function oppBack(){if(M&&M.mode==='ai')return AI_BACKS[Math.min(AI_BACKS.length-1,M.tier||0)];return M&&M.opp&&okItem(M.opp.back,'back')?M.opp.back:'stripes'}
+function equipLocal(kind,id){EQ[kind]=id;ST.set('ft-'+kind,id);applyTheme()}
+function renderShop(){const body=$('shopBody');if(!body)return;const items=shopItems().filter(i=>i.kind===shopTab),coins=ME?ME.coins:null;
+ const sw=id=>shopTab==='table'?`<div class="tsw tb-${id}">${[0,1,2,3,4].map(c=>`<i style="left:${20+c*13}%;background:${COL[c].cc}"></i>`).join('')}</div>`:`<div class="back bkp bk-${id}"></div>`;
+ const chip=i=>{if(EQ[i.kind]===i.id)return'<span class="pr own">In use</span>';if(i.have)return'<span class="pr use">Use</span>';
+  if(i.tr)return`<span class="pr lock">${IC.cup}${i.tr}</span>`;if(shopArmed===i.id)return`<span class="pr buy">Buy? ${COIN}${i.price}</span>`;
+  return`<span class="pr buy ${coins!=null&&coins<i.price?'poor':''}">${COIN}${i.price}</span>`};
+ body.innerHTML=`<div class="shoptabs" role="tablist"><button type="button" data-st="table" class="${shopTab==='table'?'on':''}">Tables</button><button type="button" data-st="back" class="${shopTab==='back'?'on':''}">Card backs</button></div>
+  ${coins!=null?`<div class="shopbal">${COIN}<span>${coins}</span></div>`:''}
+  <div class="shopgrid">${items.map(i=>`<button type="button" class="si ${EQ[i.kind]===i.id?'eq':''} ${shopArmed===i.id?'armed':''}" data-id="${i.id}" aria-label="${SHOPN[i.id]||i.id}">${sw(i.id)}<span class="nm">${SHOPN[i.id]||i.id}</span>${chip(i)}</button>`).join('')}</div>
+  <p class="shopnote">${shopTab==='table'?'Your table theme changes how the game looks for you.':'Your rival sees your card back during battles.'}${ME?'':' Go online to buy with coins.'}</p>`;
+ body.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{sfx('ui');shopTab=b.dataset.st;shopArmed=null;renderShop()});
+ body.querySelectorAll('.si').forEach(b=>b.onclick=()=>shopTap(b.dataset.id))}
+function shopTap(id){const i=shopItems().find(x=>x.id===id);if(!i)return;
+ if(EQ[i.kind]===id){sfx('ui');return}
+ if(i.have){sfx('select');shopArmed=null;equipLocal(i.kind,id);if(ME&&NET.ready)NET.send({t:'equip',kind:i.kind,item:id});renderShop();return}
+ if(i.tr){sfx('bad');toast(`Reach ${i.tr} trophies to unlock ${SHOPN[id]}.`);return}
+ if(!ME||!NET.ready){sfx('bad');toast('Go online to buy with coins.');return}
+ if(ME.coins<i.price){sfx('bad');toast(`You need ${i.price-ME.coins} more coins for ${SHOPN[id]}.`);return}
+ if(shopArmed!==id){sfx('select');shopArmed=id;renderShop();return}
+ shopArmed=null;NET.send({t:'buy',item:id});renderShop()}
+function onBought(m){const id=String(m.item||''),it=SHOP0.find(i=>i.id===id);if(!it)return;sfx('coin');setTimeout(()=>sfx('levelup'),120);
+ equipLocal(it.kind,id);NET.send({t:'equip',kind:it.kind,item:id});
+ const el=document.querySelector(`.si[data-id="${id}"]`);if(el&&el.getBoundingClientRect().width){const[x,y]=centerOf(el);burst(x,y,['#ffd23a','#fff','#7dffa0'],26,{sp:7})}
+ callout(SHOPN[id],'#ffd23a','Yours! Equipped')}
+EQ={table:okItem(ST.get('ft-table','classic'),'table')?ST.get('ft-table','classic'):'classic',back:okItem(ST.get('ft-back','stripes'),'back')?ST.get('ft-back','stripes'):'stripes'};
 function toast(t){document.querySelectorAll('.toast').forEach(e=>e.remove());const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2800)}
 function tween(ms,fn,done){if(reduced){fn(1);done&&done();return}const t0=performance.now();const step=t=>{const k=Math.min(1,(t-t0)/ms);fn(1-Math.pow(1-k,3));if(k<1)requestAnimationFrame(step);else done&&done()};requestAnimationFrame(step)}
 
@@ -361,12 +398,13 @@ const ERRS={room_not_found:'No open room has that code. Check it and try again.'
  opponent_left:'Your opponent has left.',opponent_away:'Waiting for your opponent to reconnect.',rate_limited:'Slow down a little.',replaced:'This battle continued in another tab.',
  code_taken:'That room code is already in use. Pick another one.',bad_code:'A room code is exactly 5 letters.',name_taken:'That name is taken. Try another.',
  no_chest:'No chest is ready yet.',quest_not_done:'Finish that quest first.',already_claimed:'Already collected.',bad_quest:'That quest is not available any more.',
- bot_unavailable:'The computer is not available yet. Keep waiting a little.',unknown_key:'No account has that recovery code.'};
+ bot_unavailable:'The computer is not available yet. Keep waiting a little.',not_enough_coins:'Not enough coins yet.',already_owned:'You already own that.',not_for_sale:'That one is not sold.',item_locked:'Win more trophies to unlock that.',bad_item:'That item is not available.',unknown_key:'No account has that recovery code.'};
 function onServer(m){switch(m.t){
  case 'welcome':onWelcome(m);break;
  case 'name':if(typeof m.name==='string'&&m.name){commitName(m.name);ST.set('ft-nick-pending',false);nameReply(true)}break;
- case 'me':ME=cleanMe(m);renderRewards();if(!$('questSheet').hidden)renderQuests();scheduleReminders();maybeShowReward();break;
+ case 'me':ME=cleanMe(m);if(ME.shop){EQ.table=ME.shop.table;EQ.back=ME.shop.back;ST.set('ft-table',EQ.table);ST.set('ft-back',EQ.back);applyTheme()}if(!$('shopSheet').hidden)renderShop();renderRewards();if(!$('questSheet').hidden)renderQuests();scheduleReminders();maybeShowReward();break;
  case 'claimed':onClaimed(m);break;
+ case 'bought':onBought(m);break;
  case 'bot_offer':if(M.mode==='queue'){$('botOffer').hidden=false;sfx('join')}break;
  case 'leaderboard':{const l=cleanLB(m);LBS[l.scope]=l;if(curTab==='leaders')renderLeaders();break}
  case 'stats':NET.stats=m.stats||null;netChanged();break;
@@ -406,7 +444,7 @@ function onWelcome(m){NET.ready=true;NET.stats=m.stats||null;NET.roomTtl=Math.ma
   else if(REC.xp>0)syncProg()}
  netChanged();if(curTab==='leaders')requestLeaders()}
 function onMatch(m){const v=m.view,o=m.opp;if(!v||typeof v!=='object'||!o)return;SS.set('ft-resume',typeof m.token==='string'?m.token:null);
- const opp={nick:String(o.name||'Opponent').slice(0,16),tr:Math.max(0,Number(o.tr)||0),lv:Math.max(1,Number(o.lv)||1),pid:String(o.pid||'').slice(0,64),bot:o.bot===true,tier:Math.max(0,Math.min(ARENAS.length-1,Math.floor(Number(o.tier))||0))};
+ const opp={nick:String(o.name||'Opponent').slice(0,16),tr:Math.max(0,Number(o.tr)||0),lv:Math.max(1,Number(o.lv)||1),pid:String(o.pid||'').slice(0,64),bot:o.bot===true,tier:Math.max(0,Math.min(ARENAS.length-1,Math.floor(Number(o.tier))||0)),back:okItem(o.back,'back')?o.back:'stripes'};
  if(M.mode!=='online')M={mode:'online',oppEmoT:undefined};
  Object.assign(M,{opp,oppKey:'p:'+opp.pid,kind:m.kind==='room'?'room':m.kind==='bot'?'bot':'quick',code:typeof m.code==='string'?m.code.replace(/[^A-Z]/g,''):null,
   oppHere:m.oppConnected!==false,oppLeft:false,closed:false,reconnecting:false,iWantRm:null,theyWantRm:null});
@@ -491,6 +529,7 @@ $('tab-guide').innerHTML=`
   <p>A free chest every few hours (bank of 2), plus daily and weekly quests. Saved on the server.</p>
   <p>Quick matches feed a monthly season; top players win coins when it ends.</p>
   <p>No one around? Play the computer: unranked, still counts for quests.</p>
+  <p>Spend coins in the Shop (tap your coins): table themes for your screen, and card backs your rival sees. Three of each are free.</p>
   <button class="gb blue sm" id="replayIntro2" style="align-self:flex-start">Replay intro</button></div>`;
  $('replayIntro2').onclick=()=>{sfx('ui');openIntro()}}
 let curTab='battle';
@@ -535,7 +574,10 @@ function cleanMe(m){
  const r=m.reward&&typeof m.reward==='object'?{season:String(m.reward.season||'').slice(0,30),rank:numOf(m.reward.rank),coins:numOf(m.reward.coins)}:null;
  return{coins:numOf(m.coins),chest:{n:numOf(c.n,9),max:Math.max(1,numOf(c.max,9)),nextIn:c.nextIn==null?null:numOf(c.nextIn,1e7),every:numOf(c.every,1e7),coins:numOf(c.coins)},
   daily:q(m.daily),weekly:q(m.weekly),dailyIn:numOf(m.dailyIn,1e7),weeklyIn:numOf(m.weeklyIn,1e8),
-  season:{name:String(m.season&&m.season.name||'').slice(0,30),endsIn:numOf(m.season&&m.season.endsIn)},reward:r,at:Date.now()}}
+  season:{name:String(m.season&&m.season.name||'').slice(0,30),endsIn:numOf(m.season&&m.season.endsIn)},reward:r,shop:cleanShop(m.shop),at:Date.now()}}
+function cleanShop(x){if(!x||typeof x!=='object'||!Array.isArray(x.items))return null;
+ const items=x.items.filter(i=>i&&okItem(i.id,i.kind)).map(i=>({id:i.id,kind:i.kind,price:numOf(i.price),tr:numOf(i.tr),have:i.have===true}));
+ return{items,table:okItem(x.table,'table')?x.table:'classic',back:okItem(x.back,'back')?x.back:'stripes'}}
 /* Seconds left of a countdown the server reported `secs` seconds ago. */
 const left=secs=>Math.max(0,secs-(Date.now()-(ME?ME.at:Date.now()))/1000);
 function fmtSpan(s){s=Math.max(0,Math.floor(s));const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d>=2?`${d} days`:d===1?`1 day ${h} h`:h>=1?`${h} h ${m} min`:`${Math.max(1,m)} min`}
@@ -544,7 +586,7 @@ let chestState=null,meAsked=false;
 function renderRewards(){const el=$('rewards');if(!el)return;
  if(!ME||!SERVER_URL){el.hidden=true;return}
  el.hidden=false;meAsked=false;
- $('coinBox').innerHTML=COIN+`<span class="ol">${ME.coins}</span>`;
+ $('coinBox').innerHTML=`<span class="cb-row">${COIN}<span class="ol">${ME.coins}</span></span><small>SHOP</small>`;
  const c=ME.chest,b=$('chestBtn');chestState=c.n>0?'ready':'wait';
  if(c.n>0){b.className='gb green chestbtn ready';b.innerHTML=`<span>Open chest${c.n>1?' ×'+c.n:''}</span><small>+${c.coins} coins</small>`}
  else{b.className='gb chestbtn wait';b.innerHTML=`<span>Free chest</span><small class="cb-s">${c.nextIn==null?'':'in '+fmtClock(left(c.nextIn))}</small>`}
@@ -688,8 +730,8 @@ function renderGame(){
  else document.querySelectorAll('#game [data-id]').forEach(el=>{const id=el.dataset.id;now.add(id);const p=prev.get(id);
   if(p)animateFrom(el,p.r);else if(ev)animateFrom(el,el.closest('#hand')?deckR:oppR)});
  if(!newGame){prev.forEach((p,id)=>{if(!now.has(id))ghost(p.h,p.r,oppR,true)});
-  if(ev&&ev.k==='sab'&&ev.by==='me')ghost('<div class="back" style="border-radius:8px"></div>',deckR,oppR,true);
-  if(ev&&ev.by==='opp'&&ev.k==='draw'&&ev.p<0)ghost('<div class="back" style="border-radius:8px"></div>',deckR,oppR,true)}
+  if(ev&&ev.k==='sab'&&ev.by==='me')ghost(`<div class="back bk-${oppBack()}" style="border-radius:8px"></div>`,deckR,oppR,true);
+  if(ev&&ev.by==='opp'&&ev.k==='draw'&&ev.p<0)ghost(`<div class="back bk-${oppBack()}" style="border-radius:8px"></div>`,deckR,oppR,true)}
  if(ev&&(ev.k==='eye'||ev.k==='sab'))powerScene(ev,opp);
  {const nowRu=!!(V.ru&&V.ru.seat===0);if(nowRu&&!M.ruWas&&!V.ov){callout('Rushed!','#ff7aa8','10 seconds. Go!');sfx('alarm');shake(1)}M.ruWas=nowRu}
  if(ev){eventSfx(ev);fxEvent(ev,opp);if(ev.by==='opp'&&ev.k==='draw'&&!V.ov)setTimeout(()=>sfx('turn'),250)}
@@ -734,7 +776,7 @@ function vsSplash(cb){const o=$('vs'),opp=oppInfo(),me_=meInfo(),ai=arenaIdx(REC
  setTimeout(()=>{if(!reduced)burst(innerWidth/2,innerHeight/2,['#ffd23a','#fff','#ffaa00'],30,{sp:9})},520);
  setTimeout(()=>{o.classList.add('out');setTimeout(()=>{o.hidden=true;o.classList.remove('out');cb&&cb()},300)},reduced?600:2100)}
 let eyeUntil=0,eyeT=null;
-function paintOppHand(){const el=$('oppHand');if(!el||!V)return;const busy=Date.now()<eyeUntil;
+function paintOppHand(){const el=$('oppHand');if(!el||!V)return;setBk(el,oppBack());const busy=Date.now()<eyeUntil;
  if(V.ey>=0&&!busy&&V.on>0)el.innerHTML='<div class="back"></div>'.repeat(V.on-1)+`<div class="peek" title="You saw this card with the Evil Eye">${mini(V.ey,30)}</div>`;
  else el.innerHTML='<div class="back"></div>'.repeat(V.on)}
 function paintEyeMarks(){if(!V||Date.now()<eyeUntil)return;document.querySelectorAll('#hand .seen').forEach(e=>e.classList.remove('seen'));
@@ -751,7 +793,7 @@ function powerScene(ev,opp){const o=$('eye');if(!o)return;const sab=ev.k==='sab'
  const sub=sab?(mine?`Striking ${esc(opp.name)}'s hand…`:`${esc(opp.name)} is striking your hand…`):(mine?`Searching ${esc(opp.name)}'s hand…`:`${esc(opp.name)} is searching your hand…`);
  const cap=sab?(mine?`${esc(opp.name)} draws a new card`:'You draw a replacement'):(mine?`${esc(opp.name)} holds it · your turn ${turn}`:`Exposed to ${esc(opp.name)} · their turn ${turn}`);
  const centre=sab?`<div class="ey-eyew sb-bolt">${BOLT_SVG}</div>`:`<div class="ey-eyew">${EYE_SVG}</div>`;
- o.className='eye '+(sab?'sab ':'')+(mine?'mine':'theirs')+(reduced?' calm':'');
+ o.className='eye '+(sab?'sab ':'')+(mine?'mine':'theirs')+(reduced?' calm':'');setBk(o,mine?oppBack():EQ.back);
  o.innerHTML=`<div class="ey-veil"></div><div class="ey-crack"></div><div class="ey-top ol">${title}</div>${centre}<div class="ey-sub ol">${sub}</div>
   <div class="ey-fan">${fan}<div class="ey-beam"></div><div class="sb-slash"></div><div class="sb-slash s2"></div></div>
   <div class="ey-cap ol"><b>${esc(nm)}</b>${cap}</div><div class="ey-flash"></div>`;
@@ -943,6 +985,8 @@ $('cardPick').addEventListener('click',e=>{const b=e.target.closest('[data-cs]')
 $('replayIntro').onclick=()=>{sfx('ui');openIntro()};
 /* ---- Rewards, quests, computer offer ---- */
 $('chestBtn').onclick=()=>{sfx('ui');if(ME&&ME.chest.n>0)NET.send({t:'claim_chest'});else if(ME&&ME.chest.nextIn!=null)toast(`Your next free chest arrives in ${fmtSpan(left(ME.chest.nextIn))}.`)};
+$('coinBox').onclick=()=>{sfx('ui');shopArmed=null;renderShop();openSheet('shopSheet')};
+$('shopOpen').onclick=()=>{sfx('ui');shopArmed=null;renderShop();openSheet('shopSheet')};
 $('questBtn').onclick=()=>{sfx('ui');renderQuests();openSheet('questSheet')};
 $('botGo').onclick=()=>{sfx('ui');NET.send({t:'bot'})};
 $('botWait').onclick=()=>{sfx('ui');$('botOffer').hidden=true};
@@ -983,7 +1027,7 @@ $('musTog').onclick=()=>{musicOn=!musicOn;ST.set('ft-music',musicOn);paintSound(
 $('navBattle').innerHTML=IC.swords+'Battle';$('navLeaders').innerHTML=IC.crown+'Ranks';$('navRecords').innerHTML=IC.cup+'Records';$('navGuide').innerHTML=IC.book+'Guide';
 $('gearBtn').innerHTML=IC.gear;$('leave').innerHTML=IC.x;$('emoBtn').innerHTML=IC.chat;$('clkLbl').innerHTML=IC.clock+'Clock each';
 document.querySelectorAll('.xbtn').forEach(b=>b.innerHTML=IC.x);
-paintSound();paintPicker();applyCards();renderGuide();paintKey();paintRem();renderHome();
+paintSound();paintPicker();applyCards();applyTheme();renderGuide();paintKey();paintRem();renderHome();
 const hc0=(location.hash||'').slice(1).toUpperCase();if(/^[A-Z]{5}$/.test(hc0)){$('joinCode').value=hc0}
 if(!ST.get('ft-intro',false))openIntro();else if(/^[A-Z]{5}$/.test(hc0))openSheet('friendSheet');
 NET.connect();

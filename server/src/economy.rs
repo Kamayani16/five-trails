@@ -113,6 +113,97 @@ pub fn season_reward(rank: usize, games: u32) -> u32 {
     }
 }
 
+// ---------------------------------------------------------------- shop
+
+/// What a shop item changes: your own table, or the card back your rival sees.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemKind {
+    Table,
+    Back,
+}
+
+impl ItemKind {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "table" => Some(Self::Table),
+            "back" => Some(Self::Back),
+            _ => None,
+        }
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Table => "table",
+            Self::Back => "back",
+        }
+    }
+}
+
+/// One cosmetic. `price` 0 with `trophies` 0 is free for everyone; `trophies` > 0 means it
+/// cannot be bought and unlocks at that trophy count instead.
+#[derive(Clone, Copy, Debug)]
+pub struct Item {
+    pub id: &'static str,
+    pub kind: ItemKind,
+    pub price: u32,
+    pub trophies: u32,
+}
+
+const fn it(id: &'static str, kind: ItemKind, price: u32, trophies: u32) -> Item {
+    Item { id, kind, price, trophies }
+}
+
+pub const DEFAULT_TABLE: &str = "classic";
+pub const DEFAULT_BACK: &str = "stripes";
+
+pub const SHOP: [Item; 21] = [
+    it("classic", ItemKind::Table, 0, 0),
+    it("peach", ItemKind::Table, 0, 0),
+    it("slate", ItemKind::Table, 0, 0),
+    it("candy", ItemKind::Table, 300, 0),
+    it("bubble", ItemKind::Table, 300, 0),
+    it("ocean", ItemKind::Table, 300, 0),
+    it("blossom", ItemKind::Table, 450, 0),
+    it("camo", ItemKind::Table, 450, 0),
+    it("neon", ItemKind::Table, 450, 0),
+    it("steel", ItemKind::Table, 600, 0),
+    it("volcano", ItemKind::Table, 600, 0),
+    it("stripes", ItemKind::Back, 0, 0),
+    it("dots", ItemKind::Back, 0, 0),
+    it("chevron", ItemKind::Back, 0, 0),
+    it("paws", ItemKind::Back, 200, 0),
+    it("stars", ItemKind::Back, 250, 0),
+    it("flames", ItemKind::Back, 300, 0),
+    it("bolt", ItemKind::Back, 300, 0),
+    it("circuit", ItemKind::Back, 400, 0),
+    it("crest", ItemKind::Back, 750, 0),
+    it("summit", ItemKind::Back, 0, 1400),
+];
+
+pub fn item(id: &str) -> Option<&'static Item> {
+    SHOP.iter().find(|i| i.id == id)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShopError {
+    Unknown,
+    NotForSale,
+    Owned,
+    Poor,
+    Locked,
+}
+
+impl ShopError {
+    pub fn code(self) -> &'static str {
+        match self {
+            ShopError::Unknown => "bad_item",
+            ShopError::NotForSale => "not_for_sale",
+            ShopError::Owned => "already_owned",
+            ShopError::Poor => "not_enough_coins",
+            ShopError::Locked => "item_locked",
+        }
+    }
+}
+
 // ---------------------------------------------------------------- chest
 
 /// Banked free chests. `n` are waiting; `next` is when the next one arrives (0 while full).
@@ -549,6 +640,20 @@ mod tests {
         assert_eq!(q.w, w0, "weekly progress survives a new day");
         q.refresh(monday + 7 * DAY, &T); // next Monday
         assert_eq!(q.w, [0; WEEKLY_SLOTS]);
+    }
+
+    #[test]
+    fn the_shop_has_unique_ids_three_free_of_each_kind_and_one_trophy_back() {
+        let mut ids: Vec<&str> = SHOP.iter().map(|i| i.id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), SHOP.len());
+        for k in [ItemKind::Table, ItemKind::Back] {
+            assert_eq!(SHOP.iter().filter(|i| i.kind == k && i.price == 0 && i.trophies == 0).count(), 3);
+        }
+        assert_eq!(item(DEFAULT_TABLE).map(|i| i.kind), Some(ItemKind::Table));
+        assert_eq!(item(DEFAULT_BACK).map(|i| i.kind), Some(ItemKind::Back));
+        assert!(item("summit").is_some_and(|i| i.trophies > 0 && i.price == 0));
     }
 
     #[test]

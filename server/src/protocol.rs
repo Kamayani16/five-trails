@@ -55,6 +55,15 @@ pub enum ClientMsg {
     ClaimQuest {
         slot: String,
     },
+    /// Spend coins on a shop item.
+    Buy {
+        item: String,
+    },
+    /// Use an owned item: `kind` is "table" or "back".
+    Equip {
+        kind: String,
+        item: String,
+    },
     /// Say the season-end reward has been seen.
     AckSeason,
     /// While waiting in the quick-match queue: play the computer instead.
@@ -115,11 +124,13 @@ pub struct Profile {
     pub pid: String,
     pub trophies: u32,
     pub level: u32,
+    /// The card back this player has equipped (their rival sees it).
+    pub back: String,
 }
 
 impl Profile {
     pub fn to_json(&self) -> Value {
-        json!({ "name": self.name, "pid": self.pid, "tr": self.trophies, "lv": self.level })
+        json!({ "name": self.name, "pid": self.pid, "tr": self.trophies, "lv": self.level, "back": self.back })
     }
 }
 
@@ -182,6 +193,7 @@ pub fn profile_from_hello(name: &str, pid: &str, tr: u32, lv: u32) -> Option<Pro
         pid: clean_pid(pid)?,
         trophies: tr.min(1_000_000),
         level: lv.clamp(1, 10_000),
+        back: crate::economy::DEFAULT_BACK.to_owned(),
     })
 }
 
@@ -206,6 +218,8 @@ mod tests {
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"leaderboard"}"#), Ok(ClientMsg::Leaderboard { season: false })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"leaderboard","season":true}"#), Ok(ClientMsg::Leaderboard { season: true })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"claim_chest"}"#), Ok(ClientMsg::ClaimChest)));
+        assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"buy","item":"candy"}"#), Ok(ClientMsg::Buy { .. })));
+        assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"equip","kind":"back","item":"dots"}"#), Ok(ClientMsg::Equip { .. })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"claim_quest","slot":"d1"}"#), Ok(ClientMsg::ClaimQuest { .. })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"bot"}"#), Ok(ClientMsg::Bot)));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"sync","tr":1,"best":2,"xp":3,"ai":[1,2,3],"pvp":[0,0,0]}"#), Ok(ClientMsg::Sync { xp: 3, .. })));

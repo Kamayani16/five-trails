@@ -63,6 +63,8 @@ pub enum HubCmd {
     Sync { id: ConnId, prog: Prog },
     ClaimChest { id: ConnId },
     ClaimQuest { id: ConnId, slot: String },
+    Buy { id: ConnId, item: String },
+    Equip { id: ConnId, kind: String, item: String },
     AckSeason { id: ConnId },
     /// Play the computer instead of waiting for an opponent.
     Bot { id: ConnId },
@@ -329,6 +331,7 @@ impl Hub {
                 self.ranking_dirty = true;
                 profile.name = login.name.clone();
                 profile.pid = login.pid.clone();
+                profile.back = self.store.back_of(&login.pid);
                 let prog = self.store.prog(&login.pid);
                 let Some(c) = self.conns.get_mut(&id) else { return };
                 c.profile = Some(profile);
@@ -397,6 +400,28 @@ impl Hub {
                 match self.store.claim_quest(&pid, &slot, store::now_secs()) {
                     Ok(coins) => {
                         self.send(id, protocol::msg(json!({ "t": "claimed", "what": "quest", "slot": slot, "coins": coins })));
+                        self.send_me_to_pid(&pid);
+                    }
+                    Err(e) => self.send(id, protocol::error(e.code())),
+                }
+            }
+            HubCmd::Buy { id, item } => {
+                let Some(pid) = self.pid_of(id) else { return };
+                match self.store.buy(&pid, &item) {
+                    Ok(coins) => {
+                        self.send(id, protocol::msg(json!({ "t": "bought", "item": item, "coins": coins })));
+                        self.send_me_to_pid(&pid);
+                    }
+                    Err(e) => self.send(id, protocol::error(e.code())),
+                }
+            }
+            HubCmd::Equip { id, kind, item } => {
+                let Some(pid) = self.pid_of(id) else { return };
+                match self.store.equip(&pid, &kind, &item) {
+                    Ok(back) => {
+                        if let Some(p) = self.conns.get_mut(&id).and_then(|c| c.profile.as_mut()) {
+                            p.back = back;
+                        }
                         self.send_me_to_pid(&pid);
                     }
                     Err(e) => self.send(id, protocol::error(e.code())),
@@ -905,6 +930,24 @@ mod tests {
         hub.handle(HubCmd::Hello { id: 2, key_hash: store::test_auth("pid-00000001"), profile, create: true, resume: None });
         let w = all_msgs(&mut rx2);
         assert_eq!((w[0]["prog"]["xp"].as_u64(), w[0]["prog"]["best"].as_u64(), w[0]["prog"]["ai"][0].as_u64()), (Some(800), Some(120), Some(3)));
+    }
+
+    #[test]
+    fn buying_and_equipping_a_card_back_updates_what_rivals_will_see() {
+        let (mut hub, mut rx) = hub_with_players(1, Duration::from_secs(120));
+        all_msgs(&mut rx[0]);
+        let pid = hub.pid_of(1).unwrap();
+        hub.handle(HubCmd::Buy { id: 1, item: "paws".into() });
+        assert_eq!(last_msg(&mut rx[0])["code"], "not_enough_coins");
+        hub.store.get_mut(&pid).unwrap().coins = 250;
+        hub.handle(HubCmd::Buy { id: 1, item: "paws".into() });
+        let m = all_msgs(&mut rx[0]);
+        assert_eq!((m[0]["t"].as_str(), m[0]["coins"].as_u64()), (Some("bought"), Some(50)));
+        assert_eq!(m[1]["coins"], 50);
+        hub.handle(HubCmd::Equip { id: 1, kind: "back".into(), item: "paws".into() });
+        assert_eq!(last_msg(&mut rx[0])["shop"]["back"], "paws");
+        assert_eq!(hub.conns[&1].profile.as_ref().unwrap().back, "paws");
+        assert_eq!(hub.conns[&1].profile.as_ref().unwrap().to_json()["back"], "paws");
     }
 
     #[test]
