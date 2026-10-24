@@ -693,4 +693,14 @@ body.tb-volcano .board{box-shadow:0 4px 0 var(--ol),inset 0 0 0 2px rgba(255,122
 @keyframes pgOut{to{transform:translate(-50%,40px) scale(.7);opacity:0}}
 .eye .ey-cap::after{content:'Tap to continue';display:block;margin-top:8px;font-size:13px;letter-spacing:.08em;opacity:0;animation:tapHint 1.6s ease-in-out 5s infinite both}
 @keyframes tapHint{0%,100%{opacity:.45}50%{opacity:1}}
-.eye.calm .ey-cap::after{opacity:.7}
+.eye.calm .ey-cap::after{opacity:.85}
+
+/* Reduce Motion: things that carry a message (opponent's chat bubble, big callouts like
+   "Your turn!" or "Rushed!", score pop-ups) still appear and stay long enough to read.
+   They fade instead of moving; everything else stays still. */
+@keyframes rmShow{0%{opacity:0}8%,85%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+ .bubble{animation:rmShow 2.6s linear forwards!important;animation-duration:2.6s!important}
+ .callout{animation:rmShow 1.6s linear forwards!important;animation-duration:1.6s!important}
+ .popn{animation:rmShow 1.2s linear forwards!important;animation-duration:1.2s!important}
+}
