@@ -3,7 +3,7 @@ name = "five-trails-server"
 version = "1.0.0"
 edition = "2021"
 rust-version = "1.82"
-description = "Stateless matchmaking and authoritative match server for Five Trails"
+description = "Matchmaking, leaderboard and authoritative match server for Five Trails"
 license = "MIT"
 publish = false
 
@@ -17,6 +17,7 @@ rand = "0.8"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sha2 = "0.10"
 
 [profile.release]
 lto = true

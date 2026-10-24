@@ -4,11 +4,12 @@ A two-player expedition card battler you can play in the browser, against the co
 
 ```
 five-trails/
-├── server/          Rust server: player discovery, matchmaking and authoritative matches
+├── server/          Rust server: names, leaderboard, matchmaking and authoritative matches
 │   └── src/
 │       ├── main.rs        HTTP + WebSocket entry point, security headers, static files
 │       ├── conn.rs        One task per WebSocket: origin check, limits, message routing
 │       ├── hub.rs         Who is online, quick-match queue, private rooms, resume tokens
+│       ├── store.rs       Unique player names and the ranked leaderboard (saved to disk)
 │       ├── matchroom.rs   One task per match: applies moves, clocks, reconnects, rematches
 │       ├── game.rs        Rules engine and per-player views (unit tested)
 │       ├── protocol.rs    Wire messages and input validation
@@ -21,8 +22,10 @@ five-trails/
 
 ## How it fits together
 
-- **Player data stays in the browser.** Name, player id, trophies, XP, match history, head-to-head records and settings are kept in IndexedDB (`five-trails` database). The server never stores any of it.
-- **The server is stateless.** It writes nothing to disk and has no database. It only holds live things in memory: who is connected, the quick-match queue, open rooms and running matches. Restarting it ends any live matches.
+- **Most player data stays in the browser.** Trophies, XP, match history, head-to-head records, card style and settings are kept in IndexedDB (`five-trails` database).
+- **Accounts, rewards and seasons (protocol v2):** each device holds a secret 20-character recovery code (Settings → Account). Only its SHA-256 hash is sent on to the game; the opponent sees a public id only. Entering the code on another device restores the account, coins and a backup of progress. Coins come from a free chest (every 6 h, bank of 2), daily quests (3) and weekly quests (2), and monthly season rewards (leaderboard resets monthly; all-time board is kept). After 20 s in the quick-match queue the player may take an unranked computer battle (counts for quests, free to quit). Sign in with Apple and push notifications need the iOS app; until then reminders use local notifications through Capacitor's LocalNotifications plugin when present.
+- **The server keeps two small things on disk** (`players.json` in `FT_DATA_DIR`): each player's unique name, and their ranked record from online Quick matches, which feeds the leaderboard. Everything else it holds is live and in memory: who is connected, the quick-match queue, open rooms and running matches. Restarting it ends any live matches but keeps names and rankings.
+- **Names are unique.** A new player gets a generated name such as `SwiftOtter482` and can change it in Settings. The server compares names ignoring case and refuses one that is taken (`name_taken`). If a browser arrives with a name someone else already owns, the server gives it a numbered variant.
 - **The server runs every online match.** It shuffles with a cryptographically secure RNG, deals, keeps both hands and the deck order hidden, checks every move, and runs the clocks and Rush timers. Each player only receives what they are allowed to see. A modified browser cannot peek at cards or make illegal moves.
 - **Playing the computer happens entirely in the browser** and works without the server.
 
@@ -30,9 +33,14 @@ five-trails/
 
 - **Live counts:** the lobby shows how many players are online, searching and in battle, refreshed every 10 seconds.
 - **Quick match:** pairs players who chose the same clock setting and have similar trophy counts. The allowed gap starts at 100 trophies and widens by 25 per second of waiting. After 20 seconds anyone with the same clock is a fair match. The same browser profile is never paired with itself.
-- **Private rooms:** you get a 6-letter code (23 unambiguous letters, about 148 million combinations) that expires after 15 minutes. Join attempts are rate limited.
+- **Private rooms:** a room has a 5-letter code. Leave the box empty for a random one (23 unambiguous letters, about 6.4 million combinations), or type your own, such as `TIGER`. A room closes by itself after 2 minutes if nobody joins (`FT_ROOM_TTL_SECS`), and the host sees a countdown. The host can send the invite through WhatsApp, the phone's share sheet, or copy it (the invite includes a link that opens the join box with the code filled in). Private rooms are never ranked.
+- **Leaderboard:** the Ranks tab shows the top 50 and your own place. Only online Quick matches count (+30 for a win, −20 for a loss, never below 0), and the server works out every result itself, so nobody can edit their way up. Games against the computer and friend rooms don't count, and leaving a battle against the computer is free: it records no win or loss.
 - **Reconnects:** each player gets a random 256-bit resume token per match, kept in `sessionStorage`. If the connection drops, both clocks pause and the player has 45 seconds to come back, even after a page reload. If they don't, the match is forfeited.
 - **Rematch:** both players tap Rematch on the results screen. A finished match stays open for 3 minutes.
+
+### Card styles
+
+Each arena unlocks a fancier card style (Classic, Sandstone, Pearl, Jade, Ember, Frost, Legend at 0, 100, 250, 450, 700, 1000 and 1400 trophies). Reaching a new arena equips its style; you can switch among unlocked styles in Settings. This is purely cosmetic and lives in the browser.
 
 ## Security measures
 
@@ -44,12 +52,13 @@ five-trails/
 | Flooding | 2 KB max message and frame size; 20-message burst then 8 per second per connection; persistent abusers are disconnected |
 | Connection exhaustion | Global cap (default 5000) and per-address cap (default 8; IPv6 counted per /64); hello required within 10 s; idle connections closed after 75 s; 5 s write timeout for slow readers; bounded queues everywhere |
 | Input | Strict JSON schema with unknown fields rejected; names limited to 1–16 letters, digits, spaces and `-_.'`; ids, codes, tokens and clock values all validated |
-| Brute force | Room-code guessing blocked for 60 s after 8 wrong codes |
+| Brute force | Room-code guessing blocked for 60 s after 8 wrong codes; trying to create a code that is already in use counts as a wrong guess, so open rooms can't be probed that way either. Custom codes are easier to guess than random ones, which the app says |
+| Leaderboard | Results are computed by the server from matches it ran; only Quick matches count; the file is written atomically; a corrupt file stops startup instead of being overwritten; players who never finish a ranked match are forgotten after 14 days; the registry holds at most 200,000 players |
 | Browser hardening | Strict Content-Security-Policy (no inline or eval'd script), `X-Frame-Options: DENY`, `nosniff`, `no-referrer`, COOP/CORP, optional HSTS |
 | Code safety | `#![forbid(unsafe_code)]`, overflow checks in release builds, Clippy clean with `-D warnings` |
 | Privacy | Logs contain connection and match ids only, never names or addresses |
 
-**Known limit:** trophies and levels are self-reported by the browser, because records live only in IndexedDB. Someone who edits their own browser storage can change their own numbers. The server only uses them for display and to pair similar players, so this can't affect anyone else's match or record. Truly tamper-proof rankings would need server-side storage, which this design deliberately avoids.
+**Known limits:** the trophy count shown in the lobby, XP and levels are kept by the browser (they include games against the computer), so someone who edits their own browser storage can change those. The server only uses them to pair similar players and for display; the leaderboard does not use them. Two friends can still trade wins in Quick matches to climb the leaderboard, and a name can be squatted by registering it first. Both would need accounts or reporting to solve properly.
 
 ## Run locally
 
@@ -81,6 +90,11 @@ cargo clippy --all-targets -- -D warnings
 | `FT_HSTS` | `0` | `1` to send `Strict-Transport-Security` (when served over HTTPS) |
 | `FT_MAX_CONNS` | `5000` | Total simultaneous connections |
 | `FT_MAX_CONNS_PER_IP` | `8` | Simultaneous connections per address |
+| `FT_DATA_DIR` | `data` | Folder for `players.json` (names and leaderboard). Use `memory` to keep nothing on disk. Back this folder up and keep it on a persistent disk |
+| `FT_DAY_OFFSET_MINUTES` | `330` | Minutes added to UTC to decide when a day, week (Monday) and season (calendar month) rolls over; 330 = India |
+| `FT_CHEST_SECS` | `21600` | Seconds between free chests (10 to 86400). Up to 2 are banked |
+| `FT_BOT_AFTER_SECS` | `20` | Seconds in the quick-match queue before a computer battle is offered (2 to 300) |
+| `FT_ROOM_TTL_SECS` | `120` | How long a private room waits for a friend before closing (10 to 3600) |
 | `RUST_LOG` | `info` | Log level |
 
 If the website is hosted somewhere other than the server, set the server address in `web/index.html`:
@@ -100,20 +114,20 @@ Always serve the game over HTTPS so the WebSocket uses `wss://`.
 ```bash
 docker build -t five-trails .
 docker run -d --name five-trails -p 127.0.0.1:8080:8080 \
-  -e FT_TRUST_PROXY=1 -e FT_HSTS=1 five-trails
+  -v five-trails-data:/data -e FT_TRUST_PROXY=1 -e FT_HSTS=1 five-trails
 ```
 
-The image builds a static release binary and runs it as a non-root user on a minimal distroless base.
+The image builds a release binary and runs it as a non-root user on a minimal distroless base. The `-v five-trails-data:/data` volume holds `players.json`: without it, names and the leaderboard are lost whenever the container is replaced. On a hosting service, attach a persistent disk and point `FT_DATA_DIR` at it.
 
 **TLS with Caddy** in front (automatic HTTPS certificates): copy `Caddyfile.example` to `Caddyfile`, put in your domain, and run `caddy run`. Caddy keeps the `Host` header and appends the client address to `X-Forwarded-For`, which is why `FT_TRUST_PROXY=1` is safe in that setup.
 
-**Scaling:** one instance comfortably handles thousands of players, since each match is a lightweight task. All players who should be able to find each other must reach the same instance. To run several instances, route by sticky sessions and accept that the matchmaking pools are separate.
+**Scaling:** one instance comfortably handles thousands of players, since each match is a lightweight task. All players who should be able to find each other must reach the same instance, and only one instance may write a given `players.json`. Running several instances would need a shared database for names and rankings.
 
 ## Wire protocol (version 1)
 
 JSON text frames, each tagged by `t`.
 
-- **Client → server:** `hello {v, name, pid, tr, lv, resume?}` (must come first), `profile {name, tr, lv}`, `ping`, `queue {clock}`, `unqueue`, `create {clock}`, `cancel_room`, `join {code}`, `move {seq, a: play|disc|draw|sab|rush, id?, pile?}`, `emote {k}`, `forfeit`, `rematch`, `leave_match`
-- **Server → client:** `welcome {stats}`, `stats {stats}`, `queued`, `unqueued`, `room {code}`, `room_closed`, `room_expired`, `match {view, opp, token, kind, code, clock, oppConnected}`, `state {view}`, `opp {connected, left}`, `emote {k}`, `rematch {me, opp}`, `closed`, `resume_failed`, `pong`, `error {code}`
+- **Client → server:** `hello {v, name, pid, tr, lv, resume?}` (must come first), `profile {name, tr, lv}` (also how a name is changed), `ping`, `leaderboard`, `queue {clock}`, `unqueue`, `create {clock, code?}` (`code` is an optional 5-letter code of the host's choice), `cancel_room`, `join {code}`, `move {seq, a: play|disc|draw|sab|rush, id?, pile?}`, `emote {k}`, `forfeit`, `rematch`, `leave_match`
+- **Server → client:** `welcome {stats, name, roomTtl}` (`name` is the name the server registered for you), `name {name}`, `leaderboard {top: [{n, tr, w, l, d, me}], me: {rank, n, tr, w, l, d} | null, total}`, `stats {stats}`, `queued`, `unqueued`, `room {code, ttl}`, `room_closed`, `room_expired`, `match {view, opp, token, kind, code, clock, oppConnected}`, `state {view}`, `opp {connected, left}`, `emote {k}`, `rematch {me, opp}`, `closed`, `resume_failed`, `pong`, `error {code}`
 
-`clock` is one of `0, 180, 300, 600` seconds per player. `view` contains only what the receiving player may see.
+Error codes include `name_taken`, `code_taken`, `bad_code`, `room_not_found`, `too_many_attempts` and `server_full`. `clock` is one of `0, 180, 300, 600` seconds per player. `view` contains only what the receiving player may see.

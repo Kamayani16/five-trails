@@ -1,7 +1,8 @@
 'use strict';
 /* Five Trails browser client.
-   Player data (profile, trophies, XP, records, settings) is stored only in this browser's IndexedDB.
-   Online play talks to the stateless match server over a WebSocket; the server runs every online match. */
+   Lobby data (profile, trophies, XP, records, settings) is kept in this browser's IndexedDB, and a backup of it goes to the
+   server so a new phone can restore it. Everything with real value (ranked results, coins, free chests, quests, seasons)
+   lives on the server, which also runs every online match. Your secret account key (the recovery code) proves who you are. */
 const IDB={db:null,
  open(){return new Promise(res=>{let r;try{r=indexedDB.open('five-trails',1)}catch(e){res(null);return}
   r.onupgradeneeded=()=>{try{r.result.createObjectStore('kv')}catch(e){}};
@@ -54,6 +55,8 @@ const IC={
  swords:SV('<path d="M4 4l9.5 9.5M4 4h4.5M4 4v4.5M20 4l-9.5 9.5M20 4h-4.5M20 4v4.5M6.5 15.5l2 2M17.5 15.5l-2 2M5 19l2.5-2.5M19 19l-2.5-2.5"/>'),
  cup:SV('<path d="M7 4h10v4a5 5 0 0 1-10 0Z M7 6H4v1a3 3 0 0 0 3 3 M17 6h3v1a3 3 0 0 1-3 3 M12 13v4 M8 20h8"/>'),
  book:SV('<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5Z M4 20.5V5.5 M8.5 7.5h7"/>'),
+ crown:SV('<path d="M3.5 18.5 2.5 7l5 4.5L12 4l4.5 7.5 5-4.5-1 11.5Z M4.5 21.5h15"/>'),
+ lock:SV('<rect x="5" y="11" width="14" height="9.5" rx="2.2" fill="#fff"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>','none',2.6),
  gear:SV('<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
  x:SV('<path d="M6 6l12 12M18 6 6 18"/>','none',3.4),
  chat:SV('<path d="M4 5h16v11H10l-5 4v-4H4Z"/>','#fff',2.2),
@@ -252,9 +255,29 @@ function tween(ms,fn,done){if(reduced){fn(1);done&&done();return}const t0=perfor
 const REC0=()=>({ai:{w:0,l:0,d:0},pvp:{w:0,l:0,d:0},opp:{},recent:[],tr:0,best:0,xp:0});
 function normRec(r){const o=Object.assign(REC0(),r&&typeof r==='object'?r:{});if(r&&r.tr==null){o.tr=Math.max(0,o.ai.w*12-o.ai.l*8+o.pvp.w*30-o.pvp.l*20);o.best=o.tr;o.xp=(o.ai.w+o.ai.l+o.ai.d+o.pvp.w+o.pvp.l+o.pvp.d)*45}return o}
 let REC=normRec(ST.get('ft-record',null));
-let NAME=ST.get('ft-nick','');
+const NAME_A=['Brave','Swift','Bold','Calm','Lucky','Sunny','Misty','Clever','Daring','Nimble','Steady','Wild'];
+const NAME_N=['Fox','Owl','Yak','Lynx','Hawk','Otter','Ibex','Wolf','Crane','Bison','Tiger','Panda'];
+/* A default name for a new player, e.g. SwiftOtter482. The server keeps names unique and adds digits if it is taken. */
+function genName(){const p=a=>a[Math.floor(Math.random()*a.length)];return p(NAME_A)+p(NAME_N)+(100+Math.floor(Math.random()*900))}
+function cleanNick(raw){return String(raw??'').replace(/[^\p{L}\p{N} \-_.']/gu,'').replace(/\s+/g,' ').trim().slice(0,16)}
+let NAME=cleanNick(ST.get('ft-nick',''));
+if(!NAME){NAME=genName();ST.set('ft-nick',NAME)}
+/* Card styles: one per arena, unlocked by reaching that arena's trophy count. */
+const CARDSETS=[{k:'classic',n:'Classic'},{k:'sandstone',n:'Sandstone'},{k:'pearl',n:'Pearl'},{k:'jade',n:'Jade'},{k:'ember',n:'Ember'},{k:'frost',n:'Frost'},{k:'legend',n:'Legend'}];
+let cardSel=Math.max(0,Math.min(CARDSETS.length-1,Math.floor(Number(ST.get('ft-cards',0)))||0));
+const cardsOpen=()=>arenaIdx(Math.max(REC.best,REC.tr));
+function applyCards(){if(cardSel>cardsOpen())cardSel=0;const b=document.body;CARDSETS.forEach(s=>b.classList.remove('cs-'+s.k));b.classList.add('cs-'+CARDSETS[cardSel].k)}
 let PID=ST.get('pid',null);
 if(typeof PID!=='string'||!/^[A-Za-z0-9-]{8,64}$/.test(PID)){PID=crypto.randomUUID?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');ST.set('pid',PID)}
+/* Secret account key: 20 symbols (100 bits) with no 0/O/1/I. It never goes to anyone but the game server, which stores only its hash. */
+const KEY_ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const genKey=()=>Array.from(crypto.getRandomValues(new Uint8Array(20)),b=>KEY_ALPHA[b&31]).join('');
+function cleanKey(raw){const k=String(raw??'').replace(/[\s-]/g,'').toUpperCase();return k.length===20&&[...k].every(c=>KEY_ALPHA.includes(c))?k:null}
+const fmtKey=k=>k.match(/.{5}/g).join('-');
+let KEY=cleanKey(ST.get('ft-key',''));
+if(!KEY){KEY=genKey();ST.set('ft-key',KEY)}
+/* While restoring another account the old key is remembered here (also across a reload) until the server answers. */
+const RESTORE={prev:cleanKey(ST.get('ft-restore',''))};
 const nick=()=>(NAME||'Explorer').slice(0,16);
 function saveRec(){ST.set('ft-record',REC)}
 const RESULT={};
@@ -268,37 +291,71 @@ function recordGame(mode,oppName,oppKey,me,them,gid,r){
  const t1=Math.max(ARENAS[a0].at,t0+D[r]);
  const dX=20+(r==='w'?30:r==='d'?15:5)+Math.floor(Math.max(0,Math.min(me,120))/4);
  REC.tr=t1;REC.best=Math.max(REC.best,t1);REC.xp=x0+dX;
- REC.recent.unshift({m:mode,o:oppName,me,them,r,t:Date.now(),g:gid,dt:t1-t0});REC.recent=REC.recent.slice(0,12);saveRec();
+ if(arenaIdx(t1)>a0){cardSel=arenaIdx(t1);ST.set('ft-cards',cardSel);applyCards()}
+ REC.recent.unshift({m:mode,o:oppName,me,them,r,t:Date.now(),g:gid,dt:t1-t0});REC.recent=REC.recent.slice(0,12);saveRec();syncProg();
  return RESULT[gid]={r,t0,t1,x0,x1:x0+dX,a0,a1:arenaIdx(t1),dT:t1-t0,dX}}
+/* ---- Backup of lobby progress on the server (unverified; never used for rewards or the leaderboard) ---- */
+const progOf=()=>({tr:REC.tr,best:REC.best,xp:REC.xp,ai:[REC.ai.w,REC.ai.l,REC.ai.d],pvp:[REC.pvp.w,REC.pvp.l,REC.pvp.d]});
+function syncProg(){if(NET.ready)NET.raw(Object.assign({t:'sync'},progOf()))}
+function validProg(p){const n=v=>Number.isFinite(v)&&v>=0;return !!p&&typeof p==='object'&&n(p.tr)&&n(p.best)&&n(p.xp)&&[p.ai,p.pvp].every(a=>Array.isArray(a)&&a.length===3&&a.every(n))}
+function adoptProg(p){const x=p||{tr:0,best:0,xp:0,ai:[0,0,0],pvp:[0,0,0]};
+ REC=normRec(Object.assign(REC0(),{tr:Math.floor(x.tr),best:Math.floor(Math.max(x.best,x.tr)),xp:Math.floor(x.xp),ai:{w:x.ai[0],l:x.ai[1],d:x.ai[2]},pvp:{w:x.pvp[0],l:x.pvp[1],d:x.pvp[2]}}));
+ saveRec();if(cardSel>cardsOpen()){cardSel=0;ST.set('ft-cards',0)}applyCards();renderHome()}
 const tot=()=>({w:REC.ai.w+REC.pvp.w,l:REC.ai.l+REC.pvp.l,d:REC.ai.d+REC.pvp.d});
 const wld=o=>`${o.w}W · ${o.l}L${o.d?` · ${o.d}D`:''}`;
 
 /* ================= Network: stateless match server ================= */
 const SERVER_URL=(()=>{const m=document.querySelector('meta[name="five-trails-server"]');const u=m&&m.content.trim();if(u)return u;
- if(location.protocol!=='http:'&&location.protocol!=='https:')return null;return(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws'})();
+ if(location.protocol!=='http:'&&location.protocol!=='https:')return null;
+ const proto=location.protocol==='https:'?'wss://':'ws://';
+ const basePath=(location.pathname||'/').replace(/\/[^/]*$/, '/');
+ const wsPath=(basePath+'ws').replace(/\/+/g, '/');
+ return proto+location.host+wsPath})();
 const NET={ws:null,ready:false,stats:null,backoff:800,pingT:null,
  connect(){if(!SERVER_URL||(this.ws&&this.ws.readyState<2))return;let ws;try{ws=new WebSocket(SERVER_URL)}catch(e){netChanged();return}
   this.ws=ws;
-  ws.onopen=()=>{this.backoff=800;const h={t:'hello',v:1,name:safeName(),pid:PID,tr:REC.tr,lv:lvlInfo(REC.xp).lv};const tok=SS.get('ft-resume');if(tok)h.resume=tok;this.raw(h);
+  ws.onopen=()=>{this.backoff=800;const h={t:'hello',v:2,name:safeName(),pid:PID,key:KEY,tr:REC.tr,lv:lvlInfo(REC.xp).lv};if(RESTORE.prev)h.restore=true;const tok=SS.get('ft-resume');if(tok)h.resume=tok;this.raw(h);
    clearInterval(this.pingT);this.pingT=setInterval(()=>this.raw({t:'ping'}),25000)};
   ws.onmessage=e=>{if(typeof e.data!=='string'||e.data.length>65536)return;let m;try{m=JSON.parse(e.data)}catch(_){return}if(m&&typeof m.t==='string')onServer(m)};
   ws.onclose=()=>{clearInterval(this.pingT);const was=this.ready;this.ws=null;this.ready=false;netDown(was);netChanged();
    setTimeout(()=>this.connect(),this.backoff+Math.random()*400);this.backoff=Math.min(15000,this.backoff*2)};
   ws.onerror=()=>{}},
+ reconnect(){this.backoff=100;if(this.ws){try{this.ws.close()}catch(e){}}else this.connect()},
  raw(m){if(this.ws&&this.ws.readyState===1){try{this.ws.send(JSON.stringify(m))}catch(e){}}},
  send(m){if(!this.ready){toast(SERVER_URL?'Still connecting to the game server. Try again in a moment.':'Online play needs the game server.');return false}this.raw(m);return true}};
 function sendProfile(){NET.raw({t:'profile',name:safeName(),tr:REC.tr,lv:lvlInfo(REC.xp).lv})}
-function safeName(){const n=nick().replace(/[^\p{L}\p{N} \-_.']/gu,'').replace(/\s+/g,' ').trim().slice(0,16);return n||'Explorer'}
+function safeName(){return cleanNick(nick())||'Explorer'}
+/* Names are unique. The server confirms a change (`name`) or refuses it (`name_taken`). */
+let namePending=null;
+function commitName(n){NAME=n;ST.set('ft-nick',n);renderTop();const i=$('nick');if(i)i.value=n}
+function sendName(n,done){if(namePending)clearTimeout(namePending.t);
+ namePending={done,t:setTimeout(()=>{if(namePending){const p=namePending;namePending=null;p.done(false,'Could not reach the server. Try again.')}},5000)};
+ NET.raw({t:'profile',name:n,tr:REC.tr,lv:lvlInfo(REC.xp).lv})}
+function trySetName(raw,done){
+ const n=cleanNick(raw);
+ if(!n){done(false,'Use 1 to 16 letters, numbers or spaces.');return}
+ if(n===NAME&&!ST.get('ft-nick-pending',false)){done(true);return}
+ if(NET.ready)sendName(n,done);
+ else{commitName(n);ST.set('ft-nick-pending',true);done(true,SERVER_URL?'Saved. The server will check it when you go online.':'')}}
+function nameReply(ok,msg){if(!namePending)return false;const p=namePending;namePending=null;clearTimeout(p.t);p.done(ok,msg);return true}
 const ERRS={room_not_found:'No open room has that code. Check it and try again.',too_many_attempts:'Too many wrong codes. Wait a minute and try again.',busy:'Finish what you are doing first.',
  server_full:'The server is full right now. Try again soon.',bad_hello:'The server did not accept your name. Try a simpler one in Settings.',version:'This page is out of date. Reload to play online.',
- opponent_left:'Your opponent has left.',opponent_away:'Waiting for your opponent to reconnect.',rate_limited:'Slow down a little.',replaced:'This battle continued in another tab.'};
+ opponent_left:'Your opponent has left.',opponent_away:'Waiting for your opponent to reconnect.',rate_limited:'Slow down a little.',replaced:'This battle continued in another tab.',
+ code_taken:'That room code is already in use. Pick another one.',bad_code:'A room code is exactly 5 letters.',name_taken:'That name is taken. Try another.',
+ no_chest:'No chest is ready yet.',quest_not_done:'Finish that quest first.',already_claimed:'Already collected.',bad_quest:'That quest is not available any more.',
+ bot_unavailable:'The computer is not available yet. Keep waiting a little.',unknown_key:'No account has that recovery code.'};
 function onServer(m){switch(m.t){
- case 'welcome':NET.ready=true;NET.stats=m.stats||null;netChanged();break;
+ case 'welcome':onWelcome(m);break;
+ case 'name':if(typeof m.name==='string'&&m.name){commitName(m.name);ST.set('ft-nick-pending',false);nameReply(true)}break;
+ case 'me':ME=cleanMe(m);renderRewards();if(!$('questSheet').hidden)renderQuests();scheduleReminders();maybeShowReward();break;
+ case 'claimed':onClaimed(m);break;
+ case 'bot_offer':if(M.mode==='queue'){$('botOffer').hidden=false;sfx('join')}break;
+ case 'leaderboard':{const l=cleanLB(m);LBS[l.scope]=l;if(curTab==='leaders')renderLeaders();break}
  case 'stats':NET.stats=m.stats||null;netChanged();break;
  case 'queued':M={mode:'queue'};showWait('Finding an opponent','','Pairing you with a player near your trophy count who picked the same clock…');break;
  case 'unqueued':case 'room_closed':if(M.mode==='queue'||M.mode==='room')goHome(true);break;
- case 'room':M={mode:'room',code:String(m.code||'').replace(/[^A-Z]/g,'')};showWait('Room code',M.code,'Share this code with your friend. Waiting for them to join…');break;
- case 'room_expired':if(M.mode==='room'){goHome(true);toast('Your room expired. Create a new one any time.')}break;
+ case 'room':M={mode:'room',code:String(m.code||'').replace(/[^A-Z]/g,''),expires:Date.now()+(Math.max(10,Number(m.ttl)||120))*1000};showWait('Room code',M.code,'Send this code to your friend. Waiting for them to join…');break;
+ case 'room_expired':if(M.mode==='room'){goHome(true);toast('Nobody joined in time, so the room closed. Create a new one any time.')}break;
  case 'match':onMatch(m);break;
  case 'state':if(M.mode==='online'&&m.view&&typeof m.view==='object'){V=m.view;V.at=Date.now();pending=false;M.reconnecting=false;renderGame();updateRmNote()}break;
  case 'emote':if(M.mode==='online'&&Number.isInteger(m.k)&&EMOTES[m.k])showBubble('opp',EMOTES[m.k]);break;
@@ -306,15 +363,37 @@ function onServer(m){switch(m.t){
  case 'rematch':if(M.mode==='online'&&V){M.iWantRm=m.me?V.gid:null;M.theyWantRm=m.opp?V.gid:null;updateRmNote()}break;
  case 'closed':if(M.mode==='online'){M.closed=true;SS.set('ft-resume',null);updateRmNote()}break;
  case 'resume_failed':SS.set('ft-resume',null);if(M.mode==='online'&&!(V&&V.ov)){goHome(true);toast('That battle has ended.')}break;
- case 'error':pending=false;if(V&&M.mode==='online')renderActs();if(m.code!=='stale'&&m.code!=='rate_limited')toast(ERRS[m.code]||'That move was not allowed.');break;
+ case 'error':
+  if(m.code==='unknown_key'&&RESTORE.prev){KEY=RESTORE.prev;ST.set('ft-key',KEY);RESTORE.prev=null;ST.set('ft-restore','');keyNote(ERRS.unknown_key+' Check it and try again.',true);paintKey();break}
+  if((m.code==='name_taken'||m.code==='bad_hello')&&nameReply(false,m.code==='name_taken'?ERRS.name_taken:'Use letters, numbers or spaces.'))break;
+  pending=false;if(V&&M.mode==='online')renderActs();if(m.code!=='stale'&&m.code!=='rate_limited')toast(ERRS[m.code]||'That move was not allowed.');
+  if(m.code==='code_taken'||m.code==='bad_code'){openSheet('friendSheet');$('customCode').focus()}break;
 }}
+function onWelcome(m){NET.ready=true;NET.stats=m.stats||null;NET.roomTtl=Math.max(10,Number(m.roomTtl)||120);
+ if(typeof m.pid==='string'&&/^[A-Za-z0-9-]{8,64}$/.test(m.pid)&&m.pid!==PID){PID=m.pid;ST.set('pid',PID)}
+ const name=typeof m.name==='string'?m.name:'';
+ if(RESTORE.prev){ // the player typed a recovery code: this device becomes that account
+  const prev=RESTORE.prev;RESTORE.prev=null;ST.set('ft-restore','');
+  if(name)commitName(name);ST.set('ft-nick-pending',false);
+  adoptProg(validProg(m.prog)?m.prog:null);
+  keyNote(`Welcome back, ${name}! The account this device had before used the code ${fmtKey(prev)}. Keep it if you want to switch back.`);
+  $('keyIn').value='';paintKey();toast(`Welcome back, ${name}!`)}
+ else{
+  if(name&&name!==NAME){
+   if(m.created){commitName(name);toast(`Your name is now ${name}. Someone else already uses the one you picked.`)}
+   else if(ST.get('ft-nick-pending',false))sendName(NAME,ok=>{ST.set('ft-nick-pending',false);if(!ok){commitName(name);toast(`That name is taken, so you are still ${name}.`)}});
+   else commitName(name)}
+  else ST.set('ft-nick-pending',false);
+  if(validProg(m.prog)){if(m.prog.xp>REC.xp)adoptProg(m.prog);else if(REC.xp>m.prog.xp)syncProg()}
+  else if(REC.xp>0)syncProg()}
+ netChanged();if(curTab==='leaders')requestLeaders()}
 function onMatch(m){const v=m.view,o=m.opp;if(!v||typeof v!=='object'||!o)return;SS.set('ft-resume',typeof m.token==='string'?m.token:null);
- const opp={nick:String(o.name||'Opponent').slice(0,16),tr:Math.max(0,Number(o.tr)||0),lv:Math.max(1,Number(o.lv)||1),pid:String(o.pid||'').slice(0,64)};
+ const opp={nick:String(o.name||'Opponent').slice(0,16),tr:Math.max(0,Number(o.tr)||0),lv:Math.max(1,Number(o.lv)||1),pid:String(o.pid||'').slice(0,64),bot:o.bot===true,tier:Math.max(0,Math.min(ARENAS.length-1,Math.floor(Number(o.tier))||0))};
  if(M.mode!=='online')M={mode:'online',oppEmoT:undefined};
- Object.assign(M,{opp,oppKey:'p:'+opp.pid,kind:m.kind==='room'?'room':'quick',code:typeof m.code==='string'?m.code.replace(/[^A-Z]/g,''):null,
+ Object.assign(M,{opp,oppKey:'p:'+opp.pid,kind:m.kind==='room'?'room':m.kind==='bot'?'bot':'quick',code:typeof m.code==='string'?m.code.replace(/[^A-Z]/g,''):null,
   oppHere:m.oppConnected!==false,oppLeft:false,closed:false,reconnecting:false,iWantRm:null,theyWantRm:null});
  V=v;V.at=Date.now();pending=false;sel=null;
- $('roomTag').textContent=M.kind==='room'?'Room '+M.code:'Quick match';
+ $('roomTag').textContent=M.kind==='room'?'Room '+M.code:M.kind==='bot'?'Computer battle':'Quick match';
  if($('game').hidden)show('game');
  renderGame()}
 function netDown(wasReady){if(M.mode==='queue'||M.mode==='room'){goHome(true);toast('Lost connection to the game server.')}
@@ -322,8 +401,20 @@ function netDown(wasReady){if(M.mode==='queue'||M.mode==='room'){goHome(true);to
 function netChanged(){const ok=NET.ready,s=NET.stats;
  ['quickBtn','create','join','joinCode'].forEach(id=>{const e=$(id);if(e)e.disabled=!ok});
  $('onlineLine').innerHTML=!SERVER_URL?'<span class="netdot"></span>Needs the game server':ok?`<span class="netdot on"></span>${s?Number(s.online)||0:1} online now`:'<span class="netdot wait"></span>Connecting…';
+ const rt=$('roomTtlNote');if(rt){const m=Math.round((NET.roomTtl||120)/60*10)/10;rt.textContent=`Anyone with the code can join, so share it only with your friend. The room closes after ${m>=1?m+(m===1?' minute':' minutes'):(NET.roomTtl||120)+' seconds'} if nobody joins.`}
  $('roomNote').textContent=!SERVER_URL?'Open this page from the game server address to play online.':ok?(s?`${Number(s.online)||0} online · ${Number(s.searching)||0} searching · ${Number(s.playing)||0} in battle. Quick match uses your clock setting.`:'Connected.'):'Connecting to the game server…'}
-function showWait(label,code,msg){show('wait');$('waitLbl').textContent=label;$('waitCode').textContent=code||'';$('waitCode').hidden=!code;$('waitMsg').textContent=msg}
+function showWait(label,code,msg){show('wait');$('botOffer').hidden=true;$('waitLbl').textContent=label;$('waitCode').textContent=code||'';$('waitCode').hidden=!code;$('waitMsg').textContent=msg;
+ $('waitShare').hidden=!code;$('waitTimer').hidden=!code;if(code)setupShare(code)}
+/* ---- Sharing a room code ---- */
+const inviteLink=code=>location.origin+location.pathname+'#'+code;
+const inviteText=code=>`Join my Five Trails battle! Room code: ${code}\n${inviteLink(code)}`;
+async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){try{const a=document.createElement('textarea');a.value=t;a.setAttribute('readonly','');a.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(a);a.select();const ok=document.execCommand('copy');a.remove();return ok}catch(_){return false}}}
+function setupShare(code){
+ $('shWa').href='https://wa.me/?text='+encodeURIComponent(inviteText(code));
+ $('shMore').hidden=typeof navigator.share!=='function';
+ $('shCopy').onclick=async()=>{sfx('ui');toast(await copyText(inviteText(code))?'Invite copied. Paste it anywhere.':'Could not copy. Long-press the code instead.')};
+ $('waitCode').onclick=async()=>{sfx('ui');toast(await copyText(code)?`Code ${code} copied.`:'Could not copy the code.')};
+ $('shMore').onclick=()=>{sfx('ui');try{navigator.share({title:'Five Trails',text:`Join my Five Trails battle! Room code: ${code}`,url:inviteLink(code)}).catch(()=>{})}catch(e){}}}
 
 /* ================= App state ================= */
 let M={mode:'home'};          // mode: home | ai | queue | room | online
@@ -344,7 +435,7 @@ function renderHome(){
   <div class="tprog">${TROPHY}<div class="bar"><i style="width:${pct}%"></i><b class="ols">${N?`${REC.tr} / ${N.at}`:`${REC.tr} · Top arena`}</b></div></div>`;
  $('aiTier').textContent=`vs Computer · ${AI_TIER[ai]}`;
  netChanged();
- renderRecords();
+ renderRecords();renderRewards();maybeShowReward();
 }
 function renderRecords(){const T=tot(),n=T.w+T.l+T.d,ai=arenaIdx(REC.tr);
  const opps=Object.values(REC.opp).sort((a,b)=>(b.w+b.l+b.d)-(a.w+a.l+a.d)).slice(0,8);
@@ -355,7 +446,7 @@ function renderRecords(){const T=tot(),n=T.w+T.l+T.d,ai=arenaIdx(REC.tr);
   <div class="kv" style="margin-top:8px"><span>vs Computer</span><span>${wld(REC.ai)}</span></div><div class="kv"><span>vs Players</span><span>${wld(REC.pvp)}</span></div></div>
  <div class="pn"><div class="pn-h ol">Head to head</div>${opps.length?opps.map(o=>`<div class="kv"><span>${avatarHTML(o.name).replace('class="av"','class="av" style="width:28px;height:28px;font-size:15px;border-width:2px;border-radius:8px"')}${esc(o.name)}</span><span>${wld(o)}</span></div>`).join(''):'<p class="note">Beat a friend in a room and your rivalry shows up here.</p>'}</div>
  <div class="pn"><div class="pn-h ol">Recent battles</div>${REC.recent.length?REC.recent.slice(0,8).map(r=>`<div class="kv"><span><span class="rtag ${r.r}">${r.r.toUpperCase()}</span>vs ${esc(r.o)}</span><span>${r.me} – ${r.them}${r.dt!=null?` <span class="dt">${r.dt>0?'+':''}${r.dt}</span>`:''}</span></div>`).join(''):'<p class="note">No battles yet. Your first one is a tap away.</p>'}</div>
- <div class="pn"><div class="pn-h ol">Arena road</div><div class="road">${ARENAS.map((A,i)=>`<div class="rd ${REC.tr>=A.at?'open':'lock'} ${i===ai?'cur':''}">${emblem(i,40,'embs')}<div><b>${A.n}</b><span>${TROPHY}${A.at} trophies · ${AI_TIER[i]} computer</span></div>${i===ai?'<em>You are here</em>':REC.tr>=A.at?'':'<em class="lk">Locked</em>'}</div>`).join('')}</div></div>`}
+ <div class="pn"><div class="pn-h ol">Arena road</div><div class="road">${ARENAS.map((A,i)=>`<div class="rd ${REC.tr>=A.at?'open':'lock'} ${i===ai?'cur':''}">${emblem(i,40,'embs')}<div><b>${A.n}</b><span>${TROPHY}${A.at} trophies · ${AI_TIER[i]} computer · ${CARDSETS[i].n} cards</span></div>${i===ai?'<em>You are here</em>':REC.tr>=A.at?'':'<em class="lk">Locked</em>'}</div>`).join('')}</div></div>`}
 function renderGuide(){
  const ex=(cards,math)=>`<div class="ex"><div class="cards">${cards.map(id=>mini(id,34)).join('')}</div><div class="math">${math}</div></div>`;
  $('tab-guide').innerHTML=`
@@ -375,12 +466,107 @@ function renderGuide(){
   <p><span class="pwb">RUSH</span> Your rival's next turn lasts only 10 seconds. If time runs out, a random card of theirs is discarded and they draw from the deck.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Trophies and arenas</div>
   <p>Beat the computer for +12 trophies, lose for −8. Against players it's +30 and −20. Once you reach an arena you never drop below it.</p>
-  <p>Each new arena brings a sharper computer opponent. Every battle earns XP, and more points earn more XP.</p>
+  <p>Each new arena brings a sharper computer opponent and unlocks a fancier card style. Pick your cards in Settings. Every battle earns XP, and more points earn more XP.</p>
   <p>With the clock on, your time only runs on your turn. If it hits zero, you lose.</p>
+  <h3>Rewards</h3>
+  <p>A free chest of coins arrives every few hours and waits for you, up to two at a time. Daily and weekly quests pay coins too. Coins and quests are kept on the game server, so they cannot be edited.</p>
+  <p>Quick matches also feed a monthly leaderboard. When the month ends, the top players win coins and everyone starts the next season fresh.</p>
+  <p>If nobody is around for a quick match, you can play the computer instead. It is unranked, but it counts toward quests.</p>
   <button class="gb blue sm" id="replayIntro2" style="align-self:flex-start">Replay the intro</button></div>`;
  $('replayIntro2').onclick=()=>{sfx('ui');openIntro()}}
-function setTab(t){document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
- for(const k of ['battle','records','guide'])$('tab-'+k).hidden=k!==t;try{scrollTo({top:0})}catch(e){}}
+let curTab='battle';
+let lbScope=ST.get('ft-lbscope','season')==='all'?'all':'season';
+const LBS={season:null,all:null};
+function setTab(t){curTab=t;document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
+ for(const k of ['battle','leaders','records','guide'])$('tab-'+k).hidden=k!==t;if(t==='leaders'){renderLeaders();requestLeaders()}try{scrollTo({top:0})}catch(e){}}
+/* ---- Leaderboard (ranked online quick matches, kept by the server): this season, or all time ---- */
+function requestLeaders(){if(NET.ready)NET.raw({t:'leaderboard',season:lbScope==='season'})}
+function cleanLB(m){const n=v=>Math.max(0,Math.floor(Number(v))||0);
+ const top=Array.isArray(m.top)?m.top.slice(0,50).map(r=>({n:String(r&&r.n||'').slice(0,16),tr:n(r&&r.tr),w:n(r&&r.w),l:n(r&&r.l),d:n(r&&r.d),me:!!(r&&r.me)})):[];
+ const me=m.me&&typeof m.me==='object'?{rank:n(m.me.rank),n:String(m.me.n||'').slice(0,16),tr:n(m.me.tr),w:n(m.me.w),l:n(m.me.l),d:n(m.me.d)}:null;
+ const season=m.season&&typeof m.season==='object'?{name:String(m.season.name||'').slice(0,30),endsIn:n(m.season.endsIn)}:null;
+ return{scope:m.scope==='season'?'season':'all',top,me,total:n(m.total),season,at:Date.now()}}
+function renderLeaders(){const el=$('tab-leaders');if(!el)return;
+ const LB=LBS[lbScope],sInfo=(LB&&LB.season)||(ME&&ME.season?{name:ME.season.name,endsIn:left(ME.season.endsIn)}:null);
+ const sLeft=LB&&LB.season?Math.max(0,LB.season.endsIn-(Date.now()-LB.at)/1000):(sInfo?sInfo.endsIn:0);
+ const intro=lbScope==='season'?`${sInfo?`<b>${esc(sInfo.name)}</b> · ends in ${fmtSpan(sLeft)}. `:''}Top finishers earn coins when the season ends. `:'Everyone who has ever played a ranked match. ';
+ const head=`<div class="pn"><div class="pn-h ol">Leaderboard</div>
+  <div class="seg-b lbscope" role="radiogroup" aria-label="Leaderboard period"><button role="radio" data-lbs="season" aria-checked="${lbScope==='season'}">This season</button><button role="radio" data-lbs="all" aria-checked="${lbScope==='all'}">All time</button></div>
+  <p class="note" style="margin-top:10px">${intro}Ranked by trophies from online quick matches: +30 for a win, −20 for a loss. Battles against the computer and friend rooms do not count.</p></div>`;
+ const bind=()=>el.querySelectorAll('[data-lbs]').forEach(b=>b.onclick=()=>{if(lbScope===b.dataset.lbs)return;sfx('ui');lbScope=b.dataset.lbs;ST.set('ft-lbscope',lbScope);renderLeaders();requestLeaders()});
+ if(!SERVER_URL){el.innerHTML=head+'<div class="pn pad"><p class="note">The leaderboard needs the game server. Open this page from the game server address.</p></div>';bind();return}
+ if(!LB){el.innerHTML=head+`<div class="pn pad"><p class="note">${NET.ready?'Loading the leaderboard…':'Connecting to the game server…'}</p></div>`;bind();return}
+ const row=(r,rank)=>`<div class="lb${r.me?' me':''}"><span class="lbr r${rank<=3?rank:0}">${rank}</span>${avatarHTML(r.n)}<div class="lbn"><b>${esc(r.n)}${r.me?' <em>You</em>':''}</b><span>${wld(r)}</span></div><div class="lbt">${TROPHY}<span>${r.tr}</span></div></div>`;
+ const me=LB.me,per=lbScope==='season'?'this season':'';
+ const mine=me?`<div class="pn pad lbme"><div class="lbme-t">Your rank${per?' '+per:''}</div><div class="lbme-r"><b class="ol">#${me.rank}</b><span>of ${LB.total} ranked player${LB.total===1?'':'s'}</span></div><div class="lbme-s">${TROPHY}${me.tr} · ${wld(me)}</div></div>`
+  :`<div class="pn pad lbme"><p class="note">You are not ranked${per?' '+per:''} yet. Win or lose an online quick match to get on the board.</p></div>`;
+ const inTop=me&&LB.top.some(r=>r.me);
+ el.innerHTML=head+mine+`<div class="pn pad lblist">${LB.top.length?LB.top.map((r,i)=>row(r,i+1)).join(''):'<p class="note">No ranked battles yet. Be the first!</p>'}${me&&!inTop?`<div class="lbgap">···</div>${row({...me,me:true},me.rank)}`:''}</div>
+  <button class="gb blue sm" id="lbRefresh" style="align-self:center">Refresh</button>`;
+ bind();
+ const rb=$('lbRefresh');if(rb)rb.onclick=()=>{sfx('ui');requestLeaders()}}
+
+/* ================= Rewards: coins, free chest, quests (all kept by the server) ================= */
+let ME=null;
+const COIN=`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#ffd23a" stroke="${OLC}" stroke-width="2"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="#c77400" stroke-width="1.8"/><path d="M12 8.8v6.4" stroke="#c77400" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+const numOf=(v,max=1e9)=>Math.min(max,Math.max(0,Math.floor(Number(v))||0));
+function cleanMe(m){
+ const q=a=>Array.isArray(a)?a.slice(0,3).map(x=>({slot:String(x&&x.slot||'').slice(0,3),text:String(x&&x.text||'').slice(0,60),need:Math.max(1,numOf(x&&x.need)),have:numOf(x&&x.have),coins:numOf(x&&x.coins),claimed:!!(x&&x.claimed)})):[];
+ const c=m.chest&&typeof m.chest==='object'?m.chest:{};
+ const r=m.reward&&typeof m.reward==='object'?{season:String(m.reward.season||'').slice(0,30),rank:numOf(m.reward.rank),coins:numOf(m.reward.coins)}:null;
+ return{coins:numOf(m.coins),chest:{n:numOf(c.n,9),max:Math.max(1,numOf(c.max,9)),nextIn:c.nextIn==null?null:numOf(c.nextIn,1e7),every:numOf(c.every,1e7),coins:numOf(c.coins)},
+  daily:q(m.daily),weekly:q(m.weekly),dailyIn:numOf(m.dailyIn,1e7),weeklyIn:numOf(m.weeklyIn,1e8),
+  season:{name:String(m.season&&m.season.name||'').slice(0,30),endsIn:numOf(m.season&&m.season.endsIn)},reward:r,at:Date.now()}}
+/* Seconds left of a countdown the server reported `secs` seconds ago. */
+const left=secs=>Math.max(0,secs-(Date.now()-(ME?ME.at:Date.now()))/1000);
+function fmtSpan(s){s=Math.max(0,Math.floor(s));const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d>=2?`${d} days`:d===1?`1 day ${h} h`:h>=1?`${h} h ${m} min`:`${Math.max(1,m)} min`}
+function fmtClock(s){s=Math.ceil(Math.max(0,s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),r=s%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(r).padStart(2,'0')}
+let chestState=null,meAsked=false;
+function renderRewards(){const el=$('rewards');if(!el)return;
+ if(!ME||!SERVER_URL){el.hidden=true;return}
+ el.hidden=false;meAsked=false;
+ $('coinBox').innerHTML=COIN+`<span class="ol">${ME.coins}</span>`;
+ const c=ME.chest,b=$('chestBtn');chestState=c.n>0?'ready':'wait';
+ if(c.n>0){b.className='gb green chestbtn ready';b.innerHTML=`<span>Open chest${c.n>1?' ×'+c.n:''}</span><small>+${c.coins} coins</small>`}
+ else{b.className='gb chestbtn wait';b.innerHTML=`<span>Free chest</span><small class="cb-s">${c.nextIn==null?'':'in '+fmtClock(left(c.nextIn))}</small>`}
+ const claimable=[...ME.daily,...ME.weekly].filter(x=>x.have>=x.need&&!x.claimed).length,dn=ME.daily.filter(x=>x.claimed).length;
+ $('questBtn').innerHTML=`<span>Quests</span><small>${dn} of ${ME.daily.length} today</small>${claimable?'<i class="dot" aria-label="Rewards to collect"></i>':''}`}
+/* Once a second: only the countdown text changes, so the buttons are never rebuilt under a tapping finger. */
+let lastRewSec=0;
+function tickRewards(){if(!ME||$('home').hidden)return;const sec=Math.floor(Date.now()/1000);if(sec===lastRewSec)return;lastRewSec=sec;
+ const c=ME.chest;
+ if(chestState==='wait'&&c.nextIn!=null){const l=left(c.nextIn),s=$('chestBtn').querySelector('.cb-s');
+  if(s)s.textContent='in '+fmtClock(l);
+  if(l<=0&&!meAsked){meAsked=true;setTimeout(()=>NET.raw({t:'me'}),600)}}
+ if(!$('questSheet').hidden)renderQuests()}
+function renderQuests(){if(!ME)return;
+ const row=x=>{const done=x.have>=x.need;return `<div class="q${done&&!x.claimed?' done':''}${x.claimed?' got':''}"><b>${esc(x.text)}</b><div class="bar"><i style="width:${Math.min(100,x.have/x.need*100)}%"></i><b class="ols">${x.have} / ${x.need}</b></div>
+  <div class="qr"><span class="coinchip">${COIN}${x.coins}</span>${x.claimed?'<span class="rtag w">Done</span>':done?`<button class="gb green sm" data-claim="${esc(x.slot)}" type="button">Claim</button>`:''}</div></div>`};
+ $('questBody').innerHTML=`<div class="qs"><div class="qh">Today<span>New quests in ${fmtSpan(left(ME.dailyIn))}</span></div>${ME.daily.map(row).join('')}
+  <div class="qh">This week<span>New quests in ${fmtSpan(left(ME.weeklyIn))}</span></div>${ME.weekly.map(row).join('')}
+  <p class="note">Quests count online battles: quick matches, rooms with a friend, and computer battles from the waiting screen. Battles you leave straight away do not count.</p></div>`}
+function onClaimed(m){const coins=numOf(m.coins);sfx('coin');setTimeout(()=>sfx('coin'),90);
+ const el=m.what==='chest'?$('chestBtn'):document.querySelector('#questSheet:not([hidden]) .q.done')||$('questBtn');
+ if(el&&el.getBoundingClientRect().width){const[x,y]=centerOf(el);burst(x,y,['#ffd23a','#fff','#ffaa00'],22,{sp:7})}
+ callout(`+${coins} coins`,'#ffd23a',m.what==='chest'?'Free chest':'Quest done')}
+let seasonShown=null;
+function maybeShowReward(){const r=ME&&ME.reward;if(!r||$('home').hidden||!$('intro').hidden)return;
+ const key=r.season+':'+r.rank;if(seasonShown===key)return;seasonShown=key;
+ $('seasonMsg').textContent=`${r.season} is over. You finished #${r.rank} on the leaderboard and earned ${r.coins} coins!`;
+ NET.raw({t:'ack_season'});openSheet('seasonSheet');sfx('levelup');confetti()}
+/* ---- Reminders: a nudge when the next free chest is ready. Needs the iPhone app (local notifications). ---- */
+let remOn=ST.get('ft-remind',false)===true;
+const localNotes=()=>{try{return window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications||null}catch(e){return null}};
+function paintRem(){const t=$('remTog'),n=$('remNote'),ln=localNotes();t.setAttribute('aria-checked',String(remOn&&!!ln));t.disabled=!ln;
+ n.textContent=ln?'A nudge when your next free chest is ready.':'Available in the iPhone app.'}
+async function scheduleReminders(){const ln=localNotes();if(!ln)return;
+ try{await ln.cancel({notifications:[{id:1001}]})}catch(e){}
+ if(!remOn||!ME)return;const c=ME.chest;if(c.n>=c.max||c.nextIn==null)return;
+ const at=new Date(Date.now()+Math.max(5,left(c.nextIn))*1000);
+ try{await ln.schedule({notifications:[{id:1001,title:'Five Trails',body:c.n===0?'Your free chest is ready!':'Your chest bank is about to be full. Open one so it keeps filling.',schedule:{at}}]})}catch(e){}}
+async function toggleReminders(){const ln=localNotes();if(!ln)return;
+ if(!remOn){try{const p=await ln.requestPermissions();if(!p||p.display!=='granted'){toast('Allow notifications for Five Trails in your phone settings to get reminders.');return}}catch(e){return}}
+ remOn=!remOn;ST.set('ft-remind',remOn);paintRem();scheduleReminders();sfx('ui')}
 function paintPicker(){document.querySelectorAll('#clkpick button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.clk===clkSet)))}
 
 /* Sheets */
@@ -399,12 +585,14 @@ const INTRO=[
 function openIntro(){introI=0;closeSheets();$('intro').hidden=false;renderIntro()}
 function renderIntro(){const s=INTRO[introI];const dots=`<div class="dots">${INTRO.map((_,i)=>`<i class="${i===introI?'on':''}"></i>`).join('')}</div>`;
  $('introPn').innerHTML=s.name?`<div class="islide"><h2>${s.t}</h2><div class="ivis">${avatarHTML(NAME||'E',null).replace('class="av"','class="av" style="width:84px;height:84px;font-size:44px;border-radius:22px"')}</div>
-   <input id="introName" maxlength="16" placeholder="Explorer" value="${esc(NAME)}" aria-label="Your name" style="width:100%;text-align:center">${dots}
+   <input id="introName" maxlength="16" placeholder="Explorer" value="${esc(NAME)}" aria-label="Your name" style="width:100%;text-align:center"><p class="note" id="introNote" aria-live="polite">We picked a unique name for you. Change it now or any time in Settings.</p>${dots}
    <div class="introbtns"><button class="gb go" id="introGo">Let's go!</button></div></div>`
  :`<div class="islide"><h2>${s.t}</h2><div class="ivis">${s.v()}</div><p>${s.p}</p>${dots}<div class="introbtns"><button class="gb gray" id="introSkip">Skip</button><button class="gb green" id="introNext">Next</button></div></div>`;
  if(s.name){const inp=$('introName');inp.oninput=()=>{const av=$('introPn').querySelector('.av');if(av)av.firstChild.textContent=((inp.value||'E').trim()[0]||'E').toUpperCase()};
   inp.onkeydown=e=>{if(e.key==='Enter')$('introGo').click()};
-  $('introGo').onclick=()=>{NAME=inp.value.trim().slice(0,16);ST.set('ft-nick',NAME);ST.set('ft-intro',true);$('intro').hidden=true;$('nick').value=NAME;sfx('go');renderHome();burst(innerWidth/2,innerHeight/2,['#ffd23a','#7dffa0','#4f9dff','#ff5d6c'],30,{sp:8})}}
+  $('introGo').onclick=()=>{const fin=()=>{ST.set('ft-intro',true);$('intro').hidden=true;$('nick').value=NAME;sfx('go');renderHome();burst(innerWidth/2,innerHeight/2,['#ffd23a','#7dffa0','#4f9dff','#ff5d6c'],30,{sp:8})};
+   if(!cleanNick(inp.value)){fin();return}
+   trySetName(inp.value,(ok,msg)=>{if(!ok){const n=$('introNote');if(n){n.textContent=msg;n.classList.add('bad')}sfx('bad');return}fin()})}}
  else{$('introNext').onclick=()=>{sfx('ui');introI++;renderIntro()};$('introSkip').onclick=()=>{sfx('ui');introI=INTRO.length-1;renderIntro()}}}
 
 /* ================= Rendering the battle ================= */
@@ -419,7 +607,9 @@ function ghost(html,from,to,fade){if(reduced||!from||!to)return;const g=document
  Object.assign(el.style,{left:from.left+'px',top:from.top+'px',width:from.width+'px',height:from.height+'px'});document.body.appendChild(el);
  const a=el.animate([{transform:'none',opacity:1},{transform:`translate(${to.left-from.left}px,${to.top-from.top}px) scale(${to.width/from.width},${to.height/from.height})`,opacity:fade?0:1}],{duration:460,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
  a.onfinish=()=>el.remove()}
+const vsCpu=()=>M.mode==='ai'||(M.mode==='online'&&M.kind==='bot');
 function oppInfo(){const ai=arenaIdx(REC.tr);
+ if(M.mode==='online'&&M.kind==='bot')return{name:'Computer',lv:null,tr:null,cpu:true,sub:`${AI_TIER[(M.opp&&M.opp.tier)||0]} bot`};
  if(M.mode==='ai')return{name:'Computer',lv:null,tr:null,cpu:true,sub:`${AI_TIER[M.tier??ai]} bot`};
  const o=M.opp||{};const h=M.oppKey&&REC.opp[M.oppKey];return{name:o.nick||'Opponent',lv:o.lv||null,tr:o.tr??null,cpu:false,sub:`${o.tr!=null?TROPHY+(Number(o.tr)||0):''}${h?` · You ${h.w}–${h.l}`:''}`}}
 const meInfo=()=>({name:nick(),lv:lvlInfo(REC.xp).lv});
@@ -508,7 +698,7 @@ function dealAnim(){const deckR=rectOf($('deck'));let i=0;document.querySelector
  document.querySelectorAll('#oppHand .back').forEach((el,j)=>animateFrom(el,deckR,j*70));sfx('deal');
  setTimeout(()=>{if(!V||V.ov)return;callout(V.mt?'Your turn!':(M.mode==='ai'?'Computer starts':`${oppInfo().name} starts`),V.mt?'#7dffa0':'#ffd23a');if(V.mt)sfx('go');aiSay(0,.5)},650)}
 function vsSplash(cb){const o=$('vs'),opp=oppInfo(),me_=meInfo(),ai=arenaIdx(REC.tr);
- const tag=M.mode==='ai'?`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:'Quick match · Ranked';
+ const tag=M.mode==='ai'?`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:M.kind==='bot'?'Computer battle · Unranked':'Quick match · Ranked';
  o.innerHTML=`<div class="vs-in">
   <div class="vs-band top"><div class="vs-pl">${avatarHTML(opp.name,opp.lv,opp.cpu)}<div><div class="vs-n ol">${esc(opp.name)}</div><div class="vs-t ol">${opp.cpu?esc(opp.sub):TROPHY+(Number(opp.tr)||0)}</div></div></div></div>
   <div class="vs-mid ol">VS</div>
@@ -547,14 +737,14 @@ function oppEmote(e){if(!e||typeof e.k!=='number'||!EMOTES[e.k])return;if(M.oppE
 let shownFor=null;
 function outcome(){const me=total(V.ex[0]),them=total(V.ex[1]);return{me,them,r:V.fl?(V.fl==='me'?'l':'w'):me>them?'w':me<them?'l':'d'}}
 function finalize(){if(!V||!V.ov)return null;const{me,them,r}=outcome(),o=oppInfo();
- return recordGame(M.mode==='ai'?'ai':'pvp',o.name,M.mode==='ai'?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,r)}
+ return recordGame(vsCpu()?'ai':'pvp',o.name,vsCpu()?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,r)}
 function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&!$('over').hidden)return;
  const first=shownFor!==V.gid;shownFor=V.gid;const info=finalize();const{me,them,r}=outcome(),o=oppInfo();
  if(first){sfx(r==='l'?'lose':'win');if(r==='w')confetti();if(M.mode==='ai')setTimeout(()=>aiSay(5,.75,true),900)}
  const title=r==='w'?'Victory!':r==='l'?'Defeat':'Draw';
  const reason=V.fl?(V.why==='forfeit'?(V.fl==='me'?'You left the battle':`${o.name} left the battle`):(V.fl==='me'?'Your clock ran out':`${o.name}'s clock ran out`)):r==='d'?'Dead even':`${Math.abs(me-them)} point ${r==='w'?'win':'loss'}`;
  const lanes=COL.map((C,c)=>`<div class="rc" style="--cc:${C.cc};--cd:${C.cd};--ct:${C.ct}"><b>${V.ex[0][c].length?expScore(V.ex[0][c]):'–'}</b><span>${V.ex[1][c].length?expScore(V.ex[1][c]):'–'}</span></div>`).join('');
- const h=M.mode!=='ai'&&M.oppKey&&REC.opp[M.oppKey];
+ const h=!vsCpu()&&M.oppKey&&REC.opp[M.oppKey];
  const L0=lvlInfo(info?info.x0:REC.xp);
  $('over').innerHTML=`<div class="res ${r}">
   <div class="rib ol">${title}</div><div class="rsub">${esc(reason)}</div>
@@ -576,7 +766,7 @@ function animateGains(info,first){const set=(t,x)=>{const s=trState(Math.round(t
  set(info.t0,info.x0);let lastT=info.t0;
  setTimeout(()=>tween(900,k=>{const t=info.t0+(info.t1-info.t0)*k;if(Math.round(t)!==Math.round(lastT)&&Math.round(t)%3===0)sfx('coin');lastT=t;set(t,info.x0)},()=>{
   tween(1000,k=>set(info.t1,info.x0+(info.x1-info.x0)*k),()=>{
-   if(info.a1>info.a0){sfx('arena');confetti();callout('New arena!',ARENAS[info.a1].g[0],ARENAS[info.a1].n)}})}),700)}
+   if(info.a1>info.a0){sfx('arena');confetti();callout('New arena!',ARENAS[info.a1].g[0],ARENAS[info.a1].n);callout('New cards!','#ffd23a',`${CARDSETS[info.a1].n} style unlocked and equipped`)}})}),700)}
 function updateRmNote(){const n=$('rmNote');if(!n||!V)return;n.textContent=M.mode==='ai'?'':(M.closed||M.oppLeft)?'Your opponent has left the battle.':M.iWantRm===V.gid?(M.theyWantRm===V.gid?'Starting…':'Waiting for your opponent…'):(M.theyWantRm===V.gid?'Your opponent wants a rematch!':'')}
 
 /* ================= Actions ================= */
@@ -615,8 +805,10 @@ function again(){$('over').hidden=true;
  if(M.closed||M.oppLeft||!NET.ready){toast('Your opponent has left. Find a new match from the lobby.');showResult();return}
  if(NET.send({t:'rematch'}))M.iWantRm=V.gid;
  showResult()}
-function askLeave(){if(V&&!V.ov&&(M.mode==='ai'||M.mode==='online'))openSheet('leaveSheet');else goHome()}
+function askLeave(){if(V&&!V.ov&&(M.mode==='ai'||M.mode==='online')){
+  $('leaveMsg').textContent=vsCpu()?'Leaving a battle against the computer is free. It will not count as a win or a loss.':'Leaving now counts as a loss.';openSheet('leaveSheet')}else goHome()}
 function forfeit(){closeSheets();if(!V||V.ov){goHome();return}
+ if(vsCpu()){goHome();return} // a battle against the computer: nothing is recorded and no trophies change
  const{me,them}=outcome(),o=oppInfo();
  recordGame(M.mode==='ai'?'ai':'pvp',o.name,M.mode==='ai'?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,'l');
  sfx('lose');goHome()}
@@ -629,7 +821,8 @@ function startAi(){leaveRoom();const tier=arenaIdx(REC.tr);M={mode:'ai',tier,S:d
 const fmt=ms=>{if(ms<10000)return (Math.max(0,ms)/1000).toFixed(1);const t=Math.ceil(ms/1000);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
 let lastTickSec=null,warned=null;
 function tickClock(){
- const ok=V&&!$('game').hidden;const now=Date.now();
+ const ok=V&&!$('game').hidden;const now=Date.now();tickRewards();
+ if(M.mode==='room'&&M.expires){const s=Math.ceil(Math.max(0,M.expires-now)/1000);$('waitTimer').textContent=`The room closes in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} if nobody joins.`}
  if(ok)[['meClk',0],['oppClk',1]].forEach(([id,i])=>{const el=$(id);const rushOn=V.ru&&V.ru.seat===i&&!V.ov;el.hidden=!(V.ck||rushOn);el.classList.toggle('rush',!!rushOn);
   if(rushOn){const l=Math.max(0,V.ru.l-(V.ru.pz?0:now-V.at));el.textContent=(l/1000).toFixed(1);el.classList.add('run');el.classList.remove('low');
    if(i===0){const sec=Math.ceil(l/1000);if(l>0&&sec!==lastTickSec){lastTickSec=sec;sfx('tick')}}return}
@@ -646,6 +839,7 @@ setInterval(tickClock,100);
 /* ================= Events ================= */
 document.addEventListener('click',e=>{
  const t=e.target;
+ const cl=t.closest&&t.closest('[data-claim]');if(cl){sfx('ui');NET.send({t:'claim_quest',slot:cl.dataset.claim});return}
  if(t.closest('[data-close]')){sfx('ui');closeSheets();return}
  if(t.classList&&t.classList.contains('sheet')&&t.id!=='intro'&&t.id!=='leaveSheet'){closeSheets();return}
  const em=t.closest('[data-emo]');if(em){sendEmote(+em.dataset.emo);return}
@@ -666,14 +860,53 @@ document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.tar
 $('deck').onclick=()=>act('draw',-1,false,$('deck'));
 $('playAi').onclick=()=>{sfx('ui');startAi()};
 $('openFriend').onclick=()=>{sfx('ui');openSheet('friendSheet')};
-$('create').onclick=()=>{sfx('ui');if(NET.ready)sendProfile();if(NET.send({t:'create',clock:clkSet}))closeSheets()};
+const shakeEl=el=>{el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');el.focus()};
+$('create').onclick=()=>{sfx('ui');const raw=$('customCode').value.trim();
+ if(raw&&!/^[A-Za-z]{5}$/.test(raw)){sfx('bad');shakeEl($('customCode'));$('roomNote').textContent='Your own code must be exactly 5 letters, or leave it empty for a random one.';return}
+ if(NET.ready)sendProfile();if(NET.send({t:'create',clock:clkSet,code:raw?raw.toUpperCase():undefined}))closeSheets()};
+$('customCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z]/g,'')});
+$('customCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('create').click()});
 $('quickBtn').onclick=()=>{sfx('ui');if(NET.ready)sendProfile();if(NET.send({t:'queue',clock:clkSet}))closeSheets()};
-$('join').onclick=()=>{const c=$('joinCode').value.trim().toUpperCase();if(!/^[A-Z]{6}$/.test(c)){sfx('bad');$('joinCode').classList.remove('shake');void $('joinCode').offsetWidth;$('joinCode').classList.add('shake');$('joinCode').focus();return}sfx('ui');if(NET.ready)sendProfile();if(NET.send({t:'join',code:c}))closeSheets()};
+$('join').onclick=()=>{const c=$('joinCode').value.trim().toUpperCase();if(!/^[A-Z]{5}$/.test(c)){sfx('bad');$('joinCode').classList.remove('shake');void $('joinCode').offsetWidth;$('joinCode').classList.add('shake');$('joinCode').focus();return}sfx('ui');if(NET.ready)sendProfile();if(NET.send({t:'join',code:c}))closeSheets()};
 $('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('join').click()});
 $('joinCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z]/g,'')});
-$('nick').value=NAME;$('nick').addEventListener('input',()=>{NAME=$('nick').value.trim().slice(0,16);ST.set('ft-nick',NAME);renderTop()});
-$('topProf').onclick=$('gearBtn').onclick=()=>{sfx('ui');$('nick').value=NAME;openSheet('setSheet')};
+const nickNote=(t,bad)=>{const n=$('nickNote');n.textContent=t||'';n.classList.toggle('bad',!!bad)};
+function saveNick(){nickNote('');trySetName($('nick').value,(ok,msg)=>{if(ok){nickNote(msg||'Name saved.');sfx('ui')}else{nickNote(msg,true);sfx('bad')}})}
+$('nick').value=NAME;$('nickSave').onclick=saveNick;$('nick').addEventListener('keydown',e=>{if(e.key==='Enter')saveNick()});
+$('topProf').onclick=$('gearBtn').onclick=()=>{sfx('ui');$('nick').value=NAME;nickNote('');renderCardPick();openSheet('setSheet')};
+/* ---- Card style picker (Settings) ---- */
+const CS_SAMPLE=[5,7,8,9,10,6,10];
+function renderCardPick(){const max=cardsOpen();
+ $('cardPick').innerHTML=CARDSETS.map((s,i)=>{const lock=i>max;
+  return `<button type="button" class="cs cs-${s.k}${i===cardSel?' on':''}${lock?' lock':''}" data-cs="${i}" aria-pressed="${i===cardSel}" aria-label="${s.n} cards${lock?`, locked until ${ARENAS[i].at} trophies`:''}">${mini(cid(i%5,CS_SAMPLE[i]),40)}<span class="csn">${s.n}</span>${lock?`<span class="csl">${IC.lock}${ARENAS[i].at}</span>`:''}</button>`}).join('')}
+$('cardPick').addEventListener('click',e=>{const b=e.target.closest('[data-cs]');if(!b)return;const i=+b.dataset.cs;
+ if(i>cardsOpen()){sfx('bad');toast(`Reach ${ARENAS[i].n} (${ARENAS[i].at} trophies) to unlock ${CARDSETS[i].n} cards.`);return}
+ sfx('select');cardSel=i;ST.set('ft-cards',i);applyCards();renderCardPick()});
 $('replayIntro').onclick=()=>{sfx('ui');openIntro()};
+/* ---- Rewards, quests, computer offer ---- */
+$('chestBtn').onclick=()=>{sfx('ui');if(ME&&ME.chest.n>0)NET.send({t:'claim_chest'});else if(ME&&ME.chest.nextIn!=null)toast(`Your next free chest arrives in ${fmtSpan(left(ME.chest.nextIn))}.`)};
+$('questBtn').onclick=()=>{sfx('ui');renderQuests();openSheet('questSheet')};
+$('botGo').onclick=()=>{sfx('ui');NET.send({t:'bot'})};
+$('botWait').onclick=()=>{sfx('ui');$('botOffer').hidden=true};
+$('seasonOk').onclick=()=>{sfx('ui');closeSheets()};
+$('remTog').onclick=toggleReminders;
+/* ---- Account: recovery code ---- */
+let keyShown=false,restoreArmed=null,restoreT=null;
+function paintKey(){$('keyShow').textContent=keyShown?fmtKey(KEY):'••••• ••••• ••••• •••••';$('keyReveal').textContent=keyShown?'Hide':'Show'}
+const keyNote=(t,bad)=>{const n=$('keyNote');n.textContent=t||'';n.classList.toggle('bad',!!bad)};
+$('keyReveal').onclick=()=>{sfx('ui');keyShown=!keyShown;paintKey()};
+$('keyCopy').onclick=async()=>{sfx('ui');toast(await copyText(fmtKey(KEY))?'Recovery code copied. Keep it somewhere safe.':'Could not copy. Tap Show and write it down.')};
+$('keyIn').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9 -]/g,'')});
+$('keyRestore').onclick=()=>{
+ const k=cleanKey($('keyIn').value);
+ if(!k){sfx('bad');keyNote('A recovery code has 20 letters and numbers, like ABCDE-FGHJK-MNPQR-STUVW.',true);return}
+ if(k===KEY){keyNote('That is the code for the account on this device already.');return}
+ if(!NET.ready){sfx('bad');keyNote('Connect to the game server first, then try again.',true);return}
+ if(restoreArmed!==k){restoreArmed=k;$('keyRestore').textContent='Tap to confirm';sfx('select');
+  keyNote(`This replaces the account on this device. Its recovery code is ${fmtKey(KEY)}. Save it first if you want to come back.`);
+  clearTimeout(restoreT);restoreT=setTimeout(()=>{restoreArmed=null;$('keyRestore').textContent='Restore'},10000);return}
+ restoreArmed=null;clearTimeout(restoreT);$('keyRestore').textContent='Restore';
+ RESTORE.prev=KEY;ST.set('ft-restore',KEY);KEY=k;ST.set('ft-key',k);paintKey();keyNote('Restoring…');NET.reconnect()};
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{if(b.getAttribute('aria-selected')!=='true')sfx('ui');setTab(b.dataset.tab)});
 $('clkpick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;clkSet=+b.dataset.clk;ST.set('ft-clock',clkSet);paintPicker();sfx('select')});
 const goHome=(quiet)=>{leaveRoom();if(!quiet){if(M.mode==='online')NET.raw({t:'leave_match'});else if(M.mode==='queue')NET.raw({t:'unqueue'});else if(M.mode==='room')NET.raw({t:'cancel_room'})}
@@ -689,11 +922,11 @@ $('sfx').onclick=toggleSound;$('sndTog').onclick=toggleSound;
 $('musTog').onclick=()=>{musicOn=!musicOn;ST.set('ft-music',musicOn);paintSound();musicSync()};
 
 /* ================= Boot ================= */
-$('navBattle').innerHTML=IC.swords+'Battle';$('navRecords').innerHTML=IC.cup+'Records';$('navGuide').innerHTML=IC.book+'Guide';
+$('navBattle').innerHTML=IC.swords+'Battle';$('navLeaders').innerHTML=IC.crown+'Ranks';$('navRecords').innerHTML=IC.cup+'Records';$('navGuide').innerHTML=IC.book+'Guide';
 $('gearBtn').innerHTML=IC.gear;$('leave').innerHTML=IC.x;$('emoBtn').innerHTML=IC.chat;$('clkLbl').innerHTML=IC.clock+'Clock each';
 document.querySelectorAll('.xbtn').forEach(b=>b.innerHTML=IC.x);
-paintSound();paintPicker();renderGuide();renderHome();
-const hc0=(location.hash||'').slice(1).toUpperCase();if(/^[A-Z]{6}$/.test(hc0)){$('joinCode').value=hc0}
-if(!ST.get('ft-intro',false))openIntro();else if(/^[A-Z]{6}$/.test(hc0))openSheet('friendSheet');
+paintSound();paintPicker();applyCards();renderGuide();paintKey();paintRem();renderHome();
+const hc0=(location.hash||'').slice(1).toUpperCase();if(/^[A-Z]{5}$/.test(hc0)){$('joinCode').value=hc0}
+if(!ST.get('ft-intro',false))openIntro();else if(/^[A-Z]{5}$/.test(hc0))openSheet('friendSheet');
 NET.connect();
 })();

@@ -145,7 +145,23 @@ pub fn can_extend(column: &[Card], card: Card) -> bool {
     }
 }
 
+/// Score of one trail: (sum of numbers - 20) x (1 + wagers), plus 20 for eight or more
+/// cards. A trail that was never started scores 0. Matches the client's `expScore`.
+pub fn column_score(column: &[Card]) -> i32 {
+    if column.is_empty() {
+        return 0;
+    }
+    let sum: i32 = column.iter().map(|&c| i32::from(value(c))).sum();
+    let wagers = column.iter().filter(|&&c| value(c) == 0).count() as i32;
+    (sum - 20) * (1 + wagers) + if column.len() >= 8 { 20 } else { 0 }
+}
+
 impl Game {
+    /// Total score for `seat` across all five trails.
+    pub fn total(&self, seat: usize) -> i32 {
+        self.columns[seat].iter().map(|c| column_score(c)).sum()
+    }
+
     pub fn new<R: Rng + ?Sized>(rng: &mut R, first: usize, base: Option<Duration>, now: Instant) -> Self {
         let mut deck: Vec<Card> = (0..DECK_SIZE).collect();
         deck.shuffle(rng);
@@ -559,6 +575,15 @@ mod tests {
         assert_eq!((color(3), value(3)), (0, 2));
         assert_eq!((color(11), value(11)), (0, 10));
         assert_eq!((color(59), value(59)), (4, 10));
+    }
+
+    #[test]
+    fn trail_scores_match_the_guide() {
+        assert_eq!(column_score(&[]), 0);
+        assert_eq!(column_score(&[4, 7, 9, 11]), 7); // Desert 3,6,8,10: 27 - 20
+        assert_eq!(column_score(&[24, 25, 30, 32, 34, 35]), 33); // Jungle, 2 wagers: (31 - 20) x 3
+        assert_eq!(column_score(&[36, 39, 41]), -28); // Volcano, 1 wager: (6 - 20) x 2
+        assert_eq!(column_score(&[3, 4, 5, 6, 7, 8, 9, 10]), 44); // eight cards: 24 + 20 bonus
     }
 
     #[test]

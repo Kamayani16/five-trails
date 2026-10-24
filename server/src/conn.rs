@@ -28,11 +28,19 @@ fn origin_allowed(headers: &HeaderMap, allowed: &[String]) -> bool {
     let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else { return false };
     let origin = origin.trim_end_matches('/');
     if !allowed.is_empty() {
-        return allowed.iter().any(|a| a == origin);
+        return allowed.iter().any(|a| a == origin || a == "*");
     }
     // Default: same origin only (scheme-agnostic so it works behind a TLS proxy).
     let Some(host) = headers.get(header::HOST).and_then(|v| v.to_str().ok()) else { return false };
-    origin.strip_prefix("https://").or_else(|| origin.strip_prefix("http://")) == Some(host)
+    if origin.strip_prefix("https://").or_else(|| origin.strip_prefix("http://")) == Some(host) {
+        return true;
+    }
+    if let Some(fwd_host) = headers.get("x-forwarded-host").and_then(|v| v.to_str().ok()) {
+        if origin.strip_prefix("https://").or_else(|| origin.strip_prefix("http://")) == Some(fwd_host) {
+            return true;
+        }
+    }
+    false
 }
 
 fn client_ip(headers: &HeaderMap, peer: SocketAddr, trust_proxy: bool) -> IpAddr {
@@ -121,7 +129,7 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                     }
                 };
                 if !said_hello {
-                    let ClientMsg::Hello { v, name, pid, tr, lv, resume } = msg else { break };
+                    let ClientMsg::Hello { v, name, pid, key, restore, tr, lv, resume } = msg else { break };
                     if v != PROTOCOL_VERSION {
                         reply!(protocol::error("version"));
                         break;
@@ -130,9 +138,15 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                         reply!(protocol::error("bad_hello"));
                         break;
                     };
+                    let Some(key) = protocol::clean_key(&key) else {
+                        reply!(protocol::error("bad_hello"));
+                        break;
+                    };
                     let resume = resume.as_deref().and_then(protocol::clean_token).map(str::to_owned);
                     said_hello = true;
-                    if app.hub.send(HubCmd::Hello { id, profile, resume }).await.is_err() { break; }
+                    // Only the hash of the key goes any further than this task.
+                    let key_hash = protocol::hash_key(&key);
+                    if app.hub.send(HubCmd::Hello { id, profile, key_hash, create: !restore, resume }).await.is_err() { break; }
                     continue;
                 }
                 let to_match = |link: &Option<(MatchTx, usize)>, make: &dyn Fn(usize) -> MatchCmd| -> Option<bool> {
@@ -141,13 +155,20 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                 let hub_cmd = match msg {
                     ClientMsg::Hello { .. } => None,
                     ClientMsg::Ping => { reply!(protocol::msg(json!({ "t": "pong" }))); None }
+                    ClientMsg::Leaderboard { season } => Some(HubCmd::Leaderboard { id, season }),
+                    ClientMsg::Me => Some(HubCmd::Me { id }),
+                    ClientMsg::Sync { tr, best, xp, ai, pvp } => Some(HubCmd::Sync { id, prog: crate::store::Prog { tr, best, xp, ai, pvp } }),
+                    ClientMsg::ClaimChest => Some(HubCmd::ClaimChest { id }),
+                    ClientMsg::ClaimQuest { slot } => Some(HubCmd::ClaimQuest { id, slot }),
+                    ClientMsg::AckSeason => Some(HubCmd::AckSeason { id }),
+                    ClientMsg::Bot => Some(HubCmd::Bot { id }),
                     ClientMsg::Profile { name, tr, lv } => match protocol::clean_name(&name) {
                         Some(name) => Some(HubCmd::UpdateProfile { id, name, trophies: tr, level: lv }),
                         None => { reply!(protocol::error("bad_hello")); None }
                     },
                     ClientMsg::Queue { clock } => Some(HubCmd::Queue { id, clock }),
                     ClientMsg::Unqueue => Some(HubCmd::Unqueue { id }),
-                    ClientMsg::Create { clock } => Some(HubCmd::Create { id, clock }),
+                    ClientMsg::Create { clock, code } => Some(HubCmd::Create { id, clock, code }),
                     ClientMsg::CancelRoom => Some(HubCmd::CancelRoom { id }),
                     ClientMsg::Join { code } => Some(HubCmd::Join { id, code }),
                     ClientMsg::LeaveMatch => {
@@ -176,7 +197,7 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                 Some(ConnCtl::Send(text)) => reply!(text),
                 Some(ConnCtl::Joined { tx, seat }) => link = Some((tx, seat)),
                 Some(ConnCtl::Left) => link = None,
-                None => break,
+                Some(ConnCtl::Close) | None => break,
             },
             _ = ping.tick() => {
                 let now = Instant::now();
@@ -225,6 +246,16 @@ mod tests {
         let allow = vec!["https://play.example.com".to_owned()];
         assert!(origin_allowed(&headers(Some("https://play.example.com"), "api.example.com"), &allow));
         assert!(!origin_allowed(&headers(Some("http://play.example.com"), "api.example.com"), &allow));
+    }
+
+    #[test]
+    fn wildcard_and_forwarded_host_allowed() {
+        let allow = vec!["*".to_owned()];
+        assert!(origin_allowed(&headers(Some("https://anywhere.example"), "127.0.0.1:8080"), &allow));
+
+        let mut h = headers(Some("https://preview.example.com"), "127.0.0.1:8080");
+        h.insert("x-forwarded-host", HeaderValue::from_static("preview.example.com"));
+        assert!(origin_allowed(&h, &[]));
     }
 
     #[test]

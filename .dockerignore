@@ -1,2 +1,4 @@
 server/target
 **/*.zip
+data
+server/data

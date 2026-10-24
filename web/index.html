@@ -35,13 +35,20 @@
           <button role="radio" data-clk="0">Off</button><button role="radio" data-clk="180">3m</button><button role="radio" data-clk="300">5m</button><button role="radio" data-clk="600">10m</button>
         </div>
       </div>
+      <div class="rew" id="rewards" hidden>
+        <div class="coinbox" id="coinBox" aria-label="Coins"></div>
+        <button class="gb green chestbtn" id="chestBtn" type="button"></button>
+        <button class="gb blue questbtn" id="questBtn" type="button"></button>
+      </div>
     </div>
+    <div class="tab" id="tab-leaders" hidden></div>
     <div class="tab" id="tab-records" hidden></div>
     <div class="tab" id="tab-guide" hidden></div>
 
     <nav class="nav" aria-label="Lobby">
       <div class="nav-in" role="tablist">
         <button role="tab" data-tab="battle" aria-selected="true" id="navBattle"></button>
+        <button role="tab" data-tab="leaders" aria-selected="false" id="navLeaders"></button>
         <button role="tab" data-tab="records" aria-selected="false" id="navRecords"></button>
         <button role="tab" data-tab="guide" aria-selected="false" id="navGuide"></button>
       </div>
@@ -55,6 +62,16 @@
       <div class="code ol" id="waitCode">----</div>
       <div class="radar"></div>
       <p class="note" id="waitMsg">Waiting for your opponent to join…</p>
+      <p class="note" id="waitTimer" aria-live="off" hidden></p>
+      <div class="botoffer" id="botOffer" hidden>
+        <p class="note" style="color:var(--ink);font-size:14px">Nobody has joined yet. Play the computer while you wait? It is unranked, but it still counts toward quests.</p>
+        <div class="sharerow"><button class="gb green sm" id="botGo" type="button">Play the computer</button><button class="gb gray sm" id="botWait" type="button">Keep waiting</button></div>
+      </div>
+      <div class="sharerow" id="waitShare" hidden>
+        <a class="gb green sm" id="shWa" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+        <button class="gb blue sm" id="shCopy" type="button">Copy invite</button>
+        <button class="gb sm" id="shMore" type="button" hidden>Share…</button>
+      </div>
       <button class="gb red" id="waitCancel">Cancel</button>
     </div>
   </section>
@@ -102,8 +119,11 @@
     <button class="gb red sq xbtn" data-close aria-label="Close"></button>
     <button class="gb quick" id="quickBtn">Quick match<small>Ranked · win +30, lose −20</small></button>
     <div class="or">or play a friend</div>
-    <button class="gb green" id="create">Create room<small>Get a code to share</small></button>
-    <div class="joinrow"><input id="joinCode" maxlength="6" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code"><button class="gb" id="join">Join</button></div>
+    <input id="customCode" class="codein" maxlength="5" placeholder="Your own code (optional)" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Your own room code, 5 letters, optional">
+    <button class="gb green" id="create">Create room<small>5 letters, or leave empty for a random code</small></button>
+    <p class="note" id="roomTtlNote">Anyone with the code can join, so share it only with your friend.</p>
+    <div class="or">or join with a code</div>
+    <div class="joinrow"><input id="joinCode" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code, 5 letters"><button class="gb" id="join">Join</button></div>
     <p class="note" id="roomNote">Connecting to the game server…</p>
   </div>
 </div>
@@ -111,17 +131,42 @@
   <div class="pn">
     <div class="pn-h ol">Settings</div>
     <button class="gb red sq xbtn" data-close aria-label="Close"></button>
-    <label class="note" for="nick">Your name</label>
-    <input id="nick" maxlength="16" placeholder="Explorer" autocomplete="nickname">
+    <label class="note" for="nick">Your name (every player's name is unique)</label>
+    <div class="row2"><input id="nick" maxlength="16" placeholder="Explorer" autocomplete="nickname"><button class="gb green sm" id="nickSave" type="button">Save</button></div>
+    <p class="note" id="nickNote" aria-live="polite"></p>
+    <span class="note">Card style. A fancier one unlocks in each arena.</span>
+    <div class="cardpick" id="cardPick"></div>
+    <div class="acct">
+      <span class="note">Your account</span>
+      <p class="note">Your progress and coins are saved on the game server. Keep this recovery code to get them back on a new phone, and never share it.</p>
+      <div class="keyrow"><code id="keyShow" aria-live="polite"></code><button class="gb sm" id="keyReveal" type="button">Show</button><button class="gb blue sm" id="keyCopy" type="button">Copy</button></div>
+      <div class="row2"><input id="keyIn" maxlength="30" placeholder="Restore with a code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Recovery code to restore an account"><button class="gb sm" id="keyRestore" type="button">Restore</button></div>
+      <p class="note" id="keyNote" aria-live="polite"></p>
+    </div>
+    <div class="setrow"><span>Reminders<small class="note" id="remNote" style="display:block"></small></span><button class="tog" id="remTog" role="switch" aria-checked="false" aria-label="Reminders"></button></div>
     <div class="setrow"><span>Music</span><button class="tog" id="musTog" role="switch" aria-checked="true" aria-label="Music"></button></div>
     <div class="setrow"><span>Sound effects</span><button class="tog" id="sndTog" role="switch" aria-checked="true" aria-label="Sound effects"></button></div>
     <button class="gb blue sm" id="replayIntro">Replay the intro</button>
   </div>
 </div>
+<div class="sheet" id="questSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol">Quests</div>
+    <button class="gb red sq xbtn" data-close aria-label="Close"></button>
+    <div id="questBody"></div>
+  </div>
+</div>
+<div class="sheet" id="seasonSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol">Season over</div>
+    <p class="note" id="seasonMsg" style="font-size:15px;color:var(--ink)"></p>
+    <button class="gb green" id="seasonOk" type="button">Great!</button>
+  </div>
+</div>
 <div class="sheet" id="leaveSheet" hidden>
   <div class="pn">
     <div class="pn-h ol">Leave the battle?</div>
-    <p class="note" style="font-size:15px;color:var(--ink)">Leaving now counts as a loss.</p>
+    <p class="note" id="leaveMsg" style="font-size:15px;color:var(--ink)">Leaving now counts as a loss.</p>
     <div class="rbtns"><button class="gb green" id="stay">Keep playing</button><button class="gb red" id="forfeit">Leave</button></div>
   </div>
 </div>
