@@ -570,6 +570,31 @@ function renderLeaders(){const el=$('tab-leaders');if(!el)return;
 
 /* ================= Rewards: coins, free chest, quests (all kept by the server) ================= */
 let ME=null;
+const PIGGY=`<svg viewBox="0 0 44 36" class="pg" aria-hidden="true"><path d="M33 13.5c3.2-.4 5.4 1.2 5.6 3.6.2 2.6-1.8 4.4-4.4 4.4" fill="#ff8fbf" stroke="${OLC}" stroke-width="2"/><path d="M12 9.5 10.2 4.8c-.3-.9.6-1.6 1.4-1.1l4.6 3" fill="#ff8fbf" stroke="${OLC}" stroke-width="2" stroke-linejoin="round"/><ellipse cx="21" cy="19" rx="15.5" ry="11.5" fill="#ffa8cd" stroke="${OLC}" stroke-width="2"/><path d="M10 27.5v4.2h4.6v-2.6M25 29.2v2.5h4.6v-4.4" fill="#ff8fbf" stroke="${OLC}" stroke-width="2" stroke-linejoin="round"/><ellipse cx="7.2" cy="19.6" rx="3.6" ry="3.2" fill="#ff8fbf" stroke="${OLC}" stroke-width="2"/><circle cx="6.1" cy="19.4" r=".9" fill="${OLC}"/><circle cx="8.5" cy="19.4" r=".9" fill="${OLC}"/><circle cx="13.8" cy="14.6" r="1.7" fill="${OLC}"/><circle cx="13.3" cy="14" r=".5" fill="#fff"/><path d="M26.5 15.5c2-1.2 4.2-1.2 6 .2" stroke="#ff6fa8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".7"/><rect class="pg-slot" x="17" y="7.2" width="9" height="2.8" rx="1.4" fill="${OLC}"/></svg>`;
+/* Coins never just appear: they fly in and drop into the piggy bank, which wiggles while the
+   balance counts up. The target is the piggy in the lobby, a piggy on the result screen, or a
+   piggy that pops up when a sheet covers the lobby. */
+let coinAnim=null;
+function piggyTarget(){const box=$('coinBox');const free=box&&!$('home').hidden&&!box.closest('[hidden]')&&!document.querySelector('.sheet:not([hidden])')&&box.getBoundingClientRect().width;
+ if(free)return{get pig(){return box.querySelector('.pg')},set:v=>{const b=box.querySelector('.ol');if(b)b.textContent=v},done:()=>{}};
+ let p=$('piggyPop');if(!p){p=document.createElement('div');p.id='piggyPop';p.className='piggypop';p.setAttribute('aria-hidden','true');document.body.appendChild(p)}
+ clearTimeout(p._t);p.innerHTML=PIGGY+'<b class="ol"></b>';p.classList.remove('bye');p.hidden=false;
+ return{pig:p.querySelector('.pg'),set:v=>{p.querySelector('b').textContent=v},done:()=>{p._t=setTimeout(()=>{p.classList.add('bye');p._t=setTimeout(()=>{p.hidden=true},380)},900)}}}
+function depositCoins(amount,fromEl,base,tgt){amount=Math.max(0,Math.round(amount));if(!amount)return;
+ const T=tgt||piggyTarget();if(!T||!T.pig)return;const start=base==null?(ME?ME.coins-amount:0):base;
+ coinAnim={cur:start};T.set&&T.set(start);
+ const finish=()=>{const end=start+amount;T.set&&T.set(end);coinAnim=null;const b=T.pig.getBoundingClientRect();if(b.width&&!reduced)burst(b.left+b.width/2,b.top+b.height*.25,['#ffd23a','#fff','#ff8fbf'],16,{sp:5});T.done&&T.done();if(!tgt)renderRewards()};
+ const pr=T.pig.getBoundingClientRect(),fr=fromEl&&fromEl.getBoundingClientRect&&fromEl.getBoundingClientRect();
+ const fx=fr&&fr.width?fr.left+fr.width/2:innerWidth/2,fy=fr&&fr.width?fr.top+fr.height/2:innerHeight*.45;
+ if(reduced||!pr.width||typeof document.body.animate!=='function'){finish();sfx('coin');return}
+ const sx=pr.left+pr.width*.49,sy=pr.top+pr.height*.22,n=Math.min(12,Math.max(3,Math.ceil(amount/5)));let landed=0;
+ for(let i=0;i<n;i++){const d=document.createElement('div');d.className='flyico coinfly';d.innerHTML=COIN;document.body.appendChild(d);
+  const ox=fx+(Math.random()-.5)*60,oy=fy+(Math.random()-.5)*30,peak=Math.min(oy,sy)-70-Math.random()*50,mx=(ox+sx)/2+(Math.random()-.5)*80;
+  const an=d.animate([{transform:`translate(${ox}px,${oy}px) scale(.3) rotateY(0deg)`,opacity:0},{transform:`translate(${ox}px,${oy-26}px) scale(1.1) rotateY(180deg)`,opacity:1,offset:.16},
+   {transform:`translate(${mx}px,${peak}px) scale(1) rotateY(540deg)`,opacity:1,offset:.55},{transform:`translate(${sx}px,${sy-14}px) scale(.8) rotateY(900deg)`,opacity:1,offset:.86},
+   {transform:`translate(${sx}px,${sy+4}px) scale(.35,.12) rotateY(900deg)`,opacity:0}],{duration:1000,delay:i*110,easing:'cubic-bezier(.45,0,.55,1)',fill:'both'});
+  an.onfinish=()=>{d.remove();landed++;const v=start+Math.round(amount*landed/n);coinAnim&&(coinAnim.cur=v);T.set&&T.set(v);
+   T.pig.classList.remove('gulp');void T.pig.getBoundingClientRect();T.pig.classList.add('gulp');sfx('coin');if(landed===n)finish()}}}
 const COIN=`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#ffd23a" stroke="${OLC}" stroke-width="2"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="#c77400" stroke-width="1.8"/><path d="M12 8.8v6.4" stroke="#c77400" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 const numOf=(v,max=1e9)=>Math.min(max,Math.max(0,Math.floor(Number(v))||0));
 function cleanMe(m){
@@ -590,7 +615,7 @@ let chestState=null,meAsked=false;
 function renderRewards(){const el=$('rewards');if(!el)return;
  if(!ME||!SERVER_URL){el.hidden=true;return}
  el.hidden=false;meAsked=false;
- $('coinBox').innerHTML=`<span class="cb-row">${COIN}<span class="ol">${ME.coins}</span></span><small>SHOP</small>`;
+ $('coinBox').innerHTML=`<span class="cb-row">${PIGGY}<span class="ol">${coinAnim?coinAnim.cur:ME.coins}</span></span><small>SHOP</small>`;
  const c=ME.chest,b=$('chestBtn');chestState=c.n>0?'ready':'wait';
  if(c.n>0){b.className='gb green chestbtn ready';b.innerHTML=`<span>Open chest${c.n>1?' ×'+c.n:''}</span><small>+${c.coins} coins</small>`}
  else{b.className='gb chestbtn wait';b.innerHTML=`<span>Free chest</span><small class="cb-s">${c.nextIn==null?'':'in '+fmtClock(left(c.nextIn))}</small>`}
@@ -610,15 +635,16 @@ function renderQuests(){if(!ME)return;
  $('questBody').innerHTML=`<div class="qs"><div class="qh">Today<span>New quests in ${fmtSpan(left(ME.dailyIn))}</span></div>${ME.daily.map(row).join('')}
   <div class="qh">This week<span>New quests in ${fmtSpan(left(ME.weeklyIn))}</span></div>${ME.weekly.map(row).join('')}
   <p class="note">Online, friend and computer battles count. Quitting early does not.</p></div>`}
-function onClaimed(m){const coins=numOf(m.coins);sfx('coin');setTimeout(()=>sfx('coin'),90);
+function onClaimed(m){const coins=numOf(m.coins);sfx('coin');
  const el=m.what==='chest'?$('chestBtn'):document.querySelector('#questSheet:not([hidden]) .q.done')||$('questBtn');
  if(el&&el.getBoundingClientRect().width){const[x,y]=centerOf(el);burst(x,y,['#ffd23a','#fff','#ffaa00'],22,{sp:7})}
+ depositCoins(coins,el,ME?ME.coins:0);
  callout(`+${coins} coins`,'#ffd23a',m.what==='chest'?'Free chest':'Quest done')}
 let seasonShown=null;
 function maybeShowReward(){const r=ME&&ME.reward;if(!r||$('home').hidden||!$('intro').hidden)return;
  const key=r.season+':'+r.rank;if(seasonShown===key)return;seasonShown=key;
  $('seasonMsg').textContent=`${r.season} is over. You finished #${r.rank} on the leaderboard and earned ${r.coins} coins!`;
- NET.raw({t:'ack_season'});openSheet('seasonSheet');sfx('levelup');confetti()}
+ NET.raw({t:'ack_season'});openSheet('seasonSheet');sfx('levelup');confetti();setTimeout(()=>depositCoins(r.coins,$('seasonMsg'),Math.max(0,ME.coins-r.coins)),700)}
 /* ---- Reminders: a nudge when the next free chest is ready. Needs the iPhone app (local notifications). ---- */
 let remOn=ST.get('ft-remind',false)===true;
 const localNotes=()=>{try{return window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications||null}catch(e){return null}};
@@ -851,7 +877,7 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
   <div class="rscore"><div class="rs-p ${r==='w'?'win':''}">${avatarHTML(nick(),lvlInfo(REC.xp).lv)}<b class="ol">${me}</b><span>You</span></div><div class="rs-vs">vs</div><div class="rs-p ${r==='l'?'win':''}">${avatarHTML(o.name,o.lv,o.cpu)}<b class="ol">${them}</b><span>${esc(o.name)}</span></div></div>
   <div class="rcols" aria-label="Trail scores, yours on top">${lanes}</div>
   <div class="rrow">${TROPHY}<div class="bar"><i id="rTrBar"></i><b class="ols" id="rTrTxt"></b></div><span class="dchip ${info&&info.dT<0?'neg':info&&info.dT===0?'zero':''}" id="rTrD">${info?(info.dT>0?'+':'')+info.dT:'0'}</span></div>
-  <div class="rrow coinrow" id="rCoinRow">${COIN}<div class="bar coin"><b class="ols" id="rCoinTxt">${M.mode==='online'?'Counting coins…':'Play online to earn coins'}</b></div><span class="dchip coin" id="rCoinD" ${M.mode==='online'?'':'hidden'}>+0</span></div>
+  <div class="rrow coinrow" id="rCoinRow">${PIGGY}<div class="bar coin"><b class="ols" id="rCoinTxt">${M.mode==='online'?'Counting coins…':'Play online to earn coins'}</b></div><span class="dchip coin" id="rCoinD" ${M.mode==='online'?'':'hidden'}>+0</span></div>
   <div class="rrow"><div class="lvbox ol" id="rLv">${L0.lv}</div><div class="bar xp"><i id="rXpBar"></i><b class="ols" id="rXpTxt"></b></div><span class="dchip xp">+${info?info.dX:0} XP</span></div>
   ${h?`<p class="note" style="text-align:center">Head to head with ${esc(o.name)}: ${wld(h)}</p>`:''}
   <div class="rbtns"><button class="gb green" id="oAgain">${M.mode==='ai'?'Battle again':'Rematch'}</button><button class="gb blue" id="oHome">Lobby</button></div>
@@ -863,7 +889,7 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
  if(M.mode==='online'&&M.earned)setTimeout(()=>showEarned(first),first?2600:0)}
 /* Icons that fly from one place on screen into a counter, landing one after another. */
 function flyIcons(html,fromEl,toEl,n,onHit,done){const a=fromEl&&fromEl.getBoundingClientRect(),b=toEl&&toEl.getBoundingClientRect();
- if(!a||!b||!a.width||!b.width||reduced||n<1){for(let i=0;i<n;i++)onHit&&onHit(i);done&&done();return}
+ if(!a||!b||!a.width||!b.width||reduced||n<1||typeof document.body.animate!=='function'){for(let i=0;i<n;i++)onHit&&onHit(i);done&&done();return}
  const tx=b.left+b.width/2,ty=b.top+b.height/2;let left=n;
  for(let i=0;i<n;i++){const d=document.createElement('div');d.className='flyico';d.innerHTML=html;document.body.appendChild(d);
   const sx=a.left+a.width/2+(Math.random()-.5)*a.width*.7,sy=a.top+a.height/2+(Math.random()-.5)*a.height*.5,mx=(sx+tx)/2+(Math.random()-.5)*120,my=Math.min(sy,ty)-60-Math.random()*60;
@@ -874,10 +900,10 @@ function showEarned(first){const e=M.earned;if(!e||!$('rCoinRow'))return;const t
  if(e.coins<=0){txt.textContent="Today's battle coins are collected";chip.hidden=true;return}
  const total=ME?ME.coins:null;
  if(!first){txt.textContent=total!=null?`${total} coins`:'Coins added';chip.textContent='+'+e.coins;return}
- txt.textContent='';chip.textContent='+0';const n=Math.min(10,Math.max(3,Math.round(e.coins/2)));let got=0;
- flyIcons(COIN,document.querySelector('#over .rib'),$('rCoinRow').querySelector('svg'),n,i=>{got=Math.round(e.coins*(i+1)/n);chip.textContent='+'+got;sfx('coin');
-   if(total!=null)txt.textContent=`${total-e.coins+got} coins`},
-  ()=>{const[x,y]=centerOf(chip);burst(x,y,['#ffd23a','#fff','#ffaa00'],18,{sp:6});chip.classList.remove('pulse');void chip.offsetWidth;chip.classList.add('pulse')})}
+ const base=total!=null?total-e.coins:0;txt.textContent=total!=null?`${base} coins`:'';chip.textContent='+0';
+ depositCoins(e.coins,document.querySelector('#over .rib'),base,{pig:$('rCoinRow').querySelector('.pg'),
+  set:v=>{chip.textContent='+'+(v-base);txt.textContent=total!=null?`${v} coins`:''},
+  done:()=>{chip.classList.remove('pulse');void chip.offsetWidth;chip.classList.add('pulse')}})}
 function trState(t){const a=arenaIdx(t),A=ARENAS[a],N=ARENAS[a+1];return{pct:N?(t-A.at)/(N.at-A.at)*100:100,txt:N?`${t} / ${N.at}`:`${t}`}}
 function animateGains(info,first){const set=(t,x)=>{const s=trState(Math.round(t));if(!$('rTrBar'))return;$('rTrBar').style.width=s.pct+'%';$('rTrTxt').textContent=s.txt;const L=lvlInfo(Math.round(x));$('rXpBar').style.width=(L.into/L.need*100)+'%';$('rXpTxt').textContent=`${L.into} / ${L.need} XP`;
   if(+$('rLv').textContent!==L.lv){$('rLv').textContent=L.lv;$('rLv').classList.remove('up');void $('rLv').offsetWidth;$('rLv').classList.add('up');if(first){sfx('levelup');callout('Level up!','#7fd0ff',`Level ${L.lv}`)}}};

@@ -675,3 +675,19 @@ body.tb-volcano .board{box-shadow:0 4px 0 var(--ol),inset 0 0 0 2px rgba(255,122
 .eye.oracle .ey-flash{background:radial-gradient(circle at 50% 60%,#fffdf2 0,rgba(255,236,180,.85) 26%,rgba(214,190,255,.4) 48%,transparent 70%)}
 .eye.oracle.calm .or-r1,.eye.oracle.calm .or-r2{animation:none}
 .eye.oracle .ey-beam{width:110px;height:120px;top:-60px;left:-210px;background:radial-gradient(ellipse at center,rgba(255,246,214,.55),transparent 70%);filter:blur(4px)}
+
+/* ================= Piggy bank ================= */
+.pg{width:34px;height:28px;flex-shrink:0;overflow:visible;transform-origin:50% 90%}
+.pg.gulp{animation:pgGulp .32s var(--spring)}
+@keyframes pgGulp{0%{transform:scale(1)}30%{transform:scale(1.18,.86) rotate(-4deg)}60%{transform:scale(.94,1.08) rotate(3deg)}100%{transform:scale(1)}}
+.pg .pg-slot{transition:fill .2s}
+.pg.gulp .pg-slot{fill:#c77400}
+.coinbox .pg{width:30px;height:25px}
+.rrow>.pg{width:34px;height:28px}
+.coinfly{width:24px;height:24px;margin:-12px 0 0 -12px;z-index:125}
+.piggypop{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 88px);z-index:121;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:8px 16px 8px 12px;border-radius:999px;background:var(--paper);border:3px solid var(--ol);box-shadow:0 4px 0 var(--ol);color:var(--ink);font-family:var(--display);font-size:22px;pointer-events:none;animation:pgIn .35s var(--spring) both}
+.piggypop b{color:var(--ink);-webkit-text-stroke:0;text-shadow:none;font-variant-numeric:tabular-nums}
+.piggypop .pg{width:46px;height:38px}
+.piggypop.bye{animation:pgOut .35s ease-in both}
+@keyframes pgIn{from{transform:translate(-50%,40px) scale(.6);opacity:0}}
+@keyframes pgOut{to{transform:translate(-50%,40px) scale(.7);opacity:0}}
