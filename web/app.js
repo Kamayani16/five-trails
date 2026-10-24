@@ -463,7 +463,8 @@ function renderGuide(){
  <div class="pn gsec"><div class="pn-h ol">Powerups</div>
   <p>You get one of each per battle. Tap the button, then tap again to confirm.</p>
   <p><span class="pwb">SABOTAGE</span> Before you play, knock a random card from your rival's hand onto its discard pile. They draw a replacement.</p>
-  <p><span class="pwb">RUSH</span> Your rival's next turn lasts only 10 seconds. If time runs out, a random card of theirs is discarded and they draw from the deck.</p></div>
+  <p><span class="pwb">RUSH</span> Your rival's next turn lasts only 10 seconds. If time runs out, a random card of theirs is discarded and they draw from the deck.</p>
+  <p><span class="pwb">EVIL EYE</span> Peeks at your rival's hidden cards so you can see their hand and plan your moves.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Trophies and arenas</div>
   <p>Beat the computer for +12 trophies, lose for −8. Against players it's +30 and −20. Once you reach an arena you never drop below it.</p>
   <p>Each new arena brings a sharper computer opponent and unlocks a fancier card style. Pick your cards in Settings. Every battle earns XP, and more points earn more XP.</p>
@@ -579,7 +580,7 @@ const INTRO=[
  {t:'Welcome, explorer!',v:()=>`<div style="position:relative;width:240px;height:130px">${[cid(0,10),cid(1,9),cid(2,8),cid(3,7),cid(4,6)].map((id,i)=>mini(id,58,`position:absolute;left:91px;bottom:0;transform-origin:50% 150%;transform:rotate(${(i-2)*13}deg)`)).join('')}</div>`,p:'Five colored trails, one shared deck. Build expeditions and finish with more points than your rival.'},
  {t:'Always climb',v:()=>[cid(1,3),cid(1,6),cid(1,9)].map((id,i)=>mini(id,56,`transform:translateY(${(1-i)*16}px)`)).join(''),p:'Every card you add to a trail must be higher than the one before it. Plan your order.'},
  {t:'Bet bold',v:()=>[cid(3,0,0),cid(3,7),cid(3,10)].map(id=>mini(id,56)).join(''),p:'Each trail you start costs 20 points. Wager cards go first and multiply a trail, win or lose.'},
- {t:'Two tricks per battle',v:()=>`<div style="display:flex;flex-direction:column;gap:10px;align-items:center"><span class="pwb" style="font-size:18px;padding:5px 14px">SABOTAGE</span><span class="pwb" style="font-size:18px;padding:5px 14px">RUSH</span></div>`,p:"Sabotage knocks a random rival card onto the discard pile. Rush gives your rival just 10 seconds on their next turn."},
+ {t:'Three tricks per battle',v:()=>`<div style="display:flex;flex-direction:column;gap:8px;align-items:center"><span class="pwb" style="font-size:16px;padding:4px 14px">SABOTAGE</span><span class="pwb" style="font-size:16px;padding:4px 14px">RUSH</span><span class="pwb" style="font-size:16px;padding:4px 14px">EVIL EYE</span></div>`,p:"Sabotage knocks a random rival card onto the discard pile. Rush gives your rival just 10 seconds on their next turn. Evil Eye peeks at your rival's hidden cards."},
  {t:"What's your name?",name:true}
 ];
 function openIntro(){introI=0;closeSheets();$('intro').hidden=false;renderIntro()}
