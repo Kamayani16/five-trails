@@ -13,6 +13,25 @@ pub const CHEST_COINS: u32 = 40;
 /// A match needs at least this many moves before it counts toward quests, so quitting
 /// straight away (or two friends trading instant forfeits) earns nothing.
 pub const MIN_SEQ_FOR_QUESTS: u32 = 11;
+/// Most coins battles can pay in one day; chests, quests and seasons come on top.
+pub const BATTLE_COINS_PER_DAY: u32 = 150;
+
+/// Coins for finishing a counted online battle: a win pays most, but every finish pays.
+/// Battles against the computer pay half.
+pub fn battle_coins(kind: PlayKind, won: bool, draw: bool) -> u32 {
+    let (w, d, l) = match kind {
+        PlayKind::Ranked | PlayKind::Friend => (15, 8, 5),
+        PlayKind::Bot => (8, 4, 2),
+    };
+    if won {
+        w
+    } else if draw {
+        d
+    } else {
+        l
+    }
+}
+
 /// Season reward needs at least this many ranked games in the season.
 pub const SEASON_MIN_GAMES: u32 = 5;
 
@@ -654,6 +673,15 @@ mod tests {
         assert_eq!(item(DEFAULT_TABLE).map(|i| i.kind), Some(ItemKind::Table));
         assert_eq!(item(DEFAULT_BACK).map(|i| i.kind), Some(ItemKind::Back));
         assert!(item("summit").is_some_and(|i| i.trophies > 0 && i.price == 0));
+    }
+
+    #[test]
+    fn battles_pay_more_for_a_win_and_less_against_the_computer() {
+        assert_eq!(battle_coins(PlayKind::Ranked, true, false), 15);
+        assert_eq!(battle_coins(PlayKind::Friend, false, true), 8);
+        assert_eq!(battle_coins(PlayKind::Ranked, false, false), 5);
+        assert_eq!(battle_coins(PlayKind::Bot, true, false), 8);
+        assert_eq!(battle_coins(PlayKind::Bot, false, false), 2);
     }
 
     #[test]

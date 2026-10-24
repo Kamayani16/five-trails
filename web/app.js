@@ -196,10 +196,12 @@ const SFX={
   [88,84,80,76,72,68].forEach((n,i)=>tone(f(n),.16,'triangle',.06,3+i*.07));
   [40,47,53].forEach(n=>tone(f(n),.9,'sine',.07,3.1))}),
  eye:SLO((tone,noise)=>{const f=n=>440*2**((n-69)/12);
-  tone(f(38),3.9,'sine',.2,0);tone(f(45),3.8,'sine',.1,.1);tone(f(50),2.6,'triangle',.04,1.3);
-  [0,.5,1,1.4,1.75,2.05,2.3,2.5].forEach(w=>{tone(58,.2,'sine',.45,w,40);tone(52,.18,'sine',.25,w+.16,38)});
-  [62,65,68,71].forEach((n,i)=>tone(f(n),.7,'triangle',.07,.8+i*.5));
-  tone(f(26),1.1,'sine',.5,2.95,30);[50,53,57,63].forEach(n=>tone(f(n),1,'triangle',.07,2.95));tone(f(81),1,'sine',.04,3)}),
+  tone(f(50),3.9,'sine',.09,0);tone(f(57),3.7,'sine',.06,.2);tone(f(62),3.2,'triangle',.025,.6);
+  [62,66,69,73,76,80,81].forEach((n,i)=>tone(f(n),.9,'triangle',.06,.35+i*.16));
+  [74,78,81,85].forEach((n,i)=>tone(f(n),.7,'sine',.035,1.6+i*.22));
+  [69,73,76,80].forEach((n,i)=>tone(f(n),.5,'triangle',.04,2.25+i*.09));
+  [50,57,62,66,69,73,76].forEach(n=>tone(f(n),1.05,n<60?'sine':'triangle',n<60?.12:.05,2.95));
+  tone(f(93),1,'sine',.045,3);tone(f(88),.9,'sine',.03,3.12);tone(f(100),.6,'sine',.02,3.2)}),
  last:()=>{for(let i=0;i<14;i++)noise(.06,180+i*12,'lowpass',.22+i*.012,1,i*.045);tone(98,.6,'sine',.35,.66,60);noise(.6,6000,'highpass',.08,1,.66)}
 };
 const sfx=(k,m)=>{if(sfxOn&&SFX[k])try{SFX[k](m||1)}catch(e){}};
@@ -405,6 +407,7 @@ function onServer(m){switch(m.t){
  case 'me':ME=cleanMe(m);if(ME.shop){EQ.table=ME.shop.table;EQ.back=ME.shop.back;ST.set('ft-table',EQ.table);ST.set('ft-back',EQ.back);applyTheme()}if(!$('shopSheet').hidden)renderShop();renderRewards();if(!$('questSheet').hidden)renderQuests();scheduleReminders();maybeShowReward();break;
  case 'claimed':onClaimed(m);break;
  case 'bought':onBought(m);break;
+ case 'earned':if(M.mode==='online'){M.earned={coins:numOf(m.coins),counted:m.counted!==false};if(!$('over').hidden)showEarned(true)}break;
  case 'bot_offer':if(M.mode==='queue'){$('botOffer').hidden=false;sfx('join')}break;
  case 'leaderboard':{const l=cleanLB(m);LBS[l.scope]=l;if(curTab==='leaders')renderLeaders();break}
  case 'stats':NET.stats=m.stats||null;netChanged();break;
@@ -447,7 +450,7 @@ function onMatch(m){const v=m.view,o=m.opp;if(!v||typeof v!=='object'||!o)return
  const opp={nick:String(o.name||'Opponent').slice(0,16),tr:Math.max(0,Number(o.tr)||0),lv:Math.max(1,Number(o.lv)||1),pid:String(o.pid||'').slice(0,64),bot:o.bot===true,tier:Math.max(0,Math.min(ARENAS.length-1,Math.floor(Number(o.tier))||0)),back:okItem(o.back,'back')?o.back:'stripes'};
  if(M.mode!=='online')M={mode:'online',oppEmoT:undefined};
  Object.assign(M,{opp,oppKey:'p:'+opp.pid,kind:m.kind==='room'?'room':m.kind==='bot'?'bot':'quick',code:typeof m.code==='string'?m.code.replace(/[^A-Z]/g,''):null,
-  oppHere:m.oppConnected!==false,oppLeft:false,closed:false,reconnecting:false,iWantRm:null,theyWantRm:null});
+  oppHere:m.oppConnected!==false,oppLeft:false,earned:null,closed:false,reconnecting:false,iWantRm:null,theyWantRm:null});
  V=v;V.at=Date.now();pending=false;sel=null;
  $('roomTag').textContent=M.kind==='room'?'Room '+M.code:M.kind==='bot'?'Computer battle':'Quick match';
  if($('game').hidden)show('game');
@@ -526,6 +529,7 @@ $('tab-guide').innerHTML=`
   <p>Each arena sharpens the computer and unlocks a card style (Settings). Battles earn XP.</p>
   <p>With a clock, only your own turns count down.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Rewards</div>
+  <p>Every finished online battle pays coins: 15 for a win, 8 for a draw, 5 for a loss (half against the computer), up to 150 a day.</p>
   <p>A free chest every few hours (bank of 2), plus daily and weekly quests. Saved on the server.</p>
   <p>Quick matches feed a monthly season; top players win coins when it ends.</p>
   <p>No one around? Play the computer: unranked, still counts for quests.</p>
@@ -781,7 +785,8 @@ function paintOppHand(){const el=$('oppHand');if(!el||!V)return;setBk(el,oppBack
  else el.innerHTML='<div class="back"></div>'.repeat(V.on)}
 function paintEyeMarks(){if(!V||Date.now()<eyeUntil)return;document.querySelectorAll('#hand .seen').forEach(e=>e.classList.remove('seen'));
  if(V.em>=0){const el=document.querySelector(`#hand [data-id="${V.em}"]`);if(el){el.classList.add('seen');if(!el.querySelector('.eyetag'))el.insertAdjacentHTML('beforeend','<span class="eyetag">SEEN</span>')}}}
-const EYE_SVG='<svg viewBox="0 0 120 70" class="ey-svg" aria-hidden="true"><defs><radialGradient id="eyIr" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ff2a2a"/><stop offset=".55" stop-color="#b3001b"/><stop offset="1" stop-color="#3d0010"/></radialGradient><clipPath id="eyClip"><path class="ey-lid" d="M4 35C24 6 96 6 116 35C96 64 24 64 4 35Z"/></clipPath></defs><path d="M4 35C24 6 96 6 116 35C96 64 24 64 4 35Z" fill="#1a0610" stroke="#ff4d5e" stroke-width="2.5"/><g clip-path="url(#eyClip)"><path d="M4 35C24 6 96 6 116 35C96 64 24 64 4 35Z" fill="#f6e9e9"/><g class="ey-look"><circle cx="60" cy="35" r="20" fill="url(#eyIr)"/><ellipse class="ey-pupil" cx="60" cy="35" rx="9" ry="17" fill="#080006"/><circle cx="54" cy="27" r="3.2" fill="#fff" opacity=".8"/></g><rect class="ey-lidtop" x="0" y="0" width="120" height="35" fill="#1a0610"/><rect class="ey-lidbot" x="0" y="35" width="120" height="35" fill="#1a0610"/></g></svg>';
+const EYE_SVG='<svg viewBox="0 0 160 100" class="or-eye" aria-hidden="true"><defs><radialGradient id="orIr" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#fff4c4"/><stop offset=".22" stop-color="#5fe0d2"/><stop offset=".6" stop-color="#178a9e"/><stop offset="1" stop-color="#0f2f6b"/></radialGradient><linearGradient id="orGd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff3c0"/><stop offset=".5" stop-color="#f2c14e"/><stop offset="1" stop-color="#b8862b"/></linearGradient><radialGradient id="orSc" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#fffdf6"/><stop offset="1" stop-color="#ead9f2"/></radialGradient><clipPath id="orClip"><path d="M8 50C40 8 120 8 152 50C120 92 40 92 8 50Z"/></clipPath></defs><g class="or-open"><g clip-path="url(#orClip)"><path d="M8 50C40 8 120 8 152 50C120 92 40 92 8 50Z" fill="url(#orSc)"/><g class="ey-look"><circle cx="80" cy="50" r="25" fill="url(#orIr)" stroke="#0f2f6b" stroke-width="1.5"/><g stroke="#e9fff9" stroke-width=".8" opacity=".45"><path d="M89.0 50.0L102.0 50.0"/><path d="M88.7 52.3L101.3 55.7"/><path d="M87.8 54.5L99.1 61.0"/><path d="M86.4 56.4L95.6 65.6"/><path d="M84.5 57.8L91.0 69.1"/><path d="M82.3 58.7L85.7 71.3"/><path d="M80.0 59.0L80.0 72.0"/><path d="M77.7 58.7L74.3 71.3"/><path d="M75.5 57.8L69.0 69.1"/><path d="M73.6 56.4L64.4 65.6"/><path d="M72.2 54.5L60.9 61.0"/><path d="M71.3 52.3L58.7 55.7"/><path d="M71.0 50.0L58.0 50.0"/><path d="M71.3 47.7L58.7 44.3"/><path d="M72.2 45.5L60.9 39.0"/><path d="M73.6 43.6L64.4 34.4"/><path d="M75.5 42.2L69.0 30.9"/><path d="M77.7 41.3L74.3 28.7"/><path d="M80.0 41.0L80.0 28.0"/><path d="M82.3 41.3L85.7 28.7"/><path d="M84.5 42.2L91.0 30.9"/><path d="M86.4 43.6L95.6 34.4"/><path d="M87.8 45.5L99.1 39.0"/><path d="M88.7 47.7L101.3 44.3"/></g><ellipse class="ey-pupil" cx="80" cy="50" rx="7.5" ry="14" fill="#121a44"/><path d="M70 37l1.5 4.5 4.5 1.5-4.5 1.5-1.5 4.5-1.5-4.5-4.5-1.5 4.5-1.5z" fill="#fff"/></g></g><path d="M8 50C40 8 120 8 152 50C120 92 40 92 8 50Z" fill="none" stroke="url(#orGd)" stroke-width="3.2"/></g><g class="or-lash" stroke="url(#orGd)" stroke-width="2.2" stroke-linecap="round" fill="none"><path d="M29.4 31.4L23.2 28.1"/><path d="M41.0 25.8L35.6 21.3"/><path d="M53.5 21.7L49.4 16.1"/><path d="M66.6 19.3L63.7 10.8"/><path d="M80.0 18.5L80.0 9.5"/><path d="M93.4 19.3L96.3 10.8"/><path d="M106.5 21.7L110.6 16.1"/><path d="M119.0 25.8L124.4 21.3"/><path d="M130.6 31.4L136.8 28.1"/></g></svg>';
+const ORB_SVG='<svg viewBox="-100 -100 200 200" class="or-ring" aria-hidden="true"><g fill="none" stroke="#f6d27c"><g class="or-r1"><circle r="95" stroke-width=".7" opacity=".7"/><circle r="88" stroke-width="1.2"/><g stroke-width=".9"><path d="M88.00 0.00L80.00 0.00"/><path d="M87.52 9.20L83.54 8.78"/><path d="M86.08 18.30L82.16 17.46"/><path d="M83.69 27.19L79.89 25.96"/><path d="M80.39 35.79L76.74 34.17"/><path d="M76.21 44.00L69.28 40.00"/><path d="M71.19 51.73L67.96 49.37"/><path d="M65.40 58.88L62.42 56.21"/><path d="M58.88 65.40L56.21 62.42"/><path d="M51.73 71.19L49.37 67.96"/><path d="M44.00 76.21L40.00 69.28"/><path d="M35.79 80.39L34.17 76.74"/><path d="M27.19 83.69L25.96 79.89"/><path d="M18.30 86.08L17.46 82.16"/><path d="M9.20 87.52L8.78 83.54"/><path d="M0.00 88.00L0.00 80.00"/><path d="M-9.20 87.52L-8.78 83.54"/><path d="M-18.30 86.08L-17.46 82.16"/><path d="M-27.19 83.69L-25.96 79.89"/><path d="M-35.79 80.39L-34.17 76.74"/><path d="M-44.00 76.21L-40.00 69.28"/><path d="M-51.73 71.19L-49.37 67.96"/><path d="M-58.88 65.40L-56.21 62.42"/><path d="M-65.40 58.88L-62.42 56.21"/><path d="M-71.19 51.73L-67.96 49.37"/><path d="M-76.21 44.00L-69.28 40.00"/><path d="M-80.39 35.79L-76.74 34.17"/><path d="M-83.69 27.19L-79.89 25.96"/><path d="M-86.08 18.30L-82.16 17.46"/><path d="M-87.52 9.20L-83.54 8.78"/><path d="M-88.00 0.00L-80.00 0.00"/><path d="M-87.52 -9.20L-83.54 -8.78"/><path d="M-86.08 -18.30L-82.16 -17.46"/><path d="M-83.69 -27.19L-79.89 -25.96"/><path d="M-80.39 -35.79L-76.74 -34.17"/><path d="M-76.21 -44.00L-69.28 -40.00"/><path d="M-71.19 -51.73L-67.96 -49.37"/><path d="M-65.40 -58.88L-62.42 -56.21"/><path d="M-58.88 -65.40L-56.21 -62.42"/><path d="M-51.73 -71.19L-49.37 -67.96"/><path d="M-44.00 -76.21L-40.00 -69.28"/><path d="M-35.79 -80.39L-34.17 -76.74"/><path d="M-27.19 -83.69L-25.96 -79.89"/><path d="M-18.30 -86.08L-17.46 -82.16"/><path d="M-9.20 -87.52L-8.78 -83.54"/><path d="M-0.00 -88.00L-0.00 -80.00"/><path d="M9.20 -87.52L8.78 -83.54"/><path d="M18.30 -86.08L17.46 -82.16"/><path d="M27.19 -83.69L25.96 -79.89"/><path d="M35.79 -80.39L34.17 -76.74"/><path d="M44.00 -76.21L40.00 -69.28"/><path d="M51.73 -71.19L49.37 -67.96"/><path d="M58.88 -65.40L56.21 -62.42"/><path d="M65.40 -58.88L62.42 -56.21"/><path d="M71.19 -51.73L67.96 -49.37"/><path d="M76.21 -44.00L69.28 -40.00"/><path d="M80.39 -35.79L76.74 -34.17"/><path d="M83.69 -27.19L79.89 -25.96"/><path d="M86.08 -18.30L82.16 -17.46"/><path d="M87.52 -9.20L83.54 -8.78"/></g><g fill="#f6d27c" stroke="none"><path d="M74.0 -3.0l3 3-3 3-3-3z"/><path d="M64.1 34.0l3 3-3 3-3-3z"/><path d="M37.0 61.1l3 3-3 3-3-3z"/><path d="M0.0 71.0l3 3-3 3-3-3z"/><path d="M-37.0 61.1l3 3-3 3-3-3z"/><path d="M-64.1 34.0l3 3-3 3-3-3z"/><path d="M-74.0 -3.0l3 3-3 3-3-3z"/><path d="M-64.1 -40.0l3 3-3 3-3-3z"/><path d="M-37.0 -67.1l3 3-3 3-3-3z"/><path d="M-0.0 -77.0l3 3-3 3-3-3z"/><path d="M37.0 -67.1l3 3-3 3-3-3z"/><path d="M64.1 -40.0l3 3-3 3-3-3z"/></g></g><g class="or-r2"><circle r="66" stroke-width=".8" stroke-dasharray="2 5"/><circle r="50" stroke-width=".6" opacity=".6"/><g fill="#fff3c0" stroke="none"><circle cx="53.6" cy="22.2" r="2.2"/><circle cx="22.2" cy="53.6" r="2.2"/><circle cx="-22.2" cy="53.6" r="2.2"/><circle cx="-53.6" cy="22.2" r="2.2"/><circle cx="-53.6" cy="-22.2" r="2.2"/><circle cx="-22.2" cy="-53.6" r="2.2"/><circle cx="22.2" cy="-53.6" r="2.2"/><circle cx="53.6" cy="-22.2" r="2.2"/></g><path d="M0-66L0 66M-66 0L66 0" stroke-width=".5" opacity=".45"/></g></g></svg>';
 const BOLT_SVG='<svg viewBox="0 0 100 120" class="sb-svg" aria-hidden="true"><defs><linearGradient id="sbG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".45" stop-color="#d9a6ff"/><stop offset="1" stop-color="#7a2bff"/></linearGradient></defs><path d="M58 4 18 66h26l-8 50 46-68H50z" fill="url(#sbG)" stroke="#2a0a52" stroke-width="3" stroke-linejoin="round"/></svg>';
 function powerScene(ev,opp){const o=$('eye');if(!o)return;const sab=ev.k==='sab',mine=ev.by==='me',D=reduced?1500:6000;eyeUntil=Date.now()+D;
  clearTimeout(eyeT);const n=Math.max(2,Math.min(9,mine?V.on:V.me.length)),pick=Math.floor(Math.random()*n),C=COL[cC(ev.id)],nm=C.n+' '+(cV(ev.id)||'wager');
@@ -789,16 +794,17 @@ function powerScene(ev,opp){const o=$('eye');if(!o)return;const sab=ev.k==='sab'
  const face=sab?`<div class="sb-h sb-h1">${mini(ev.id,44)}</div><div class="sb-h sb-h2">${mini(ev.id,44)}</div>`:mini(ev.id,44);
  let fan='';for(let i=0;i<n;i++){const d=i-(n-1)/2;const st=`--r:${(d*7).toFixed(1)}deg;--y:${(Math.abs(d)*Math.abs(d)*1.6).toFixed(1)}px;--x:${(d*26).toFixed(0)}px;--i:${i}`;
   fan+=i===pick?`<div class="ey-c pick" style="${st}"><div class="ey-flip"><div class="ey-bk back"></div><div class="ey-fc">${face}</div></div></div>`:`<div class="ey-c" style="${st}"><div class="back ey-bk"></div></div>`}
- const title=sab?(mine?'SABOTAGE':'SABOTAGED!'):(mine?'EVIL EYE':'YOU ARE BEING WATCHED');
- const sub=sab?(mine?`Striking ${esc(opp.name)}'s hand…`:`${esc(opp.name)} is striking your hand…`):(mine?`Searching ${esc(opp.name)}'s hand…`:`${esc(opp.name)} is searching your hand…`);
+ const title=sab?(mine?'SABOTAGE':'SABOTAGED!'):'EVIL EYE';
+ const sub=sab?(mine?`Striking ${esc(opp.name)}'s hand…`:`${esc(opp.name)} is striking your hand…`):(mine?`Your gaze falls on ${esc(opp.name)}'s hand`:`${esc(opp.name)} glimpses one of your cards`);
  const cap=sab?(mine?`${esc(opp.name)} draws a new card`:'You draw a replacement'):(mine?`${esc(opp.name)} holds it · your turn ${turn}`:`Exposed to ${esc(opp.name)} · their turn ${turn}`);
- const centre=sab?`<div class="ey-eyew sb-bolt">${BOLT_SVG}</div>`:`<div class="ey-eyew">${EYE_SVG}</div>`;
- o.className='eye '+(sab?'sab ':'')+(mine?'mine':'theirs')+(reduced?' calm':'');setBk(o,mine?oppBack():EQ.back);
- o.innerHTML=`<div class="ey-veil"></div><div class="ey-crack"></div><div class="ey-top ol">${title}</div>${centre}<div class="ey-sub ol">${sub}</div>
+ const centre=sab?`<div class="ey-eyew sb-bolt">${BOLT_SVG}</div>`:`<div class="or-stage"><div class="or-halo"></div>${ORB_SVG}<div class="or-eyew">${EYE_SVG}</div></div>`;
+ const motes=sab?'':`<div class="or-motes">${Array.from({length:22},(_,k)=>`<i style="left:${(Math.random()*100).toFixed(1)}%;--d:${(Math.random()*2.4).toFixed(2)}s;--s:${(.5+Math.random()).toFixed(2)};--t:${(3.8+Math.random()*2.4).toFixed(2)}s"></i>`).join('')}</div>`;
+ o.className='eye '+(sab?'sab ':'oracle ')+(mine?'mine':'theirs')+(reduced?' calm':'');setBk(o,mine?oppBack():EQ.back);
+ o.innerHTML=`<div class="ey-veil"></div><div class="ey-crack"></div>${motes}<div class="ey-top ${sab?'ol':''}">${title}</div>${sab?'':'<div class="or-rule"><i></i><b></b><i></i></div>'}${centre}<div class="ey-sub ${sab?'ol':''}">${sub}</div>
   <div class="ey-fan">${fan}<div class="ey-beam"></div><div class="sb-slash"></div><div class="sb-slash s2"></div></div>
-  <div class="ey-cap ol"><b>${esc(nm)}</b>${cap}</div><div class="ey-flash"></div>`;
+  <div class="ey-cap ${sab?'ol':''}"><b class="${sab?'':'ol'}">${esc(nm)}</b>${cap}</div><div class="ey-flash"></div>`;
  o.hidden=false;sfx(sab?'sabx':'eye');
- if(!reduced){setTimeout(()=>shake(sab?3:2),2950);setTimeout(()=>burst(innerWidth/2,innerHeight*.62,sab?['#c58bff','#7a2bff','#fff']:['#ff2a45','#ff9aa5','#fff'],sab?34:26,{sp:7}),2980);if(sab){setTimeout(()=>shake(2),1900);setTimeout(()=>shake(2),2300);setTimeout(()=>burst(innerWidth/2,innerHeight*.5,['#d9a6ff','#fff','#7a2bff'],30,{sp:9}),3400)}}
+ if(!reduced){if(sab)setTimeout(()=>shake(3),4425);setTimeout(()=>burst(innerWidth/2,innerHeight*.62,sab?['#c58bff','#7a2bff','#fff']:['#ffe9a8','#f6c453','#fff','#c9b6ff'],sab?34:30,{sp:sab?7:5}),4470);if(sab){setTimeout(()=>shake(2),2850);setTimeout(()=>shake(2),3450);setTimeout(()=>burst(innerWidth/2,innerHeight*.5,['#d9a6ff','#fff','#7a2bff'],30,{sp:9}),5100)}}
  eyeT=setTimeout(()=>{o.classList.add('out');setTimeout(()=>{o.hidden=true;o.classList.remove('out');eyeUntil=0;if(V)renderGame()},320)},D-320)}
 function renderActs(){const myT=V&&V.mt&&!V.ov;let h='';
  if(myT&&V.ph==='play'&&sel!=null&&!pending)h=`<button class="gb green" id="aPlay">Play to ${COL[cC(sel)].n}</button><button class="gb gray" id="aDisc">Discard</button>`;
@@ -845,6 +851,7 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
   <div class="rscore"><div class="rs-p ${r==='w'?'win':''}">${avatarHTML(nick(),lvlInfo(REC.xp).lv)}<b class="ol">${me}</b><span>You</span></div><div class="rs-vs">vs</div><div class="rs-p ${r==='l'?'win':''}">${avatarHTML(o.name,o.lv,o.cpu)}<b class="ol">${them}</b><span>${esc(o.name)}</span></div></div>
   <div class="rcols" aria-label="Trail scores, yours on top">${lanes}</div>
   <div class="rrow">${TROPHY}<div class="bar"><i id="rTrBar"></i><b class="ols" id="rTrTxt"></b></div><span class="dchip ${info&&info.dT<0?'neg':info&&info.dT===0?'zero':''}" id="rTrD">${info?(info.dT>0?'+':'')+info.dT:'0'}</span></div>
+  <div class="rrow coinrow" id="rCoinRow">${COIN}<div class="bar coin"><b class="ols" id="rCoinTxt">${M.mode==='online'?'Counting coins…':'Play online to earn coins'}</b></div><span class="dchip coin" id="rCoinD" ${M.mode==='online'?'':'hidden'}>+0</span></div>
   <div class="rrow"><div class="lvbox ol" id="rLv">${L0.lv}</div><div class="bar xp"><i id="rXpBar"></i><b class="ols" id="rXpTxt"></b></div><span class="dchip xp">+${info?info.dX:0} XP</span></div>
   ${h?`<p class="note" style="text-align:center">Head to head with ${esc(o.name)}: ${wld(h)}</p>`:''}
   <div class="rbtns"><button class="gb green" id="oAgain">${M.mode==='ai'?'Battle again':'Rematch'}</button><button class="gb blue" id="oHome">Lobby</button></div>
@@ -852,12 +859,31 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
  $('over').hidden=false;
  $('oAgain').onclick=()=>{sfx('ui');again()};$('oHome').onclick=()=>{sfx('ui');goHome()};$('oView').onclick=()=>{$('over').hidden=true};
  updateRmNote();
- if(info)animateGains(info,first)}
+ if(info)animateGains(info,first);
+ if(M.mode==='online'&&M.earned)setTimeout(()=>showEarned(first),first?2600:0)}
+/* Icons that fly from one place on screen into a counter, landing one after another. */
+function flyIcons(html,fromEl,toEl,n,onHit,done){const a=fromEl&&fromEl.getBoundingClientRect(),b=toEl&&toEl.getBoundingClientRect();
+ if(!a||!b||!a.width||!b.width||reduced||n<1){for(let i=0;i<n;i++)onHit&&onHit(i);done&&done();return}
+ const tx=b.left+b.width/2,ty=b.top+b.height/2;let left=n;
+ for(let i=0;i<n;i++){const d=document.createElement('div');d.className='flyico';d.innerHTML=html;document.body.appendChild(d);
+  const sx=a.left+a.width/2+(Math.random()-.5)*a.width*.7,sy=a.top+a.height/2+(Math.random()-.5)*a.height*.5,mx=(sx+tx)/2+(Math.random()-.5)*120,my=Math.min(sy,ty)-60-Math.random()*60;
+  const an=d.animate([{transform:`translate(${sx}px,${sy}px) scale(.2)`,opacity:0},{transform:`translate(${sx}px,${sy-24}px) scale(1.15)`,opacity:1,offset:.18},{transform:`translate(${mx}px,${my}px) scale(1)`,opacity:1,offset:.55},{transform:`translate(${tx}px,${ty}px) scale(.55)`,opacity:.9}],{duration:900,delay:i*95,easing:'cubic-bezier(.5,0,.6,1)',fill:'both'});
+  an.onfinish=()=>{d.remove();toEl.classList.remove('hit');void toEl.offsetWidth;toEl.classList.add('hit');onHit&&onHit(i);if(--left===0)done&&done()}}}
+function showEarned(first){const e=M.earned;if(!e||!$('rCoinRow'))return;const txt=$('rCoinTxt'),chip=$('rCoinD');
+ if(!e.counted){txt.textContent='Too short for coins';chip.hidden=true;return}
+ if(e.coins<=0){txt.textContent="Today's battle coins are collected";chip.hidden=true;return}
+ const total=ME?ME.coins:null;
+ if(!first){txt.textContent=total!=null?`${total} coins`:'Coins added';chip.textContent='+'+e.coins;return}
+ txt.textContent='';chip.textContent='+0';const n=Math.min(10,Math.max(3,Math.round(e.coins/2)));let got=0;
+ flyIcons(COIN,document.querySelector('#over .rib'),$('rCoinRow').querySelector('svg'),n,i=>{got=Math.round(e.coins*(i+1)/n);chip.textContent='+'+got;sfx('coin');
+   if(total!=null)txt.textContent=`${total-e.coins+got} coins`},
+  ()=>{const[x,y]=centerOf(chip);burst(x,y,['#ffd23a','#fff','#ffaa00'],18,{sp:6});chip.classList.remove('pulse');void chip.offsetWidth;chip.classList.add('pulse')})}
 function trState(t){const a=arenaIdx(t),A=ARENAS[a],N=ARENAS[a+1];return{pct:N?(t-A.at)/(N.at-A.at)*100:100,txt:N?`${t} / ${N.at}`:`${t}`}}
 function animateGains(info,first){const set=(t,x)=>{const s=trState(Math.round(t));if(!$('rTrBar'))return;$('rTrBar').style.width=s.pct+'%';$('rTrTxt').textContent=s.txt;const L=lvlInfo(Math.round(x));$('rXpBar').style.width=(L.into/L.need*100)+'%';$('rXpTxt').textContent=`${L.into} / ${L.need} XP`;
   if(+$('rLv').textContent!==L.lv){$('rLv').textContent=L.lv;$('rLv').classList.remove('up');void $('rLv').offsetWidth;$('rLv').classList.add('up');if(first){sfx('levelup');callout('Level up!','#7fd0ff',`Level ${L.lv}`)}}};
  if(!first){set(info.t1,info.x1);return}
  set(info.t0,info.x0);let lastT=info.t0;
+ if(info.dT>0)setTimeout(()=>flyIcons(TROPHY,document.querySelector('#over .rib'),document.querySelector('#over .rrow>svg'),Math.min(8,Math.max(3,Math.round(info.dT/4))),()=>sfx('coin')),250);
  setTimeout(()=>tween(900,k=>{const t=info.t0+(info.t1-info.t0)*k;if(Math.round(t)!==Math.round(lastT)&&Math.round(t)%3===0)sfx('coin');lastT=t;set(t,info.x0)},()=>{
   tween(1000,k=>set(info.t1,info.x0+(info.x1-info.x0)*k),()=>{
    if(info.a1>info.a0){sfx('arena');confetti();callout('New arena!',ARENAS[info.a1].g[0],ARENAS[info.a1].n);callout('New cards!','#ffd23a',`${CARDSETS[info.a1].n} style unlocked and equipped`)}})}),700)}

@@ -118,6 +118,9 @@ pub struct PlayerRec {
     pub table: String,
     #[serde(default)]
     pub back: String,
+    /// Coins paid by battles today: (local day, coins), for the daily cap.
+    #[serde(default)]
+    pub bcoins: (u32, u32),
 }
 
 impl PlayerRec {
@@ -141,6 +144,7 @@ impl PlayerRec {
             owned: Vec::new(),
             table: String::new(),
             back: String::new(),
+            bcoins: (0, 0),
         }
     }
 
@@ -465,15 +469,26 @@ impl Store {
 
     /// Note a finished online battle for one player. It always counts as a play; it only
     /// moves quests when `counted` (the battle was long enough, see `MIN_SEQ_FOR_QUESTS`).
-    pub fn record_play(&mut self, pid: &str, ev: &PlayEvent, counted: bool, now: u64) {
+    /// Count a finished online battle for one player. Returns the coins it paid (0 for a
+    /// battle too short to count, or once today's battle coins are used up).
+    pub fn record_play(&mut self, pid: &str, ev: &PlayEvent, draw: bool, counted: bool, now: u64) -> u32 {
         let t = self.tuning;
-        let Some(p) = self.players.get_mut(pid) else { return };
+        let Some(p) = self.players.get_mut(pid) else { return 0 };
         p.plays = p.plays.saturating_add(1);
         p.seen = now;
-        if counted {
-            p.quests.record(pid, ev, now, &t);
-        }
         self.dirty = true;
+        if !counted {
+            return 0;
+        }
+        p.quests.record(pid, ev, now, &t);
+        let day = economy::day_of(now, &t);
+        if p.bcoins.0 != day {
+            p.bcoins = (day, 0);
+        }
+        let coins = economy::battle_coins(ev.kind, ev.won, draw).min(economy::BATTLE_COINS_PER_DAY.saturating_sub(p.bcoins.1));
+        p.bcoins.1 += coins;
+        p.coins = p.coins.saturating_add(coins);
+        coins
     }
 
     /// Open one free chest. Returns the coins it held.
@@ -943,6 +958,24 @@ mod tests {
     }
 
     #[test]
+    fn battles_pay_coins_up_to_a_daily_cap_and_only_when_counted() {
+        let mut s = store();
+        let pid = "pid-aaaaaaaa";
+        s.register(pid, "Ann", 1000);
+        assert_eq!(s.record_play(pid, &ev(PlayKind::Ranked, true), false, false, 1000), 0, "too short to count");
+        assert_eq!(s.record_play(pid, &ev(PlayKind::Ranked, true), false, true, 1000), 15);
+        assert_eq!(s.record_play(pid, &ev(PlayKind::Ranked, false), false, true, 1000), 5);
+        assert_eq!(s.record_play(pid, &ev(PlayKind::Ranked, false), true, true, 1000), 8);
+        assert_eq!(s.get(pid).unwrap().coins, 28);
+        let mut paid = 28;
+        for _ in 0..20 {
+            paid += s.record_play(pid, &ev(PlayKind::Ranked, true), false, true, 1000);
+        }
+        assert_eq!(paid, economy::BATTLE_COINS_PER_DAY, "capped for the day");
+        assert_eq!(s.record_play(pid, &ev(PlayKind::Ranked, true), false, true, 1000 + DAY), 15, "a new day pays again");
+    }
+
+    #[test]
     fn the_shop_takes_coins_once_and_only_lets_you_equip_what_you_have() {
         let mut s = store();
         let pid = "pid-aaaaaaaa";
@@ -977,13 +1010,13 @@ mod tests {
         s.register(pid, "Ann", 10 * DAY);
         let now = 10 * DAY;
         // A battle that was quit straight away is a play but moves no quest.
-        s.record_play(pid, &ev(PlayKind::Friend, true), false, now);
+        s.record_play(pid, &ev(PlayKind::Friend, true), false, false, now);
         let me = s.me_json(pid, now).unwrap();
         assert!(me["daily"].as_array().unwrap().iter().all(|q| q["have"] == 0));
         assert_eq!(s.get(pid).unwrap().plays, 1);
         // Two real battles finish every daily quest that a single game ticks.
-        s.record_play(pid, &ev(PlayKind::Friend, true), true, now);
-        s.record_play(pid, &ev(PlayKind::Friend, true), true, now);
+        s.record_play(pid, &ev(PlayKind::Friend, true), false, true, now);
+        s.record_play(pid, &ev(PlayKind::Friend, true), false, true, now);
         let me = s.me_json(pid, now).unwrap();
         let q = me["daily"].as_array().unwrap();
         assert!(q.iter().all(|q| q["have"].as_u64() > Some(0)), "{me}");
@@ -992,7 +1025,7 @@ mod tests {
         let coins = done["coins"].as_u64().unwrap();
         assert_eq!(s.claim_quest(pid, &slot, now), Ok(u32::try_from(coins).unwrap()));
         assert_eq!(s.claim_quest(pid, &slot, now), Err(ClaimError::AlreadyClaimed));
-        assert_eq!(s.me_json(pid, now).unwrap()["coins"], coins);
+        assert_eq!(s.me_json(pid, now).unwrap()["coins"], coins + 30, "plus 15 for each of the two counted wins");
         assert_eq!(s.claim_quest(pid, "d7", now), Err(ClaimError::Unknown));
         // Tomorrow it is all fresh again.
         let next = s.me_json(pid, now + DAY).unwrap();

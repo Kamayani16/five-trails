@@ -619,3 +619,59 @@ body.tb-volcano .board{box-shadow:0 4px 0 var(--ol),inset 0 0 0 2px rgba(255,122
 .tsw.tb-steel{--sky0:#8f99a8;--sky1:#59626f;--sky2:#383e48;--night:#15181d;--tb1:#2b3038;--tb2:#1b1f25}.tsw.tb-steel::after{background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80' width='80' height='80'><circle cx='20' cy='30' r='1.4' fill='%23ff8a2a' opacity='.7'/><circle cx='62' cy='64' r='1' fill='%23ffb055' opacity='.6'/></svg>") 0 0/80px 80px,repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px)}
 .tsw.tb-volcano{--sky0:#ff9a5c;--sky1:#a8361f;--sky2:#4a1810;--night:#130705;--tb1:#3a1510;--tb2:#220b07}.tsw.tb-volcano::after{background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 90' width='90' height='90'><path d='M5 70 L22 58 L30 64 L46 44 L58 50 L72 30' fill='none' stroke='%23ff7a1f' stroke-width='1.6' opacity='.45'/><path d='M50 85 L60 76 L66 80 L80 66' fill='none' stroke='%23ffb03a' stroke-width='1.2' opacity='.35'/></svg>") 0 0/90px 90px}
 .tsw.tb-classic{--sky0:#6ea6ff;--sky1:#3d7bff;--sky2:#1846c9;--night:#0c1f66;--tb1:#14307f;--tb2:#0d2160}.tsw.tb-classic::after{background:radial-gradient(rgba(255,255,255,.08) 1.6px,transparent 1.8px) 0 0/22px 22px}
+
+/* ================= Rewards flying in on the result screen ================= */
+.flyico{position:fixed;left:0;top:0;width:28px;height:28px;margin:-14px 0 0 -14px;z-index:120;pointer-events:none;filter:drop-shadow(0 3px 0 rgba(11,22,64,.55))}
+.flyico svg{width:100%;height:100%}
+.rrow>svg.hit{animation:icoHit .28s var(--spring)}
+@keyframes icoHit{40%{transform:scale(1.35) rotate(-8deg)}}
+.bar.coin{background:#3a2a06}.bar.coin b{color:#ffe7a0}
+.dchip.coin{background:var(--gold2);color:var(--ink)}
+.dchip.pulse{animation:chipPulse .5s var(--spring)}
+@keyframes chipPulse{50%{transform:scale(1.3)}}
+
+/* ================= Evil Eye, refined: twilight sky, gold astrolabe, jewel eye ================= */
+.eye.oracle{background:#2a1f6e;color:#fff8e6}
+.eye.oracle .ey-veil{animation:orSky 6s ease-out both;background:
+  radial-gradient(120% 70% at 50% 26%,#fff6e2 0%,#ffdcc8 12%,#e7b8f2 26%,#9a7ee6 46%,#4a3aa8 70%,#231a63 100%)}
+@keyframes orSky{0%{filter:brightness(.55) saturate(.7)}30%{filter:none}66%{filter:brightness(.92)}73%{filter:brightness(1.18)}100%{filter:none}}
+.eye.oracle .ey-crack{display:none}
+.eye.oracle .ey-top{font-size:clamp(26px,8vw,38px);letter-spacing:.24em;padding-left:.24em;color:transparent;
+  background:linear-gradient(180deg,#fffbe9 10%,#f6d27c 55%,#c08a2a 95%);-webkit-background-clip:text;background-clip:text;
+  filter:drop-shadow(0 2px 0 rgba(40,24,100,.55)) drop-shadow(0 0 14px rgba(255,236,180,.45));animation:orTitle 6s both}
+@keyframes orTitle{0%{opacity:0;letter-spacing:.6em;filter:blur(6px)}12%,100%{opacity:1;letter-spacing:.24em}}
+.or-rule{position:absolute;left:50%;top:calc(max(7%,calc(env(safe-area-inset-top,0px) + 28px)) + clamp(36px,10vw,50px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;animation:orFade 6s both}
+.or-rule i{width:min(22vw,92px);height:1.5px;background:linear-gradient(90deg,transparent,#f6d27c)}
+.or-rule i:last-child{background:linear-gradient(270deg,transparent,#f6d27c)}
+.or-rule b{width:8px;height:8px;transform:rotate(45deg);background:#f6d27c;box-shadow:0 0 8px #ffe9a8}
+@keyframes orFade{0%,8%{opacity:0}18%,100%{opacity:1}}
+.or-stage{position:absolute;left:50%;top:calc(17% + 18px);width:min(70vw,38vh,300px);aspect-ratio:1;transform:translateX(-50%)}
+.or-halo{position:absolute;inset:14%;border-radius:50%;background:radial-gradient(circle,rgba(255,246,214,.9) 0%,rgba(255,220,190,.45) 38%,transparent 70%);animation:orHalo 6s ease-in-out both}
+@keyframes orHalo{0%{opacity:0;transform:scale(.4)}22%{opacity:1;transform:scale(1)}50%{transform:scale(1.06)}72%{opacity:1;transform:scale(1.25)}100%{opacity:.85;transform:scale(1)}}
+.or-ring{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 0 6px rgba(255,226,150,.55));animation:orRingIn 6s both}
+@keyframes orRingIn{0%{opacity:0;transform:scale(.7) rotate(-40deg)}20%{opacity:1;transform:none}100%{opacity:1}}
+.or-r1{animation:orSpin 30s linear infinite;transform-origin:0 0}
+.or-r2{animation:orSpin 18s linear infinite reverse;transform-origin:0 0}
+@keyframes orSpin{to{transform:rotate(360deg)}}
+.or-eyew{position:absolute;left:8%;right:8%;top:50%;transform:translateY(-50%);filter:drop-shadow(0 4px 10px rgba(40,24,110,.45))}
+.or-eye{width:100%;height:auto;overflow:visible}
+.or-open{transform-box:fill-box;transform-origin:center;animation:orOpen 6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes orOpen{0%,8%{transform:scaleY(.04)}22%{transform:scaleY(1.04)}26%,70%{transform:scaleY(1)}72%{transform:scaleY(.86)}75%,100%{transform:scaleY(1)}}
+.or-lash{animation:orLash 6s both}
+@keyframes orLash{0%,12%{opacity:0;transform:translateY(14px)}24%,100%{opacity:1;transform:none}}
+.eye.oracle .ey-pupil{animation:eyPupil 6s both}
+.eye.oracle .ey-sub{top:calc(17% + 30px + min(70vw,38vh,300px));font-family:var(--body);font-weight:900;font-size:15px;letter-spacing:.06em;color:#fff8e6;text-shadow:0 1px 0 rgba(30,18,80,.6)}
+.or-motes{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.or-motes i{position:absolute;bottom:-10px;width:calc(5px*var(--s));height:calc(5px*var(--s));border-radius:50%;background:radial-gradient(circle,#fffbe6 0%,#f6d27c 55%,transparent 72%);opacity:0;animation:orMote var(--t) linear var(--d) infinite}
+@keyframes orMote{0%{opacity:0;transform:translate(0,0)}15%{opacity:.95}80%{opacity:.7}100%{opacity:0;transform:translate(18px,-78vh)}}
+.eye.oracle .ey-bk.back{animation:none;box-shadow:inset 0 0 0 1.5px var(--bkg,var(--gold)),0 6px 14px rgba(30,18,90,.35)}
+.eye.oracle .ey-c.pick .ey-flip::after{content:"";position:absolute;inset:-10px;border-radius:14px;border:2px solid #f6d27c;box-shadow:0 0 18px 4px rgba(255,230,160,.75),inset 0 0 12px rgba(255,230,160,.5);opacity:0;animation:orPick 6s both;pointer-events:none}
+@keyframes orPick{0%,60%{opacity:0;transform:scale(.8)}70%,100%{opacity:1;transform:scale(1)}}
+.eye.oracle .ey-beam{background:linear-gradient(90deg,transparent,rgba(255,244,210,.85),transparent);mix-blend-mode:normal;filter:blur(6px)}
+.eye.oracle .ey-cap{color:#fff8e6;left:50%;right:auto;transform:translateX(-50%);width:min(88%,340px);padding:10px 14px 12px;border-radius:16px;border:1.5px solid rgba(246,210,124,.8);
+  background:rgba(255,255,255,.14);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(30,18,90,.35);animation:orCap 6s both;font-size:14px;letter-spacing:.02em}
+@keyframes orCap{0%,76%{opacity:0;transform:translate(-50%,14px) scale(.94)}84%,100%{opacity:1;transform:translate(-50%,0)}}
+.eye.oracle .ey-cap b{color:#ffe7a0;font-size:28px}
+.eye.oracle .ey-flash{background:radial-gradient(circle at 50% 60%,#fffdf2 0,rgba(255,236,180,.85) 26%,rgba(214,190,255,.4) 48%,transparent 70%)}
+.eye.oracle.calm .or-r1,.eye.oracle.calm .or-r2{animation:none}
+.eye.oracle .ey-beam{width:110px;height:120px;top:-60px;left:-210px;background:radial-gradient(ellipse at center,rgba(255,246,214,.55),transparent 70%);filter:blur(4px)}

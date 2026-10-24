@@ -440,7 +440,12 @@ impl Hub {
                     self.ranking_dirty = true;
                 }
                 for seat in 0..2 {
-                    self.store.record_play(&pids[seat], &events[seat], counted, now);
+                    let coins = self.store.record_play(&pids[seat], &events[seat], outcome == Outcome::Draw, counted, now);
+                    let earned = protocol::msg(json!({ "t": "earned", "coins": coins, "counted": counted }));
+                    let ids: Vec<ConnId> = self.conns.iter().filter(|(_, c)| c.profile.as_ref().is_some_and(|p| p.pid == pids[seat])).map(|(&id, _)| id).collect();
+                    for id in ids {
+                        self.send(id, earned.clone());
+                    }
                     self.send_me_to_pid(&pids[seat]);
                 }
             }
