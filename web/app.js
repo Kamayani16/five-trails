@@ -86,30 +86,32 @@ const VS_MS=2800, RUSH_MS=10000;
 function deal(first,base){const d=[...Array(60).keys()];for(let i=59;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]]}
  const t0=Date.now()+VS_MS;
  return{deck:d,hands:[d.splice(0,8),d.splice(0,8)],exp:[[[],[],[],[],[]],[[],[],[],[],[]]],disc:[[],[],[],[],[]],turn:first,phase:'play',jd:-1,over:false,seq:1,gid:rid(),last:null,flag:null,why:null,t0,
-  pw:{sab:[1,1],rush:[1,1]},rushNext:null,rushUntil:null,rushSeat:null,rushRem:null,clk:base?{base,left:[base,base],since:t0,paused:false}:null}}
+  pw:{sab:[1,1],rush:[1,1],eye:[1,1]},peek:[null,null],rushNext:null,rushUntil:null,rushSeat:null,rushRem:null,clk:base?{base,left:[base,base],since:t0,paused:false}:null}}
 function clockSpend(S,now){const k=S.clk;if(k&&!k.paused){k.left[S.turn]-=Math.max(0,now-k.since);k.since=Math.max(now,k.since)}}
 function clockLeft(S,s,now){const k=S.clk;if(!k)return null;let l=k.left[s];if(S.turn===s&&!S.over&&!k.paused)l-=Math.max(0,now-k.since);return Math.max(0,l)}
 function clockPause(S,now){if(S.clk&&!S.clk.paused){clockSpend(S,now);S.clk.paused=true}if(S.rushUntil&&S.rushRem==null)S.rushRem=Math.max(0,S.rushUntil-now)}
 function clockResume(S,now){if(S.clk&&S.clk.paused){S.clk.paused=false;S.clk.since=Math.max(now,S.clk.since)}if(S.rushRem!=null){S.rushUntil=now+S.rushRem;S.rushRem=null}}
-function ensurePw(S){if(!S.pw)S.pw={sab:[1,1],rush:[1,1]}}
+function ensurePw(S){if(!S.pw)S.pw={sab:[1,1],rush:[1,1]};if(!S.pw.eye)S.pw.eye=[1,1];if(!S.peek)S.peek=[null,null]}
+function okEye(S,s){ensurePw(S);return !S.over&&S.turn===s&&S.phase==='play'&&S.pw.eye[s]>0}
+function doEye(S,s){if(!okEye(S,s))return false;S.pw.eye[s]--;S.peek[s]=S.hands[1-s].slice();S.seq++;S.last={seq:S.seq,seat:s,k:'eye',id:-1,p:-1};return true}
 function okSab(S,s){ensurePw(S);return !S.over&&S.turn===s&&S.phase==='play'&&S.pw.sab[s]>0&&S.deck.length>=3&&S.hands[1-s].length>0}
 function doSab(S,s){const v=1-s,h=S.hands[v],id=h[Math.floor(Math.random()*h.length)];h.splice(h.indexOf(id),1);S.disc[cC(id)].push(id);const r=S.deck.pop();h.push(r);S.pw.sab[s]--;S.seq++;S.last={seq:S.seq,seat:s,k:'sab',id,p:cC(id),r}}
 function okRush(S,s){ensurePw(S);return !S.over&&S.turn===s&&S.pw.rush[s]>0&&S.rushNext==null}
 function doRush(S,s){S.pw.rush[s]--;S.rushNext=1-s;S.seq++;S.last={seq:S.seq,seat:s,k:'rush',id:-1,p:-1}}
 function autoMove(S,s){if(S.phase==='play'){const h=S.hands[s];doPlay(S,s,h[Math.floor(Math.random()*h.length)],false)}doDraw(S,s,-1);S.last.auto=true}
-function doFlag(S,s,why='time'){if(S.clk){clockSpend(S,Date.now());if(why==='time')S.clk.left[s]=0}S.over=true;S.flag=s;S.why=why;S.rushUntil=null;S.rushSeat=null;S.rushRem=null;S.seq++;S.last={seq:S.seq,seat:s,k:'flag',id:-1,p:-1}}
+function doFlag(S,s,why='time'){if(S.clk){clockSpend(S,Date.now());if(why==='time')S.clk.left[s]=0}S.over=true;S.peek=[null,null];S.flag=s;S.why=why;S.rushUntil=null;S.rushSeat=null;S.rushRem=null;S.seq++;S.last={seq:S.seq,seat:s,k:'flag',id:-1,p:-1}}
 function canE(e,id){if(!e.length)return true;const t=cV(e[e.length-1]),v=cV(id);return v===0?t===0:v>t}
 function whyNot(e,id){const t=cV(e[e.length-1]);return cV(id)===0?'Wagers go before any numbered card.':`That card must be higher than your ${t||'wager'}.`}
 function okPlay(S,s,id,x){return !S.over&&S.turn===s&&S.phase==='play'&&S.hands[s].includes(id)&&(!x||canE(S.exp[s][cC(id)],id))}
 function doPlay(S,s,id,x){const h=S.hands[s];h.splice(h.indexOf(id),1);const c=cC(id);
  if(x){S.exp[s][c].push(id);S.jd=-1}else{S.disc[c].push(id);S.jd=c}S.phase='draw';S.seq++;S.last={seq:S.seq,seat:s,k:x?'play':'disc',id,p:c}}
 function okDraw(S,s,p){return !S.over&&S.turn===s&&S.phase==='draw'&&(p<0?S.deck.length>0:(p!==S.jd&&S.disc[p].length>0))}
-function doDraw(S,s,p){clockSpend(S,Date.now());const id=p<0?S.deck.pop():S.disc[p].pop();S.hands[s].push(id);S.jd=-1;S.phase='play';
+function doDraw(S,s,p){clockSpend(S,Date.now());const id=p<0?S.deck.pop():S.disc[p].pop();S.hands[s].push(id);S.peek=[null,null];S.jd=-1;S.phase='play';
  if(!S.deck.length)S.over=true;else S.turn=1-s;S.seq++;S.last={seq:S.seq,seat:s,k:'draw',id,p};
  if(S.rushSeat===s||S.over){S.rushUntil=null;S.rushSeat=null;S.rushRem=null}
  if(!S.over&&S.rushNext===S.turn){S.rushUntil=Date.now()+RUSH_MS;S.rushSeat=S.turn;S.rushNext=null}}
 function viewFor(S,s){const L=S.last;ensurePw(S);const now=Date.now();return clone({
- pw:{sab:[S.pw.sab[s],S.pw.sab[1-s]],rush:[S.pw.rush[s],S.pw.rush[1-s]]},
+ pw:{sab:[S.pw.sab[s],S.pw.sab[1-s]],rush:[S.pw.rush[s],S.pw.rush[1-s]],eye:[S.pw.eye[s],S.pw.eye[1-s]]},peek:!S.over&&S.turn===s?S.peek[s]:null,
  ru:S.rushUntil&&!S.over?{seat:S.rushSeat===s?0:1,l:S.rushRem!=null?S.rushRem:S.rushUntil-now,pz:S.rushRem!=null}:null,
  rn:S.rushNext==null?null:(S.rushNext===s?0:1),gid:S.gid,seq:S.seq,me:S.hands[s],on:S.hands[1-s].length,ex:[S.exp[s],S.exp[1-s]],di:S.disc,dn:S.deck.length,
  mt:S.turn===s,ph:S.phase,jd:S.jd,ov:S.over,why:S.why,fl:S.flag==null?null:(S.flag===s?'me':'opp'),
@@ -464,7 +466,7 @@ function renderGuide(){
   <p>You get one of each per battle. Tap the button, then tap again to confirm.</p>
   <p><span class="pwb">SABOTAGE</span> Before you play, knock a random card from your rival's hand onto its discard pile. They draw a replacement.</p>
   <p><span class="pwb">RUSH</span> Your rival's next turn lasts only 10 seconds. If time runs out, a random card of theirs is discarded and they draw from the deck.</p>
-  <p><span class="pwb">EVIL EYE</span> Peeks at your rival's hidden cards so you can see their hand and plan your moves.</p></div>
+  <p><span class="pwb">EVIL EYE</span> Before you play, reveal a snapshot of your rival's hand for your current turn. Use it once per battle to plan your moves.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Trophies and arenas</div>
   <p>Beat the computer for +12 trophies, lose for −8. Against players it's +30 and −20. Once you reach an arena you never drop below it.</p>
   <p>Each new arena brings a sharper computer opponent and unlocks a fancier card style. Pick your cards in Settings. Every battle earns XP, and more points earn more XP.</p>
@@ -623,23 +625,26 @@ function renderGame(){
  const opp=oppInfo(),me_=meInfo();
  if(newGame)M.oppLast=null;
  if(ev&&ev.by==='opp'){if(!M.oppLast||M.lastBy!=='opp')M.oppLast={};const L=M.oppLast;
-  if(ev.k==='play'||ev.k==='disc')L.act=ev;else if(ev.k==='draw')L.draw=ev;else if(ev.k==='sab')L.sab=ev;else if(ev.k==='rush')L.rush=true}
+  if(ev.k==='play'||ev.k==='disc')L.act=ev;else if(ev.k==='draw')L.draw=ev;else if(ev.k==='sab')L.sab=ev;else if(ev.k==='rush')L.rush=true;else if(ev.k==='eye')L.eye=true}
  if(ev)M.lastBy=ev.by;
  $('oppAv').innerHTML=avatarHTML(opp.name,opp.lv,opp.cpu);$('oppName').textContent=opp.name;$('oppSub').innerHTML=opp.sub;
  $('meAv').innerHTML=avatarHTML(me_.name,me_.lv);$('meName').textContent=me_.name;$('meSub').innerHTML=`${TROPHY}${REC.tr}`;
  $('oppHand').innerHTML='<div class="back"></div>'.repeat(V.on);
  setScore('oppScore',total(V.ex[1]));setScore('meScore',total(V.ex[0]));
- const pwb=i=>{const p=V.pw||{sab:[0,0],rush:[0,0]};return `<span class="pwb ${p.sab[i]?'':'used'}">SABOTAGE</span><span class="pwb ${p.rush[i]?'':'used'}">RUSH</span>${V.rn===i?'<span class="pwb hit">RUSHED</span>':''}`};
+ const pwb=i=>{const p=V.pw||{};return ['sab','eye','rush'].map(k=>`<span class="pwb ${p[k]?.[i]?'':'used'}">${{sab:'SABOTAGE',eye:'EVIL EYE',rush:'RUSH'}[k]}</span>`).join('')+`${V.rn===i?'<span class="pwb hit">RUSHED</span>':''}`};
  $('mePw').innerHTML=pwb(0);$('oppPw').innerHTML=pwb(1);
+ const peek=V.mt&&!V.ov&&Array.isArray(V.peek)?V.peek:null;
+ $('eyePeek').hidden=!peek;
+ $('eyeCards').innerHTML=peek?peek.slice().sort((a,b)=>cC(a)-cC(b)||cV(a)-cV(b)).map(id=>cardHTML(id)).join(''):'';
  $('oppBar').classList.toggle('turn',!V.mt&&!V.ov);$('meBar').classList.toggle('turn',myT);
  $('deckN').textContent=V.dn;$('deck').classList.toggle('low',V.dn<=6);
  let b='';
  for(let c=0;c<5;c++){const C=COL[c],pile=V.di[c],eo=V.ex[1][c],em=V.ex[0][c],so=expScore(eo),sm=expScore(em);
   b+=`<div class="col" data-c="${c}" style="--cc:${C.cc};--cd:${C.cd};--ct:${C.ct}">
    <div class="stack opp">${eo.map(id=>cardHTML(id)).join('')}</div>
-   <div class="cs ols ${so>0?'pos':so<0?'neg':''}">${eo.length?so:''}</div>
+   <div class="trail-score ${so>0?'pos':so<0?'neg':''}" aria-label="Rival ${C.n} score: ${so}">${eo.length?so:''}</div>
    <div class="pile" data-pile="${c}" role="button" tabindex="0" aria-label="${C.n} discard pile">${pile.length?pile.slice(-3).map((id,i,a)=>cardHTML(id,'',`transform:translate(${(a.length-1-i)*-2}px,${(a.length-1-i)*-2}px)`)).join(''):`<span class="ei">${icon(c)}</span>`}${pile.length>1?`<span class="cnt">${pile.length}</span>`:''}</div>
-   <div class="cs ols ${sm>0?'pos':sm<0?'neg':''}">${em.length?sm:''}</div>
+   <div class="trail-score ${sm>0?'pos':sm<0?'neg':''}" aria-label="Your ${C.n} score: ${sm}">${em.length?sm:''}</div>
    <div class="stack me" data-exp="${c}">${em.map(id=>cardHTML(id)).join('')}</div></div>`}
  $('board').innerHTML=b;
  if(M.oppLast&&M.oppLast.act){const el=document.querySelector(`#board [data-id="${M.oppLast.act.id}"]`);if(el)el.classList.add('last')}
@@ -648,6 +653,7 @@ function renderGame(){
  $('hand').innerHTML=hand.map(id=>cardHTML(id,sel===id?'sel':'').replace('<div ','<div role="button" tabindex="0" data-h="1" ')).join('');
  $('hand').classList.toggle('off',!(myT&&V.ph==='play'));
  renderActs();
+ fitBattle();
  let m='';
  if(V.ov)m=V.fl==='me'?(V.why==='forfeit'?'<b>You left the battle.</b>':'<b>Your time ran out.</b>'):V.fl==='opp'?(V.why==='forfeit'?`<b>${esc(opp.name)} left the battle.</b>`:`<b>${esc(opp.name)} ran out of time.</b>`):'<b>Battle over!</b>';
  else if(M.mode==='online'&&M.reconnecting)m='Connection lost. Reconnecting…';
@@ -671,13 +677,13 @@ function renderGame(){
  if(V.ov)setTimeout(showResult,ev?1800:200);
 }
 function lastText(name){const L=M.oppLast;if(!L)return '';const ch=id=>{const C=COL[cC(id)];return `<span class="mchip" style="--cc:${C.cc};--cd:${C.cd};--ct:${C.ct}">${C.n} ${cV(id)||'wager'}</span>`};const parts=[];
- if(L.sab)parts.push(`knocked out your ${ch(L.sab.id)}`);if(L.rush)parts.push('used Rush');
+ if(L.sab)parts.push(`knocked out your ${ch(L.sab.id)}`);if(L.rush)parts.push('used Rush');if(L.eye)parts.push('used Evil Eye');
  if(L.act)parts.push(`${L.act.k==='play'?'played':'discarded'} ${ch(L.act.id)}`);
  if(L.draw)parts.push(L.draw.auto?'ran out of rush time':L.draw.p>=0?`took ${ch(L.draw.id)} from the discards`:'drew from the deck');
  if(!parts.length)return '';const t=parts.length>1?parts.slice(0,-1).join(', ')+' and '+parts[parts.length-1]:parts[0];return `${esc(name)} ${t}.`}
 function scorePops(){const cur=[0,1].map(s=>V.ex[s].map(expScore)),lens=[0,1].map(s=>V.ex[s].map(e=>e.length));
  if(PS&&PS.g===V.gid)for(let s=0;s<2;s++)for(let c=0;c<5;c++){if(lens[s][c]>PS.l[s][c]){const d=cur[s][c]-PS.v[s][c];if(!d)continue;
-   const el=document.querySelectorAll(`#board .col[data-c="${c}"] .cs`)[s?0:1];setTimeout(()=>popup(el,(d>0?'+':'−')+Math.abs(d),d>0?'up':'dn'),reduced?0:430)}}
+   const el=document.querySelectorAll(`#board .col[data-c="${c}"] .trail-score`)[s?0:1];setTimeout(()=>popup(el,(d>0?'+':'−')+Math.abs(d),d>0?'up':'dn'),reduced?0:430)}}
  PS={g:V.gid,v:cur,l:lens}}
 function fxEvent(ev,opp){const side=ev.by==='me'?0:1,D=reduced?0:430,who=side?opp.name:'';const nm=id=>COL[cC(id)].n+' '+(cV(id)||'wager');
  if(ev.k==='play'){const c=ev.p,C=COL[c],v=cV(ev.id),e=V.ex[side][c];
@@ -691,6 +697,7 @@ function fxEvent(ev,opp){const side=ev.by==='me'?0:1,D=reduced?0:430,who=side?op
   setTimeout(()=>{const el=document.querySelector(`#board .pile[data-pile="${ev.p}"]`);if(el){const[x,y]=centerOf(el);burst(x,y,['#bb73ff','#8a3dff','#fff'],24,{sp:7})}shake(2)},D);
   if(side)aiSay(3,.45)}
  else if(ev.k==='rush'){callout(side?'Rushed!':'Rush!','#ff7aa8',side?'Your next turn: 10 seconds':'Their next turn: 10 seconds');shake(1)}
+ else if(ev.k==='eye'){callout('Evil Eye!','#d29bff',side?'Your rival peeked at your hand':'Rival hand revealed for this turn');sfx('select')}
  else if(ev.k==='flag'){callout(V.why==='forfeit'?'Forfeit':'Time!','#ff5d6c')}
  else if(ev.k==='draw'){if(ev.auto)callout('Too slow!','#ff7aa8',side?`${opp.name} lost a card`:'A random card was discarded');
   if(ev.p>=0)setTimeout(()=>{const el=side?$('oppHand'):document.querySelector(`#hand [data-id="${ev.id}"]`);if(el){const[x,y]=centerOf(el);burst(x,y,[COL[ev.p].cc,'#fff'],10,{sp:4})}},D);
@@ -708,13 +715,30 @@ function vsSplash(cb){const o=$('vs'),opp=oppInfo(),me_=meInfo(),ai=arenaIdx(REC
  o.hidden=false;o.classList.remove('out');sfx('swoosh');setTimeout(()=>sfx('vs'),380);
  setTimeout(()=>{if(!reduced)burst(innerWidth/2,innerHeight/2,['#ffd23a','#fff','#ffaa00'],30,{sp:9})},520);
  setTimeout(()=>{o.classList.add('out');setTimeout(()=>{o.hidden=true;o.classList.remove('out');cb&&cb()},300)},reduced?600:2100)}
+// Reserve space for the actual bars, hand and actions, including mobile browser chrome.
+// Very short screens retain natural page scrolling rather than hiding controls.
+function fitBattle(){
+ const game=$('game');if(game.hidden)return;
+ const vv=window.visualViewport,viewport=vv?vv.height:innerHeight;
+ game.classList.toggle('compact',viewport<=700||(viewport<=800&&!$('eyePeek').hidden));
+ const blocks=[...game.children].filter(el=>el.id!=='board'&&!el.hidden&&getComputedStyle(el).position!=='absolute');
+ const gap=parseFloat(getComputedStyle(game).gap)||0;
+ const occupied=blocks.reduce((n,el)=>n+el.getBoundingClientRect().height,0)+gap*blocks.length;
+ const style=getComputedStyle(document.body),safe=parseFloat(getComputedStyle(game).paddingBottom)||0;
+ const available=viewport-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom)-safe-occupied;
+ $('board').style.setProperty('--board-height',`${Math.round(Math.max(200,Math.min(440,available)))}px`);
+}
+new ResizeObserver(fitBattle).observe($('game'));
+window.addEventListener('resize',fitBattle);
+window.visualViewport?.addEventListener('resize',fitBattle);
 function renderActs(){const myT=V&&V.mt&&!V.ov;let h='';
  if(myT&&V.ph==='play'&&sel!=null&&!pending)h=`<button class="gb green" id="aPlay">Play to ${COL[cC(sel)].n}</button><button class="gb gray" id="aDisc">Discard</button>`;
  else if(V&&V.ov)h=`<button class="gb" id="aAgain">${M.mode==='ai'?'Battle again':'Rematch'}</button>`;
  else if(myT&&!pending){const p=V.pw||{sab:[0,0],rush:[0,0]};
   if(V.ph==='play'&&p.sab[0]>0&&V.dn>=3)h+=`<button class="gb purple ${armed==='sab'?'armed':''}" id="aSab">${armed==='sab'?'Tap to confirm':'Sabotage'}</button>`;
+  if(V.ph==='play'&&p.eye?.[0]>0)h+=`<button class="gb purple ${armed==='eye'?'armed':''}" id="aEye">${armed==='eye'?'Tap to confirm':'Evil Eye'}</button>`;
   if(p.rush[0]>0&&V.rn==null)h+=`<button class="gb purple ${armed==='rush'?'armed':''}" id="aRush">${armed==='rush'?'Tap to confirm':'Rush'}</button>`}
- $('acts').innerHTML=h}
+ $('acts').innerHTML=h;fitBattle()}
 let armed=null,armT=null;
 function arm(k){armed=k;clearTimeout(armT);armT=setTimeout(()=>{armed=null;renderActs()},3000);sfx('select');renderActs()}
 function setSel(id){sel=sel===id?null:id;document.querySelectorAll('#hand .card').forEach(el=>el.classList.toggle('sel',+el.dataset.id===sel));renderActs();if(sel!=null)sfx('select')}
@@ -773,8 +797,8 @@ function updateRmNote(){const n=$('rmNote');if(!n||!V)return;n.textContent=M.mod
 /* ================= Actions ================= */
 function act(kind,arg,x,el){
  if(!V||V.ov||pending)return;armed=null;
- if(kind==='sab'||kind==='rush'){if(!V.mt)return;
-  if(M.mode==='ai'){const S=M.S;if(kind==='sab'&&okSab(S,0))doSab(S,0);else if(kind==='rush'&&okRush(S,0))doRush(S,0);else return;afterLocal()}
+ if(kind==='sab'||kind==='rush'||kind==='eye'){if(!V.mt)return;
+  if(M.mode==='ai'){const S=M.S;if(kind==='sab'&&okSab(S,0))doSab(S,0);else if(kind==='rush'&&okRush(S,0))doRush(S,0);else if(kind==='eye'&&okEye(S,0))doEye(S,0);else return;afterLocal()}
   else if(M.mode==='online'){if(NET.send({t:'move',seq:V.seq,a:kind}))pending=true;renderActs()}
   return}
  if(kind==='play'){
@@ -797,7 +821,8 @@ function scheduleAi(){clearTimeout(aiT);const S=M.S;if(S.over||S.turn!==1)return
  const rr=()=>{freshView(S);renderGame()};
  const playStep=()=>{if(!alive())return;const b=aiChoosePlay(S,AI_NOISE[M.tier||0]);doPlay(S,1,b.id,b.x);rr();
   aiT=setTimeout(()=>{if(!alive())return;doDraw(S,1,aiChooseDraw(S));rr()},780)};
- const sabStep=()=>{if(!alive())return;const L=S.deck.length;if(okSab(S,1)&&L<=30&&L>=6&&Math.random()<.25){doSab(S,1);rr();aiT=setTimeout(playStep,1300)}else playStep()};
+ const eyeStep=()=>{if(!alive())return;if(okEye(S,1)&&S.deck.length<=28&&Math.random()<.25){doEye(S,1);rr();aiT=setTimeout(playStep,1000)}else playStep()};
+ const sabStep=()=>{if(!alive())return;const L=S.deck.length;if(okSab(S,1)&&L<=30&&L>=6&&Math.random()<.25){doSab(S,1);rr();aiT=setTimeout(eyeStep,1300)}else eyeStep()};
  const wait=Math.max(850,(S.t0||0)-Date.now()+1300);
  aiT=setTimeout(()=>{if(!alive())return;if(okRush(S,1)&&S.deck.length<=34&&Math.random()<.2){doRush(S,1);rr();aiT=setTimeout(sabStep,1200)}else sabStep()},wait)}
 function again(){$('over').hidden=true;
@@ -852,6 +877,7 @@ document.addEventListener('click',e=>{
  if(t.closest('#aAgain')){sfx('ui');return again()}
  if(t.closest('#aSab'))return armed==='sab'?act('sab'):arm('sab');
  if(t.closest('#aRush'))return armed==='rush'?act('rush'):arm('rush');
+ if(t.closest('#aEye'))return armed==='eye'?act('eye'):arm('eye');
  const pl=t.closest('.pile');
  if(pl){const c=+pl.dataset.pile;if(V&&V.ph==='play'&&sel!=null&&cC(sel)===c)return act('play',sel,false,pl);return act('draw',c,false,pl)}
  const ex=t.closest('.stack.me');if(ex&&sel!=null&&cC(sel)===+ex.dataset.exp)return act('play',sel,true);

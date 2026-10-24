@@ -300,6 +300,7 @@ impl MatchRoom {
         let result = match step {
             Step::Rush => self.game.rush(b),
             Step::Sabotage => self.game.sabotage(b, &mut self.rng),
+            Step::Eye => self.game.eye(b),
             Step::Play(card, to_column) => self.game.play(b, card, to_column),
             Step::Draw(pile) => self.game.draw(b, pile, now),
         };
@@ -492,6 +493,7 @@ impl MatchRoom {
             }
             Action::Sab => self.game.sabotage(seat, &mut self.rng),
             Action::Rush => self.game.rush(seat),
+            Action::Eye => self.game.eye(seat),
         }
     }
 

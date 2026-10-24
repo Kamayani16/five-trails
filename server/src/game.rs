@@ -51,6 +51,7 @@ pub enum Kind {
     Draw,
     Sabotage,
     Rush,
+    Eye,
     Flag,
 }
 
@@ -124,6 +125,9 @@ pub struct Game {
     pub end_reason: Option<EndReason>,
     pub sabotage_left: [u8; 2],
     pub rush_left: [u8; 2],
+    pub eye_left: [u8; 2],
+    /// Private snapshots; only the activating seat receives its own reveal.
+    pub eye_reveal: [Option<Vec<Card>>; 2],
     pub rush_next: Option<usize>,
     pub rush_until: Option<Instant>,
     pub rush_seat: Option<usize>,
@@ -185,6 +189,8 @@ impl Game {
             end_reason: None,
             sabotage_left: [1, 1],
             rush_left: [1, 1],
+            eye_left: [1, 1],
+            eye_reveal: [None, None],
             rush_next: None,
             rush_until: None,
             rush_seat: None,
@@ -324,6 +330,7 @@ impl Game {
         };
         self.clock_spend(now);
         self.hands[seat].push(card);
+        self.eye_reveal = [None, None];
         self.just_discarded = None;
         self.phase = Phase::Play;
         if self.deck.is_empty() {
@@ -377,6 +384,18 @@ impl Game {
         Ok(())
     }
 
+    /// Reveal a snapshot of the rival's hand privately until this turn ends.
+    pub fn eye(&mut self, seat: usize) -> Result<(), RuleError> {
+        self.check_turn(seat, Some(Phase::Play))?;
+        if self.eye_left[seat] == 0 {
+            return Err(RuleError::Unavailable);
+        }
+        self.eye_left[seat] -= 1;
+        self.eye_reveal[seat] = Some(self.hands[1 - seat].clone());
+        self.bump(seat, Kind::Eye, None, None);
+        Ok(())
+    }
+
     /// Finish a rushed turn that ran out: discard a random card if needed, then draw from the deck.
     pub fn auto_move<R: Rng + ?Sized>(&mut self, now: Instant, rng: &mut R) {
         if self.over {
@@ -407,6 +426,7 @@ impl Game {
         }
         self.over = true;
         self.loser_by_flag = Some(seat);
+        self.eye_reveal = [None, None];
         self.end_reason = Some(why);
         self.rush_until = None;
         self.rush_seat = None;
@@ -423,7 +443,9 @@ impl Game {
             pw: Powers {
                 sab: [self.sabotage_left[seat], self.sabotage_left[opp]],
                 rush: [self.rush_left[seat], self.rush_left[opp]],
+                eye: [self.eye_left[seat], self.eye_left[opp]],
             },
+            peek: if !self.over && self.turn == seat { self.eye_reveal[seat].clone() } else { None },
             ru: match (self.over, self.rush_until) {
                 (false, Some(until)) => Some(RushView {
                     seat: rel(self.rush_seat.unwrap_or(self.turn)),
@@ -472,6 +494,7 @@ impl Game {
                         Kind::Draw => "draw",
                         Kind::Sabotage => "sab",
                         Kind::Rush => "rush",
+                        Kind::Eye => "eye",
                         Kind::Flag => "flag",
                     },
                     id: if hidden { -1 } else { l.card.map_or(-1, i16::from) },
@@ -491,6 +514,8 @@ impl Game {
 #[derive(Serialize, Debug)]
 pub struct View {
     pub pw: Powers,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peek: Option<Vec<Card>>,
     pub ru: Option<RushView>,
     pub rn: Option<u8>,
     pub gid: String,
@@ -514,6 +539,7 @@ pub struct View {
 pub struct Powers {
     pub sab: [u8; 2],
     pub rush: [u8; 2],
+    pub eye: [u8; 2],
 }
 
 #[derive(Serialize, Debug)]
@@ -691,6 +717,60 @@ mod tests {
         g.flag(0, EndReason::Time, start + Duration::from_secs(90));
         assert!(g.over);
         assert_eq!(g.view(1, start).fl, Some("opp"));
+    }
+
+    #[test]
+    fn evil_eye_is_private_snapshot_and_expires_after_turn() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let t = Instant::now();
+        let mut g = Game::new(&mut rng, 0, None, t);
+        assert!(g.view(0, t).peek.is_none());
+        assert!(!serde_json::to_string(&g.view(1, t)).unwrap().contains("\"peek\""));
+        let snapshot = g.hands[1].clone();
+        let seq = g.seq;
+        g.eye(0).unwrap();
+        assert_eq!(g.seq, seq + 1);
+        assert_eq!(g.view(0, t).peek, Some(snapshot.clone()));
+        assert_eq!(g.view(0, t).pw.eye, [0, 1]);
+        assert_eq!(g.view(1, t).pw.eye, [1, 0]);
+        assert!(g.view(1, t).peek.is_none());
+        assert!(!serde_json::to_string(&g.view(1, t)).unwrap().contains("\"peek\""));
+        assert_eq!(g.view(1, t).la.unwrap().k, "eye");
+        assert_eq!(g.eye(0), Err(RuleError::Unavailable));
+        // A later sabotage must not reveal its hidden replacement through Evil Eye.
+        g.sabotage(0, &mut rng).unwrap();
+        assert_ne!(g.hands[1], snapshot);
+        g.pause(t);
+        g.resume(t);
+        assert_eq!(g.view(0, t).peek, Some(snapshot));
+        let card = g.hands[0][0];
+        g.play(0, card, false).unwrap();
+        assert!(g.view(0, t).peek.is_some());
+        g.draw(0, None, t).unwrap();
+        assert!(g.view(0, t).peek.is_none());
+        g.eye(1).unwrap();
+        assert_eq!(g.view(1, t).peek, Some(g.hands[0].clone()));
+        assert!(g.view(0, t).peek.is_none());
+        g.flag(1, EndReason::Forfeit, t);
+        assert!(g.eye_reveal.iter().all(Option::is_none));
+    }
+
+    #[test]
+    fn evil_eye_checks_turn_phase_game_over_and_auto_turn_expiry() {
+        let mut rng = StdRng::seed_from_u64(43);
+        let t = Instant::now();
+        let mut g = Game::new(&mut rng, 0, None, t);
+        assert_eq!(g.eye(1), Err(RuleError::NotYourTurn));
+        let card = g.hands[0][0];
+        g.play(0, card, false).unwrap();
+        assert_eq!(g.eye(0), Err(RuleError::WrongPhase));
+        assert_eq!(g.eye_left, [1, 1]);
+        g.draw(0, None, t).unwrap();
+        g.eye(1).unwrap();
+        g.auto_move(t, &mut rng);
+        assert!(g.eye_reveal.iter().all(Option::is_none));
+        g.flag(0, EndReason::Time, t);
+        assert_eq!(g.eye(0), Err(RuleError::GameOver));
     }
 
     #[test]

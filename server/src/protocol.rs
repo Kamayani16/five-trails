@@ -104,6 +104,7 @@ pub enum Action {
     Draw,
     Sab,
     Rush,
+    Eye,
 }
 
 /// What a player tells the server about themselves. Self-reported and unverified:
