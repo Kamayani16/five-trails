@@ -42,6 +42,7 @@
       </div>
     </div>
     <div class="tab" id="tab-leaders" hidden></div>
+    <div class="tab" id="tab-cups" hidden></div>
     <div class="tab" id="tab-records" hidden></div>
     <div class="tab" id="tab-guide" hidden></div>
 
@@ -49,6 +50,7 @@
       <div class="nav-in" role="tablist">
         <button role="tab" data-tab="battle" aria-selected="true" id="navBattle"></button>
         <button role="tab" data-tab="leaders" aria-selected="false" id="navLeaders"></button>
+        <button role="tab" data-tab="cups" aria-selected="false" id="navCups"></button>
         <button role="tab" data-tab="records" aria-selected="false" id="navRecords"></button>
         <button role="tab" data-tab="guide" aria-selected="false" id="navGuide"></button>
       </div>
@@ -148,6 +150,37 @@
     <div class="setrow"><span>Music</span><button class="tog" id="musTog" role="switch" aria-checked="true" aria-label="Music"></button></div>
     <div class="setrow"><span>Sound effects</span><button class="tog" id="sndTog" role="switch" aria-checked="true" aria-label="Sound effects"></button></div>
     <button class="gb blue sm" id="replayIntro">Replay the intro</button>
+  </div>
+</div>
+<div class="sheet" id="cupNewSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol">New cup</div>
+    <button class="gb red sq xbtn" data-close aria-label="Close"></button>
+    <label class="note" for="cupName">Cup name</label>
+    <input id="cupName" maxlength="24" autocomplete="off">
+    <span class="note">Format</span>
+    <div class="seg-b" id="cupFmt" role="radiogroup" aria-label="Format"><button role="radio" data-fmt="rr" type="button">Round robin</button><button role="radio" data-fmt="ko" type="button">Knockout</button></div>
+    <p class="note" id="cupFmtNote"></p>
+    <span class="note">Clock each</span>
+    <div class="seg-b" id="cupClk" role="radiogroup" aria-label="Clock"><button role="radio" data-cclk="180" type="button">3m</button><button role="radio" data-cclk="300" type="button">5m</button><button role="radio" data-cclk="600" type="button">10m</button><button role="radio" data-cclk="0" type="button">Off</button></div>
+    <p class="note">3 to 6 players. Champion: 100 coins and the Champion&rsquo;s Laurel card back. Runner-up 40, everyone who plays 15.</p>
+    <button class="gb green" id="cupMake" type="button">Create cup</button>
+  </div>
+</div>
+<div class="sheet" id="cupJoinSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol">Join a cup</div>
+    <button class="gb red sq xbtn" data-close aria-label="Close"></button>
+    <label class="note" for="cupCode">Cup code (6 letters)</label>
+    <div class="row2"><input id="cupCode" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDEF"><button class="gb green sm" id="cupJoinGo" type="button">Join</button></div>
+    <p class="note" id="cupJoinNote" aria-live="polite"></p>
+  </div>
+</div>
+<div class="sheet" id="cupSheet" hidden>
+  <div class="pn">
+    <div class="pn-h ol" id="cupTitle">Cup</div>
+    <button class="gb red sq xbtn" data-close aria-label="Close"></button>
+    <div id="cupBody"></div>
   </div>
 </div>
 <div class="sheet" id="shopSheet" hidden>

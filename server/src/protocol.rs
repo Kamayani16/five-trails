@@ -66,6 +66,30 @@ pub enum ClientMsg {
     },
     /// Say the season-end reward has been seen.
     AckSeason,
+    /// Cups (private tournaments for up to six players).
+    CupCreate {
+        name: String,
+        format: String,
+        clock: u32,
+    },
+    CupJoin {
+        code: String,
+    },
+    CupLeave {
+        code: String,
+    },
+    CupStart {
+        code: String,
+    },
+    CupList,
+    CupGet {
+        code: String,
+    },
+    /// Play cup match `m`: starts it if the opponent is waiting, otherwise wait for them.
+    CupPlay {
+        code: String,
+        m: usize,
+    },
     /// While waiting in the quick-match queue: play the computer instead.
     Bot,
     /// Rename and update the trophy count shown to opponents. The server answers a name
@@ -155,6 +179,13 @@ pub fn clean_pid(raw: &str) -> Option<String> {
 
 /// A room code as typed by a person: exactly 5 letters, any case. Random codes only use
 /// `ROOM_ALPHABET`, but a host-chosen one may use any letter.
+/// A cup code: 6 letters.
+pub fn clean_cup_code(raw: &str) -> Option<String> {
+    let up = raw.trim().to_ascii_uppercase();
+    let ok = up.len() == crate::cup::CUP_CODE_LEN && up.bytes().all(|b| b.is_ascii_uppercase());
+    ok.then_some(up)
+}
+
 pub fn clean_code(raw: &str) -> Option<String> {
     let up = raw.trim().to_ascii_uppercase();
     let ok = up.len() == ROOM_CODE_LEN && up.bytes().all(|b| b.is_ascii_uppercase());
@@ -219,6 +250,11 @@ mod tests {
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"leaderboard","season":true}"#), Ok(ClientMsg::Leaderboard { season: true })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"claim_chest"}"#), Ok(ClientMsg::ClaimChest)));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"buy","item":"candy"}"#), Ok(ClientMsg::Buy { .. })));
+        assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"cup_create","name":"Sat","format":"rr","clock":300}"#), Ok(ClientMsg::CupCreate { .. })));
+        assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"cup_play","code":"ABCDEF","m":2}"#), Ok(ClientMsg::CupPlay { m: 2, .. })));
+        assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"cup_list"}"#), Ok(ClientMsg::CupList)));
+        assert_eq!(clean_cup_code(" abcdef "), Some("ABCDEF".into()));
+        assert_eq!(clean_cup_code("ABCDE"), None);
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"equip","kind":"back","item":"dots"}"#), Ok(ClientMsg::Equip { .. })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"claim_quest","slot":"d1"}"#), Ok(ClientMsg::ClaimQuest { .. })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"bot"}"#), Ok(ClientMsg::Bot)));

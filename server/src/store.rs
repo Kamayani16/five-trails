@@ -17,6 +17,7 @@
 //! The data lives in memory and is written to one JSON file (atomically, via a temp file
 //! and rename). The hub task owns the `Store`, so there are no locks.
 
+use crate::cup::{self, Cup, CupError, CupPlayer, Format, Paid, Payout, State as CupState};
 use crate::economy::{self, Chest, ClaimError, ItemKind, ShopError, PlayEvent, Quests, Tuning, CHEST_COINS, CHEST_MAX, DAILY_SLOTS, WEEKLY_SLOTS};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -34,6 +35,8 @@ const UNPLAYED_TTL_SECS: u64 = 14 * 24 * 60 * 60;
 /// Any account untouched for this long is forgotten.
 const IDLE_TTL_SECS: u64 = 400 * 24 * 60 * 60;
 const FILE_VERSION: u32 = 2;
+/// Feed marker (never shown) noting that a finished cup has paid its prizes.
+const PAID_MARK: &str = "\u{0}paid";
 
 pub fn now_secs() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
@@ -121,6 +124,15 @@ pub struct PlayerRec {
     /// Coins paid by battles today: (local day, coins), for the daily cap.
     #[serde(default)]
     pub bcoins: (u32, u32),
+    /// Cups this player won.
+    #[serde(default)]
+    pub cup_wins: Vec<CupWin>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CupWin {
+    pub name: String,
+    pub at: u64,
 }
 
 impl PlayerRec {
@@ -145,6 +157,7 @@ impl PlayerRec {
             table: String::new(),
             back: String::new(),
             bcoins: (0, 0),
+            cup_wins: Vec::new(),
         }
     }
 
@@ -154,6 +167,9 @@ impl PlayerRec {
     }
 
     fn has(&self, it: &economy::Item) -> bool {
+        if it.cup {
+            return !self.cup_wins.is_empty();
+        }
         if it.trophies > 0 {
             return self.trophies() >= it.trophies;
         }
@@ -174,7 +190,7 @@ impl PlayerRec {
 
     /// Nothing worth keeping if the owner never comes back.
     fn pristine(&self) -> bool {
-        self.plays == 0 && self.games() == 0 && self.coins == 0 && self.prog.is_none() && self.owned.is_empty()
+        self.plays == 0 && self.games() == 0 && self.coins == 0 && self.prog.is_none() && self.owned.is_empty() && self.cup_wins.is_empty()
     }
 }
 
@@ -222,6 +238,8 @@ struct FileData {
     #[serde(default)]
     season_id: u32,
     players: Vec<PlayerRec>,
+    #[serde(default)]
+    cups: Vec<Cup>,
 }
 
 /// Name comparison key: names are unique ignoring case.
@@ -239,6 +257,7 @@ pub struct Store {
     season_id: u32,
     tuning: Tuning,
     dirty: bool,
+    cups: HashMap<String, Cup>,
 }
 
 /// One line of a leaderboard.
@@ -528,7 +547,7 @@ impl Store {
         let it = economy::item(id).filter(|i| i.kind == kind).ok_or(ShopError::Unknown)?;
         let p = self.players.get_mut(pid).ok_or(ShopError::Unknown)?;
         if !p.has(it) {
-            return Err(if it.trophies > 0 { ShopError::Locked } else { ShopError::Poor });
+            return Err(if it.trophies > 0 || it.cup { ShopError::Locked } else { ShopError::Poor });
         }
         match kind {
             ItemKind::Table => p.table = it.id.to_owned(),
@@ -547,6 +566,129 @@ impl Store {
             Some(it) if p.has(it) => id.to_owned(),
             _ => economy::DEFAULT_BACK.to_owned(),
         }
+    }
+
+    // ------------------------------------------------------------ cups
+
+    pub fn cup(&self, code: &str) -> Option<&Cup> {
+        self.cups.get(code)
+    }
+
+    pub fn cup_code_taken(&self, code: &str) -> bool {
+        self.cups.contains_key(code)
+    }
+
+    /// Cups this player is in, newest first.
+    pub fn cups_of(&self, pid: &str) -> Vec<&Cup> {
+        let mut v: Vec<&Cup> = self.cups.values().filter(|c| c.index_of(pid).is_some()).collect();
+        v.sort_by(|a, b| b.created.cmp(&a.created).then(a.code.cmp(&b.code)));
+        v
+    }
+
+    fn cup_player(&self, pid: &str) -> Result<CupPlayer, CupError> {
+        let p = self.players.get(pid).ok_or(CupError::NotFound)?;
+        let active = self.cups.values().filter(|c| c.state != CupState::Done && c.index_of(pid).is_some()).count();
+        if active >= cup::ACTIVE_CUPS_PER_PLAYER {
+            return Err(CupError::TooMany);
+        }
+        Ok(CupPlayer { pid: pid.to_owned(), name: p.name.clone(), tr: p.trophies() })
+    }
+
+    pub fn cup_create(&mut self, pid: &str, code: String, name: &str, format: Format, clock: u32, now: u64) -> Result<&Cup, CupError> {
+        let name = cup::clean_cup_name(name).ok_or(CupError::BadName)?;
+        let host = self.cup_player(pid)?;
+        self.dirty = true;
+        Ok(self.cups.entry(code.clone()).or_insert_with(|| Cup::new(code, name, format, clock, host, now)))
+    }
+
+    pub fn cup_join(&mut self, pid: &str, code: &str) -> Result<&Cup, CupError> {
+        if self.cups.get(code).ok_or(CupError::NotFound)?.index_of(pid).is_some() {
+            return Ok(&self.cups[code]);
+        }
+        let p = self.cup_player(pid)?;
+        let c = self.cups.get_mut(code).ok_or(CupError::NotFound)?;
+        c.join(p)?;
+        self.dirty = true;
+        Ok(c)
+    }
+
+    /// Leave a cup before it starts. Returns the members still in it (empty if it closed).
+    pub fn cup_leave(&mut self, pid: &str, code: &str) -> Result<Vec<String>, CupError> {
+        let c = self.cups.get_mut(code).ok_or(CupError::NotFound)?;
+        let close = c.leave(pid)?;
+        self.dirty = true;
+        if close {
+            let gone = self.cups.remove(code).map(|c| c.players.into_iter().map(|p| p.pid).collect()).unwrap_or_default();
+            return Ok(gone);
+        }
+        Ok(Vec::new())
+    }
+
+    pub fn cup_start(&mut self, pid: &str, code: &str, now: u64) -> Result<(), CupError> {
+        let tr: Vec<u32> = {
+            let c = self.cups.get(code).ok_or(CupError::NotFound)?;
+            c.players.iter().map(|p| self.players.get(&p.pid).map_or(p.tr, PlayerRec::trophies)).collect()
+        };
+        let c = self.cups.get_mut(code).ok_or(CupError::NotFound)?;
+        c.start(pid, &tr, now)?;
+        self.dirty = true;
+        Ok(())
+    }
+
+    pub fn cup_mark_ready(&mut self, code: &str, idx: usize, pid: &str) {
+        if let Some(c) = self.cups.get_mut(code) {
+            c.mark_ready(idx, pid);
+            self.dirty = true;
+        }
+    }
+
+    /// A cup match was played. Returns what the cup paid out if this ended it.
+    pub fn cup_record(&mut self, code: &str, idx: usize, pids: [&str; 2], scores: [i32; 2], winner: Option<&str>, now: u64) -> Option<Paid> {
+        let c = self.cups.get_mut(code)?;
+        if !c.record(idx, pids, scores, winner, now) {
+            return None;
+        }
+        self.dirty = true;
+        Some(self.settle(code, now))
+    }
+
+    /// Settle cups whose deadlines passed. Returns the changed codes and any payouts.
+    pub fn cup_expire(&mut self, now: u64) -> Vec<(String, Paid)> {
+        let due: Vec<String> = self.cups.iter_mut().filter_map(|(k, c)| c.expire(now).then(|| k.clone())).collect();
+        if !due.is_empty() {
+            self.dirty = true;
+        }
+        due.into_iter().map(|k| {
+            let paid = self.settle(&k, now);
+            (k, paid)
+        }).collect()
+    }
+
+    /// Pay a cup that has just ended (once). Returns (pid, place, coins) for each payee.
+    fn settle(&mut self, code: &str, now: u64) -> Paid {
+        let Some(c) = self.cups.get(code) else { return Vec::new() };
+        if c.state != CupState::Done || c.feed.iter().any(|l| l == PAID_MARK) {
+            return Vec::new();
+        }
+        let payout: Payout = c.payout();
+        let name = c.name.clone();
+        let pids: Vec<String> = c.players.iter().map(|p| p.pid.clone()).collect();
+        let mut out = Vec::new();
+        for (p, place, coins) in payout {
+            let Some(pid) = pids.get(p) else { continue };
+            if let Some(rec) = self.players.get_mut(pid) {
+                rec.coins = rec.coins.saturating_add(coins);
+                if place == 1 {
+                    rec.cup_wins.push(CupWin { name: name.clone(), at: now });
+                }
+            }
+            out.push((pid.clone(), place, coins));
+        }
+        if let Some(c) = self.cups.get_mut(code) {
+            c.feed.push(PAID_MARK.to_owned());
+        }
+        self.dirty = true;
+        out
     }
 
     /// Collect a finished quest ("d0".."d2", "w0", "w1"). Returns its coins.
@@ -628,8 +770,9 @@ impl Store {
             "dailyIn": economy::secs_to_next_day(now, &t), "weeklyIn": economy::secs_to_next_week(now, &t),
             "season": { "name": economy::season_name(season), "endsIn": economy::season_ends_in(now, &t) },
             "reward": reward,
+            "cupWins": p.cup_wins.iter().rev().take(10).map(|w| json!({ "name": w.name, "at": w.at })).collect::<Vec<_>>(),
             "shop": {
-                "items": economy::SHOP.iter().map(|i| json!({ "id": i.id, "kind": i.kind.as_str(), "price": i.price, "tr": i.trophies, "have": p.has(i) })).collect::<Vec<_>>(),
+                "items": economy::SHOP.iter().map(|i| json!({ "id": i.id, "kind": i.kind.as_str(), "price": i.price, "tr": i.trophies, "cup": i.cup, "have": p.has(i) })).collect::<Vec<_>>(),
                 "table": p.equipped(ItemKind::Table),
                 "back": p.equipped(ItemKind::Back),
             },
@@ -670,6 +813,15 @@ impl Store {
 
     /// Forget accounts nobody uses any more.
     pub fn prune(&mut self, now: u64) {
+        let before = self.cups.len();
+        self.cups.retain(|_, c| match c.state {
+            CupState::Lobby => now.saturating_sub(c.created) < cup::LOBBY_TTL_SECS,
+            CupState::Done => now.saturating_sub(c.ended.unwrap_or(c.created)) < cup::DONE_TTL_SECS,
+            CupState::Live => true,
+        });
+        if self.cups.len() != before {
+            self.dirty = true;
+        }
         let stale: Vec<String> = self
             .players
             .values()
@@ -691,7 +843,9 @@ impl Store {
     pub fn to_json(&self) -> String {
         let mut players: Vec<PlayerRec> = self.players.values().cloned().collect();
         players.sort_by(|a, b| a.pid.cmp(&b.pid));
-        serde_json::to_string(&FileData { version: FILE_VERSION, season_id: self.season_id, players }).unwrap_or_default()
+        let mut cups: Vec<Cup> = self.cups.values().cloned().collect();
+        cups.sort_by(|a, b| a.code.cmp(&b.code));
+        serde_json::to_string(&FileData { version: FILE_VERSION, season_id: self.season_id, players, cups }).unwrap_or_default()
     }
 
     pub fn from_json(text: &str) -> Result<Self, String> {
@@ -699,7 +853,9 @@ impl Store {
         if !(1..=FILE_VERSION).contains(&data.version) {
             return Err(format!("unsupported data file version {}", data.version));
         }
-        Ok(Self::from_records(data.players, data.season_id))
+        let mut s = Self::from_records(data.players, data.season_id);
+        s.cups = data.cups.into_iter().map(|c| (c.code.clone(), c)).collect();
+        Ok(s)
     }
 
     /// Load from `path`. A missing file is a fresh start; an unreadable or corrupt one is an
@@ -973,6 +1129,22 @@ mod tests {
         }
         assert_eq!(paid, economy::BATTLE_COINS_PER_DAY, "capped for the day");
         assert_eq!(s.record_play(pid, &ev(PlayKind::Ranked, true), false, true, 1000 + DAY), 15, "a new day pays again");
+    }
+
+    #[test]
+    fn cups_are_saved_with_the_players_and_survive_a_restart() {
+        let mut s = store();
+        s.register("pid-aaaaaaaa", "Ann", 1);
+        s.register("pid-bbbbbbbb", "Bob", 1);
+        s.cup_create("pid-aaaaaaaa", "QWERTY".into(), "Fun Cup", Format::Knockout, 300, 1).unwrap();
+        s.cup_join("pid-bbbbbbbb", "QWERTY").unwrap();
+        let back = Store::from_json(&s.to_json()).unwrap();
+        let c = back.cup("QWERTY").expect("cup came back");
+        assert_eq!((c.name.as_str(), c.players.len(), c.format), ("Fun Cup", 2, Format::Knockout));
+        assert_eq!(back.cups_of("pid-bbbbbbbb").len(), 1);
+        let mut old = Store::from_json(r#"{"version":2,"players":[]}"#).unwrap();
+        assert!(old.cups_of("x").is_empty(), "files from before cups still load");
+        old.prune(10);
     }
 
     #[test]

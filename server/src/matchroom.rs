@@ -9,7 +9,7 @@ use crate::hub::{ConnCtl, ConnId, ConnTx, HubCmd, HubTx};
 use crate::protocol::{self, Action, Profile, EMOTE_COUNT};
 use crate::store::Outcome;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
@@ -46,6 +46,8 @@ pub enum MatchKind {
     Room(String),
     /// Against the computer at the given strength tier (see `bot::tier_for`). Unranked.
     Bot(usize),
+    /// Match `.1` of cup `.0`. One game, no rematch; the result goes to the cup.
+    Cup(String, usize),
 }
 
 pub struct Player {
@@ -258,6 +260,7 @@ impl MatchRoom {
             MatchKind::Quick => PlayKind::Ranked,
             MatchKind::Room(_) => PlayKind::Friend,
             MatchKind::Bot(_) => PlayKind::Bot,
+            MatchKind::Cup(..) => PlayKind::Cup,
         };
         if kind == PlayKind::Bot && self.game.end_reason == Some(EndReason::Forfeit) {
             return;
@@ -268,7 +271,9 @@ impl MatchRoom {
             outcome,
             kind,
             events: [self.event(0, kind, outcome), self.event(1, kind, outcome)],
-            counted: self.game.seq >= MIN_SEQ_FOR_QUESTS,
+            counted: self.game.seq >= MIN_SEQ_FOR_QUESTS && kind != PlayKind::Cup,
+            cup: if let MatchKind::Cup(code, m) = &self.kind { Some((code.clone(), *m)) } else { None },
+            scores: [self.game.total(0), self.game.total(1)],
         };
         let hub = self.hub.clone();
         // Never drop a result because the hub's queue is momentarily full.
@@ -377,6 +382,10 @@ impl MatchRoom {
             }
             MatchCmd::Rematch { seat, conn } => {
                 if !self.is_current(seat, conn) || !self.game.over {
+                    return;
+                }
+                if matches!(self.kind, MatchKind::Cup(..)) {
+                    send(&self.players[seat].tx, protocol::error("cup_no_rematch"));
                     return;
                 }
                 let other = &self.players[1 - seat];
@@ -505,6 +514,7 @@ impl MatchRoom {
             MatchKind::Quick => ("quick", None),
             MatchKind::Room(c) => ("room", Some(c.as_str())),
             MatchKind::Bot(_) => ("bot", None),
+            MatchKind::Cup(c, _) => ("cup", Some(c.as_str())),
         };
         let mut opp_json = opp.profile.to_json();
         if opp.bot {
@@ -523,6 +533,7 @@ impl MatchRoom {
             "kind": kind,
             "code": code,
             "clock": self.base.map_or(0, |b| b.as_secs()),
+            "cupMatch": if let MatchKind::Cup(_, i) = &self.kind { json!(i) } else { Value::Null },
         });
         send(&self.players[seat].tx, protocol::msg(m));
     }

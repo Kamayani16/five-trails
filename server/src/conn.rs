@@ -163,6 +163,13 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                     ClientMsg::Equip { kind, item } => Some(HubCmd::Equip { id, kind, item }),
                     ClientMsg::ClaimQuest { slot } => Some(HubCmd::ClaimQuest { id, slot }),
                     ClientMsg::AckSeason => Some(HubCmd::AckSeason { id }),
+                    ClientMsg::CupCreate { name, format, clock } => Some(HubCmd::CupCreate { id, name, format, clock }),
+                    ClientMsg::CupJoin { code } => Some(HubCmd::CupJoin { id, code }),
+                    ClientMsg::CupLeave { code } => Some(HubCmd::CupLeave { id, code }),
+                    ClientMsg::CupStart { code } => Some(HubCmd::CupStart { id, code }),
+                    ClientMsg::CupList => Some(HubCmd::CupList { id }),
+                    ClientMsg::CupGet { code } => Some(HubCmd::CupGet { id, code }),
+                    ClientMsg::CupPlay { code, m } => Some(HubCmd::CupPlay { id, code, m }),
                     ClientMsg::Bot => Some(HubCmd::Bot { id }),
                     ClientMsg::Profile { name, tr, lv } => match protocol::clean_name(&name) {
                         Some(name) => Some(HubCmd::UpdateProfile { id, name, trophies: tr, level: lv }),

@@ -22,6 +22,7 @@ pub fn battle_coins(kind: PlayKind, won: bool, draw: bool) -> u32 {
     let (w, d, l) = match kind {
         PlayKind::Ranked | PlayKind::Friend => (15, 8, 5),
         PlayKind::Bot => (8, 4, 2),
+        PlayKind::Cup => (0, 0, 0),
     };
     if won {
         w
@@ -165,16 +166,18 @@ pub struct Item {
     pub kind: ItemKind,
     pub price: u32,
     pub trophies: u32,
+    /// Only for players who have won a cup.
+    pub cup: bool,
 }
 
 const fn it(id: &'static str, kind: ItemKind, price: u32, trophies: u32) -> Item {
-    Item { id, kind, price, trophies }
+    Item { id, kind, price, trophies, cup: false }
 }
 
 pub const DEFAULT_TABLE: &str = "classic";
 pub const DEFAULT_BACK: &str = "stripes";
 
-pub const SHOP: [Item; 21] = [
+pub const SHOP: [Item; 22] = [
     it("classic", ItemKind::Table, 0, 0),
     it("peach", ItemKind::Table, 0, 0),
     it("slate", ItemKind::Table, 0, 0),
@@ -196,6 +199,7 @@ pub const SHOP: [Item; 21] = [
     it("circuit", ItemKind::Back, 400, 0),
     it("crest", ItemKind::Back, 750, 0),
     it("summit", ItemKind::Back, 0, 1400),
+    Item { id: "laurel", kind: ItemKind::Back, price: 0, trophies: 0, cup: true },
 ];
 
 pub fn item(id: &str) -> Option<&'static Item> {
@@ -288,6 +292,8 @@ pub enum PlayKind {
     Friend,
     /// The computer offered while waiting in the quick-match queue.
     Bot,
+    /// A cup match: counts only for the cup (no trophies, quests or battle coins).
+    Cup,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -668,7 +674,7 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), SHOP.len());
         for k in [ItemKind::Table, ItemKind::Back] {
-            assert_eq!(SHOP.iter().filter(|i| i.kind == k && i.price == 0 && i.trophies == 0).count(), 3);
+            assert_eq!(SHOP.iter().filter(|i| i.kind == k && i.price == 0 && i.trophies == 0 && !i.cup).count(), 3);
         }
         assert_eq!(item(DEFAULT_TABLE).map(|i| i.kind), Some(ItemKind::Table));
         assert_eq!(item(DEFAULT_BACK).map(|i| i.kind), Some(ItemKind::Back));

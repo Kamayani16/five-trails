@@ -11,6 +11,7 @@
 mod bot;
 mod config;
 mod conn;
+mod cup;
 mod economy;
 mod game;
 mod hub;

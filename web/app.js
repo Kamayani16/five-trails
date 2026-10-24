@@ -50,7 +50,9 @@ function lvlInfo(xp){let lv=1,need=100,base=0;while(xp>=base+need){base+=need;lv
 /* Icons */
 const OLC='#0b1640';
 const TROPHY=`<svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v5a6 6 0 0 1-12 0Z" fill="#ffd23a" stroke="${OLC}" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 5H3v1.5A3.5 3.5 0 0 0 6.5 10M18 5h3v1.5a3.5 3.5 0 0 1-3.5 3.5" fill="none" stroke="${OLC}" stroke-width="1.8"/><path d="M10 14h4v3h-4z" fill="#ffaa00" stroke="${OLC}" stroke-width="1.8"/><path d="M7 17h10v4H7z" fill="#ffd23a" stroke="${OLC}" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 5.5v2.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const LAUREL='<svg viewBox="0 0 100 100" class="laurel" aria-hidden="true"><g fill="#ffd23a" stroke="#8a5a00" stroke-width="1.6"><ellipse cx="18.1" cy="40.4" rx="7" ry="3.4" transform="rotate(255 18.1 40.4)"/><ellipse cx="24.0" cy="30.1" rx="7" ry="3.4" transform="rotate(275 24.0 30.1)"/><ellipse cx="33.0" cy="22.6" rx="7" ry="3.4" transform="rotate(295 33.0 22.6)"/><ellipse cx="44.1" cy="18.5" rx="7" ry="3.4" transform="rotate(315 44.1 18.5)"/><ellipse cx="55.9" cy="18.5" rx="7" ry="3.4" transform="rotate(335 55.9 18.5)"/><ellipse cx="67.0" cy="22.6" rx="7" ry="3.4" transform="rotate(355 67.0 22.6)"/><ellipse cx="76.0" cy="30.1" rx="7" ry="3.4" transform="rotate(375 76.0 30.1)"/><ellipse cx="81.9" cy="40.4" rx="7" ry="3.4" transform="rotate(-75 81.9 40.4)"/><ellipse cx="76.0" cy="30.1" rx="7" ry="3.4" transform="rotate(-95 76.0 30.1)"/><ellipse cx="67.0" cy="22.6" rx="7" ry="3.4" transform="rotate(-115 67.0 22.6)"/><ellipse cx="55.9" cy="18.5" rx="7" ry="3.4" transform="rotate(-135 55.9 18.5)"/><ellipse cx="44.1" cy="18.5" rx="7" ry="3.4" transform="rotate(-155 44.1 18.5)"/><ellipse cx="33.0" cy="22.6" rx="7" ry="3.4" transform="rotate(-175 33.0 22.6)"/><ellipse cx="24.0" cy="30.1" rx="7" ry="3.4" transform="rotate(-195 24.0 30.1)"/></g><path d="M50 30l5.5 11.2 12.3 1.8-8.9 8.7 2.1 12.3L50 58.2l-11 5.8 2.1-12.3-8.9-8.7 12.3-1.8z" fill="#fff3b0" stroke="#8a5a00" stroke-width="2"/></svg>';
 const SV=(p,f='none',w=2.6)=>`<svg viewBox="0 0 24 24" fill="${f}" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const CUPIC=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5h5v5h3.5M2.5 19.5h5v-5h3.5M11 9.5v5M11 12h4"/><rect x="15" y="9" width="6.5" height="6" rx="1.5"/></svg>`;
 const IC={
  swords:SV('<path d="M4 4l9.5 9.5M4 4h4.5M4 4v4.5M20 4l-9.5 9.5M20 4h-4.5M20 4v4.5M6.5 15.5l2 2M17.5 15.5l-2 2M5 19l2.5-2.5M19 19l-2.5-2.5"/>'),
  cup:SV('<path d="M7 4h10v4a5 5 0 0 1-10 0Z M7 6H4v1a3 3 0 0 0 3 3 M17 6h3v1a3 3 0 0 1-3 3 M12 13v4 M8 20h8"/>'),
@@ -270,13 +272,13 @@ function callout(text,c1='#ffd23a',sub=''){coQ=coQ.then(()=>new Promise(res=>{co
 function popup(el,text,cls){if(!el)return;const[x,y]=centerOf(el);const d=document.createElement('div');d.className='popn ol '+cls;d.textContent=text;d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);setTimeout(()=>d.remove(),1300)}
 /* ================= Shop: table themes (your screen) and card backs (what rivals see) ================= */
 const SHOP0=[['classic','table',0],['peach','table',0],['slate','table',0],['candy','table',300],['bubble','table',300],['ocean','table',300],['blossom','table',450],['camo','table',450],['neon','table',450],['steel','table',600],['volcano','table',600],
- ['stripes','back',0],['dots','back',0],['chevron','back',0],['paws','back',200],['stars','back',250],['flames','back',300],['bolt','back',300],['circuit','back',400],['crest','back',750],['summit','back',0,1400]].map(([id,kind,price,tr])=>({id,kind,price,tr:tr||0}));
+ ['stripes','back',0],['dots','back',0],['chevron','back',0],['paws','back',200],['stars','back',250],['flames','back',300],['bolt','back',300],['circuit','back',400],['crest','back',750],['summit','back',0,1400],['laurel','back',0,0,1]].map(([id,kind,price,tr,cup])=>({id,kind,price,tr:tr||0,cup:!!cup}));
 const SHOPN={classic:'Classic Blue',peach:'Peach Sorbet',slate:'Slate Night',candy:'Candy Pop',bubble:'Bubble Tea',ocean:'Ocean Breeze',blossom:'Cherry Blossom',camo:'Jungle Camo',neon:'Neon Arcade',steel:'Midnight Steel',volcano:'Volcanic',
- stripes:'Classic Stripes',dots:'Polka Dots',chevron:'Chevron',paws:'Paw Prints',stars:'Stars & Moon',flames:'Flames',bolt:'Lightning Bolt',circuit:'Circuit Board',crest:'Golden Crest',summit:'Summit Crown'};
+ stripes:'Classic Stripes',dots:'Polka Dots',chevron:'Chevron',paws:'Paw Prints',stars:'Stars & Moon',flames:'Flames',bolt:'Lightning Bolt',circuit:'Circuit Board',crest:'Golden Crest',summit:'Summit Crown',laurel:'Champion\u2019s Laurel'};
 const AI_BACKS=['stripes','dots','chevron','paws','flames','circuit','crest'];
 const okItem=(id,kind)=>SHOP0.some(i=>i.id===id&&i.kind===kind);
 let EQ={table:'classic',back:'stripes'},shopTab='table',shopArmed=null;
-function shopItems(){if(ME&&ME.shop)return ME.shop.items;const t=Math.max(REC.best,REC.tr);return SHOP0.map(i=>({...i,have:i.tr?t>=i.tr:i.price===0}))}
+function shopItems(){if(ME&&ME.shop)return ME.shop.items;const t=Math.max(REC.best,REC.tr);return SHOP0.map(i=>({...i,have:i.cup?false:i.tr?t>=i.tr:i.price===0}))}
 function applyTheme(){const b=document.body;[...b.classList].filter(c=>c.startsWith('tb-')).forEach(c=>b.classList.remove(c));b.classList.add('tb-'+EQ.table)}
 function setBk(el,id){if(!el)return;[...el.classList].filter(c=>c.startsWith('bk-')).forEach(c=>el.classList.remove(c));if(id&&id!=='stripes')el.classList.add('bk-'+id)}
 function oppBack(){if(M&&M.mode==='ai')return AI_BACKS[Math.min(AI_BACKS.length-1,M.tier||0)];return M&&M.opp&&okItem(M.opp.back,'back')?M.opp.back:'stripes'}
@@ -284,6 +286,7 @@ function equipLocal(kind,id){EQ[kind]=id;ST.set('ft-'+kind,id);applyTheme()}
 function renderShop(){const body=$('shopBody');if(!body)return;const items=shopItems().filter(i=>i.kind===shopTab),coins=ME?ME.coins:null;
  const sw=id=>shopTab==='table'?`<div class="tsw tb-${id}">${[0,1,2,3,4].map(c=>`<i style="left:${20+c*13}%;background:${COL[c].cc}"></i>`).join('')}</div>`:`<div class="back bkp bk-${id}"></div>`;
  const chip=i=>{if(EQ[i.kind]===i.id)return'<span class="pr own">In use</span>';if(i.have)return'<span class="pr use">Use</span>';
+  if(i.cup)return`<span class="pr lock">Win a cup</span>`;
   if(i.tr)return`<span class="pr lock">${IC.cup}${i.tr}</span>`;if(shopArmed===i.id)return`<span class="pr buy">Buy? ${COIN}${i.price}</span>`;
   return`<span class="pr buy ${coins!=null&&coins<i.price?'poor':''}">${COIN}${i.price}</span>`};
  body.innerHTML=`<div class="shoptabs" role="tablist"><button type="button" data-st="table" class="${shopTab==='table'?'on':''}">Tables</button><button type="button" data-st="back" class="${shopTab==='back'?'on':''}">Card backs</button></div>
@@ -295,6 +298,7 @@ function renderShop(){const body=$('shopBody');if(!body)return;const items=shopI
 function shopTap(id){const i=shopItems().find(x=>x.id===id);if(!i)return;
  if(EQ[i.kind]===id){sfx('ui');return}
  if(i.have){sfx('select');shopArmed=null;equipLocal(i.kind,id);if(ME&&NET.ready)NET.send({t:'equip',kind:i.kind,item:id});renderShop();return}
+ if(i.cup){sfx('bad');toast(`Win a cup to unlock ${SHOPN[id]}.`);return}
  if(i.tr){sfx('bad');toast(`Reach ${i.tr} trophies to unlock ${SHOPN[id]}.`);return}
  if(!ME||!NET.ready){sfx('bad');toast('Go online to buy with coins.');return}
  if(ME.coins<i.price){sfx('bad');toast(`You need ${i.price-ME.coins} more coins for ${SHOPN[id]}.`);return}
@@ -338,13 +342,13 @@ const RESTORE={prev:cleanKey(ST.get('ft-restore',''))};
 const nick=()=>(NAME||'Explorer').slice(0,16);
 function saveRec(){ST.set('ft-record',REC)}
 const RESULT={};
-function recordGame(mode,oppName,oppKey,me,them,gid,r){
+function recordGame(mode,oppName,oppKey,me,them,gid,r,noTrophies){
  if(RESULT[gid])return RESULT[gid];
  const t0=REC.tr,x0=REC.xp,a0=arenaIdx(t0);
  if(REC.recent.some(x=>x.g===gid))return RESULT[gid]={r,t0,t1:t0,x0,x1:x0,a0,a1:a0,dT:0,dX:0};
  const b=mode==='ai'?REC.ai:REC.pvp;b[r]++;
  if(mode==='pvp'){const o=REC.opp[oppKey]||{name:oppName,w:0,l:0,d:0};o.name=oppName;o[r]++;REC.opp[oppKey]=o}
- const D=mode==='ai'?{w:12,l:-8,d:0}:{w:30,l:-20,d:0};
+ const D=noTrophies?{w:0,l:0,d:0}:mode==='ai'?{w:12,l:-8,d:0}:{w:30,l:-20,d:0};
  const t1=Math.max(ARENAS[a0].at,t0+D[r]);
  const dX=20+(r==='w'?30:r==='d'?15:5)+Math.floor(Math.max(0,Math.min(me,120))/4);
  REC.tr=t1;REC.best=Math.max(REC.best,t1);REC.xp=x0+dX;
@@ -400,14 +404,24 @@ const ERRS={room_not_found:'No open room has that code. Check it and try again.'
  opponent_left:'Your opponent has left.',opponent_away:'Waiting for your opponent to reconnect.',rate_limited:'Slow down a little.',replaced:'This battle continued in another tab.',
  code_taken:'That room code is already in use. Pick another one.',bad_code:'A room code is exactly 5 letters.',name_taken:'That name is taken. Try another.',
  no_chest:'No chest is ready yet.',quest_not_done:'Finish that quest first.',already_claimed:'Already collected.',bad_quest:'That quest is not available any more.',
- bot_unavailable:'The computer is not available yet. Keep waiting a little.',not_enough_coins:'Not enough coins yet.',already_owned:'You already own that.',not_for_sale:'That one is not sold.',item_locked:'Win more trophies to unlock that.',bad_item:'That item is not available.',unknown_key:'No account has that recovery code.'};
+ bot_unavailable:'The computer is not available yet. Keep waiting a little.',not_enough_coins:'Not enough coins yet.',cup_not_found:'No cup has that code. Check it and try again.',cup_full:'That cup is full (6 players).',cup_started:'That cup has already started.',cup_not_host:'Only the host can start the cup.',cup_too_few:'A cup needs at least 3 players to start.',cup_not_your_match:'That is not your match.',cup_match_closed:'That match is already decided.',cup_too_many:'You are in 5 cups already. Finish one first.',cup_bad_name:'Give the cup a name (up to 24 letters).',cup_no_rematch:'Cup matches are one game each. Head back to the cup.',bad_format:'Pick round robin or knockout.',already_owned:'You already own that.',not_for_sale:'That one is not sold.',item_locked:'Win more trophies to unlock that.',bad_item:'That item is not available.',unknown_key:'No account has that recovery code.'};
 function onServer(m){switch(m.t){
  case 'welcome':onWelcome(m);break;
  case 'name':if(typeof m.name==='string'&&m.name){commitName(m.name);ST.set('ft-nick-pending',false);nameReply(true)}break;
  case 'me':ME=cleanMe(m);if(ME.shop){EQ.table=ME.shop.table;EQ.back=ME.shop.back;ST.set('ft-table',EQ.table);ST.set('ft-back',EQ.back);applyTheme()}if(!$('shopSheet').hidden)renderShop();renderRewards();if(!$('questSheet').hidden)renderQuests();scheduleReminders();maybeShowReward();break;
  case 'claimed':onClaimed(m);break;
  case 'bought':onBought(m);break;
- case 'earned':if(M.mode==='online'){M.earned={coins:numOf(m.coins),counted:m.counted!==false};if(!$('over').hidden)showEarned(true)}break;
+ case 'cup':onCup(m.cup);break;
+ case 'cups':if(Array.isArray(m.cups)){const keep={};m.cups.forEach(v=>{const c=cleanCup(v);if(c)keep[c.code]=c});CUPS=keep;if(curTab==='cups')renderCups();paintCupDot();if(cupOpen&&!$('cupSheet').hidden)renderCupSheet()}break;
+ case 'cup_gone':{const code=String(m.code||'');delete CUPS[code];if(cupOpen===code&&!$('cupSheet').hidden){closeSheets();toast('That cup was closed.')}if(curTab==='cups')renderCups();paintCupDot();break}
+ case 'cup_wait':M={mode:'cupwait',code:String(m.code||''),m:numOf(m.m,99)};closeSheets();showWait('Cup match','',`Waiting for ${String(m.opp||'your opponent').slice(0,16)} to tap Play. We have told them you are here.`);break;
+ case 'cup_unwait':if(M.mode==='cupwait')goHome(true);break;
+ case 'cup_ping':{const code=String(m.code||''),i=numOf(m.m,99);cupPings[code+':'+i]=Date.now();const c=CUPS[code];sfx('join');
+  toast(`${String(m.from||'Your opponent').slice(0,16)} is waiting for your cup match${c?' in '+c.name:''}. Open Cups to play.`);renderCupBits(code);break}
+ case 'cup_prize':{const place=numOf(m.place,9),coins=numOf(m.coins);sfx(place===1?'win':'levelup');if(place===1)confetti();
+  callout(place===1?'Cup champion!':place===2?'Runner-up!':'Cup complete','#ffd23a',String(m.name||'').slice(0,24));
+  setTimeout(()=>depositCoins(coins,null,ME?ME.coins:0),900);break}
+ case 'earned':if(M.mode==='online'){M.earned={coins:numOf(m.coins),counted:m.counted!==false,cup:typeof m.cup==='string'};if(!$('over').hidden)showEarned(true)}break;
  case 'bot_offer':if(M.mode==='queue'){$('botOffer').hidden=false;sfx('join')}break;
  case 'leaderboard':{const l=cleanLB(m);LBS[l.scope]=l;if(curTab==='leaders')renderLeaders();break}
  case 'stats':NET.stats=m.stats||null;netChanged();break;
@@ -428,7 +442,7 @@ function onServer(m){switch(m.t){
   pending=false;if(V&&M.mode==='online')renderActs();if(m.code!=='stale'&&m.code!=='rate_limited')toast(ERRS[m.code]||'That move was not allowed.');
   if(m.code==='code_taken'||m.code==='bad_code'){openSheet('friendSheet');$('customCode').focus()}break;
 }}
-function onWelcome(m){NET.ready=true;NET.stats=m.stats||null;NET.roomTtl=Math.max(10,Number(m.roomTtl)||120);
+function onWelcome(m){NET.ready=true;setTimeout(()=>NET.raw({t:'cup_list'}),50);NET.stats=m.stats||null;NET.roomTtl=Math.max(10,Number(m.roomTtl)||120);
  if(typeof m.pid==='string'&&/^[A-Za-z0-9-]{8,64}$/.test(m.pid)&&m.pid!==PID){PID=m.pid;ST.set('pid',PID)}
  const name=typeof m.name==='string'?m.name:'';
  if(RESTORE.prev){ // the player typed a recovery code: this device becomes that account
@@ -449,13 +463,13 @@ function onWelcome(m){NET.ready=true;NET.stats=m.stats||null;NET.roomTtl=Math.ma
 function onMatch(m){const v=m.view,o=m.opp;if(!v||typeof v!=='object'||!o)return;SS.set('ft-resume',typeof m.token==='string'?m.token:null);
  const opp={nick:String(o.name||'Opponent').slice(0,16),tr:Math.max(0,Number(o.tr)||0),lv:Math.max(1,Number(o.lv)||1),pid:String(o.pid||'').slice(0,64),bot:o.bot===true,tier:Math.max(0,Math.min(ARENAS.length-1,Math.floor(Number(o.tier))||0)),back:okItem(o.back,'back')?o.back:'stripes'};
  if(M.mode!=='online')M={mode:'online',oppEmoT:undefined};
- Object.assign(M,{opp,oppKey:'p:'+opp.pid,kind:m.kind==='room'?'room':m.kind==='bot'?'bot':'quick',code:typeof m.code==='string'?m.code.replace(/[^A-Z]/g,''):null,
+ Object.assign(M,{opp,oppKey:'p:'+opp.pid,kind:m.kind==='room'?'room':m.kind==='bot'?'bot':m.kind==='cup'?'cup':'quick',cupM:Number.isInteger(m.cupMatch)?m.cupMatch:null,code:typeof m.code==='string'?m.code.replace(/[^A-Z]/g,''):null,
   oppHere:m.oppConnected!==false,oppLeft:false,earned:null,closed:false,reconnecting:false,iWantRm:null,theyWantRm:null});
  V=v;V.at=Date.now();pending=false;sel=null;
- $('roomTag').textContent=M.kind==='room'?'Room '+M.code:M.kind==='bot'?'Computer battle':'Quick match';
+ $('roomTag').textContent=M.kind==='room'?'Room '+M.code:M.kind==='bot'?'Computer battle':M.kind==='cup'?(CUPS[M.code]?CUPS[M.code].name:'Cup match'):'Quick match';
  if($('game').hidden)show('game');
  renderGame()}
-function netDown(wasReady){if(M.mode==='queue'||M.mode==='room'){goHome(true);toast('Lost connection to the game server.')}
+function netDown(wasReady){if(M.mode==='queue'||M.mode==='room'||M.mode==='cupwait'){goHome(true);toast('Lost connection to the game server.')}
  else if(M.mode==='online'){if(V&&V.ov){M.closed=true;updateRmNote()}else{M.reconnecting=true;if(V)renderGame()}}}
 function netChanged(){const ok=NET.ready,s=NET.stats;
  ['quickBtn','create','join','joinCode'].forEach(id=>{const e=$(id);if(e)e.disabled=!ok});
@@ -474,6 +488,95 @@ function setupShare(code){
  $('shCopy').onclick=async()=>{sfx('ui');toast(await copyText(inviteText(code))?'Invite copied. Paste it anywhere.':'Could not copy. Long-press the code instead.')};
  $('waitCode').onclick=async()=>{sfx('ui');toast(await copyText(code)?`Code ${code} copied.`:'Could not copy the code.')};
  $('shMore').onclick=()=>{sfx('ui');try{navigator.share({title:'Five Trails',text:`Join my Five Trails battle! Room code: ${code}`,url:inviteLink(code)}).catch(()=>{})}catch(e){}}}
+
+
+/* ================= Cups: private round robin or knockout for 3 to 6 friends ================= */
+let cupAwaitNew=false,cupAwaitJoin=null;
+let CUPS={},cupOpen=null,cupFmtSel='rr',cupClkSel=300,cupPings={};
+const cupFmtName=f=>f==='ko'?'Knockout':'Round robin';
+const cupClkName=c=>c?`${c/60} min clock`:'No clock';
+const cupInviteLink=code=>location.origin+location.pathname+'#cup-'+code;
+const cupInviteText=c=>`Join my Five Trails cup "${c.name}"! Cup code: ${c.code}\n${cupInviteLink(c.code)}`;
+function cleanCup(v){if(!v||typeof v!=='object'||!/^[A-Z]{6}$/.test(String(v.code||'')))return null;
+ const int=(x,max)=>Number.isInteger(x)&&x>=0&&x<max?x:null,n=Array.isArray(v.players)?v.players.slice(0,6).map(p=>({n:String(p&&p.n||'?').slice(0,16),tr:numOf(p&&p.tr)})):[],np=n.length;
+ const matches=Array.isArray(v.matches)?v.matches.slice(0,20).map(x=>({a:int(x&&x.a,np),b:int(x&&x.b,np),r:numOf(x&&x.r,9),draws:numOf(x&&x.draws,99),
+  res:x&&x.res&&typeof x.res==='object'?{w:int(x.res.w,np),sa:Number(x.res.sa)||0,sb:Number(x.res.sb)||0,wo:!!x.res.wo}:null,
+  ready:Array.isArray(x&&x.ready)?[!!x.ready[0],!!x.ready[1]]:[false,false],dueIn:x&&x.dueIn!=null?numOf(x.dueIn,1e8):null})):[];
+ const table=Array.isArray(v.table)?v.table.slice(0,6).map(r=>({p:int(r&&r.p,np),pl:numOf(r&&r.pl),w:numOf(r&&r.w),d:numOf(r&&r.d),l:numOf(r&&r.l),pts:numOf(r&&r.pts),diff:Number(r&&r.diff)||0})).filter(r=>r.p!=null):[];
+ return{code:v.code,name:String(v.name||'Cup').slice(0,24),format:v.format==='ko'?'ko':'rr',clock:numOf(v.clock,3600),state:['lobby','live','done'].includes(v.state)?v.state:'lobby',
+  me:int(v.me,np),host:v.host===true,players:n,matches,table,champion:int(v.champion,np),runner:int(v.runner,np),
+  feed:Array.isArray(v.feed)?v.feed.slice(0,12).map(l=>String(l).slice(0,90)):[],prize:v.prize&&typeof v.prize==='object'?{place:numOf(v.prize.place,9),coins:numOf(v.prize.coins)}:null,at:Date.now()}}
+const myCupMatches=c=>c.me==null?[]:c.matches.map((x,i)=>({...x,i})).filter(x=>x.a===c.me||x.b===c.me);
+const cupSide=(c,x)=>x.a===c.me?0:1;
+const cupOpp=(c,x)=>x.a===c.me?x.b:x.a;
+const cupOpenMatch=x=>x.a!=null&&x.b!=null&&!x.res;
+function cupNeedsMe(c){if(c.state==='lobby')return c.host&&c.players.length>=3;return c.state==='live'&&myCupMatches(c).some(cupOpenMatch)}
+function cupDue(c,x){return x.dueIn==null?null:Math.max(0,x.dueIn-(Date.now()-c.at)/1000)}
+function cupPinged(c,x){const t=cupPings[c.code+':'+x.i];return t&&Date.now()-t<90000}
+function onCup(v){const c=cleanCup(v);if(!c)return;const old=CUPS[c.code];CUPS[c.code]=c;
+ if((cupAwaitNew&&!old&&c.host)||cupAwaitJoin===c.code){cupAwaitNew=false;cupAwaitJoin=null;sfx('join');closeSheets();openCup(c.code)}
+ if(old&&old.state==='lobby'&&c.state==='live'){sfx('go');toast(`${c.name} has started! Play your matches.`)}
+ renderCupBits(c.code)}
+function renderCupBits(code){if(curTab==='cups')renderCups();if(cupOpen===code&&!$('cupSheet').hidden)renderCupSheet();paintCupDot()}
+function paintCupDot(){const b=$('navCups');if(!b)return;const any=Object.values(CUPS).some(cupNeedsMe);b.classList.toggle('hasdot',any)}
+function cupStatus(c){
+ if(c.state==='lobby')return`Waiting to start · ${c.players.length} of 6 players`;
+ if(c.state==='done')return`Winner: ${c.champion!=null?esc(c.players[c.champion].n):'—'}${c.prize?` · you got ${c.prize.coins} coins`:''}`;
+ const mine=myCupMatches(c),open=mine.filter(cupOpenMatch),done=c.matches.filter(x=>x.res).length;
+ return`${done} of ${c.matches.length} matches played${open.length?` · <b>${open.length} for you to play</b>`:''}`}
+function renderCups(){const el=$('tab-cups');if(!el)return;
+ const head=`<div class="pn"><div class="pn-h ol">Cups</div><p class="note">Private tournaments for 3 to 6 friends. Round robin or knockout, played whenever you are both online.</p>
+  <div class="cupbtns"><button class="gb green" id="cupNewBtn" type="button">Create cup</button><button class="gb blue" id="cupJoinBtn" type="button">Join cup</button></div></div>`;
+ let body;
+ if(!SERVER_URL)body='<div class="pn pad"><p class="note">Cups need the game server. Open the game from its server address to create or join one.</p></div>';
+ else if(!NET.ready)body='<div class="pn pad"><p class="note">Connecting to the game server…</p></div>';
+ else{const list=Object.values(CUPS).sort((a,b)=>(a.state==='done')-(b.state==='done')||cupNeedsMe(b)-cupNeedsMe(a)||a.name.localeCompare(b.name));
+  body=list.length?`<div class="cuplist">${list.map(c=>`<button class="cupcard ${c.state}" data-cup="${c.code}" type="button"><span class="cc-ic">${c.state==='done'?IC.cup:CUPIC}</span><span class="cc-t"><b>${esc(c.name)}</b><small>${cupFmtName(c.format)} · ${cupStatus(c)}</small></span>${cupNeedsMe(c)?'<i class="dot" aria-label="Something for you to do"></i>':''}</button>`).join('')}</div>`
+   :'<div class="pn pad"><p class="note" style="text-align:center">No cups yet. Create one and share the code with your friends.</p></div>'}
+ el.innerHTML=head+body;
+ $('cupNewBtn').onclick=()=>{sfx('ui');openCupNew()};$('cupJoinBtn').onclick=()=>{sfx('ui');$('cupCode').value='';$('cupJoinNote').textContent='';openSheet('cupJoinSheet')};
+ el.querySelectorAll('[data-cup]').forEach(b=>b.onclick=()=>{sfx('ui');openCup(b.dataset.cup)})}
+function openCupNew(){$('cupName').value=`${nick()}'s Cup`.slice(0,24);cupFmtSel='rr';cupClkSel=clkSet||300;paintCupNew();openSheet('cupNewSheet')}
+function paintCupNew(){document.querySelectorAll('#cupFmt [data-fmt]').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.fmt===cupFmtSel)));
+ document.querySelectorAll('#cupClk [data-cclk]').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.cclk===cupClkSel)));
+ $('cupFmtNote').textContent=cupFmtSel==='rr'?'Everyone plays everyone once. Win 3 points, draw 1. Three days to play.':'A bracket seeded by trophies; top seeds get a bye. Lose and you are out. A day per round.'}
+function openCup(code){cupOpen=code;renderCupSheet();openSheet('cupSheet');if(NET.ready)NET.raw({t:'cup_get',code})}
+function cupName(c,p){return p==null?'<i class="tbd">To be decided</i>':esc(c.players[p].n)+(p===c.me?' <span class="youtag">you</span>':'')}
+function renderCupSheet(){const c=CUPS[cupOpen],body=$('cupBody');if(!body)return;if(!c){body.innerHTML='<p class="note">Loading…</p>';return}
+ $('cupTitle').textContent=c.name;
+ let h=`<div class="cupmeta"><span class="cfmt">${cupFmtName(c.format)}</span><span>${cupClkName(c.clock)}</span><button class="ccode" id="cupCodeBtn" type="button" aria-label="Copy cup code">${c.code}</button></div>`;
+ if(c.state==='lobby'){
+  h+=`<div class="cupplayers">${c.players.map((p,i)=>`<div class="cp ${i===c.me?'me':''}">${avatarHTML(p.n,1)}<span>${esc(p.n)}${i===0?' <small>host</small>':''}</span></div>`).join('')}${Array.from({length:6-c.players.length},()=>'<div class="cp empty"><span>Open seat</span></div>').join('')}</div>
+   <div class="sharerow"><a class="gb green sm" id="cupWa" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=${encodeURIComponent(cupInviteText(c))}">WhatsApp</a><button class="gb blue sm" id="cupCopy" type="button">Copy invite</button></div>`;
+  h+=c.host?`<button class="gb green" id="cupStart" type="button" ${c.players.length<3?'disabled':''}>Start the cup</button><p class="note" style="text-align:center">${c.players.length<3?`Needs at least 3 players (${c.players.length} so far).`:'Nobody can join once it starts.'}</p><button class="linkbtn" id="cupLeave" type="button">Cancel this cup</button>`
+   :`<p class="note" style="text-align:center">Waiting for ${esc(c.players[0].n)} to start the cup.</p><button class="linkbtn" id="cupLeave" type="button">Leave this cup</button>`}
+ else{
+  if(c.state==='done')h+=`<div class="champ">${LAUREL}<div><small>Champion</small><b class="ol">${c.champion!=null?esc(c.players[c.champion].n):'—'}</b>${c.runner!=null?`<span>Runner-up: ${esc(c.players[c.runner].n)}</span>`:''}</div></div>${c.prize?`<p class="note" style="text-align:center">${c.prize.place===1?'You won the cup! The Champion’s Laurel card back is yours.':c.prize.place===2?'You finished second.':'Thanks for playing.'} ${c.prize.coins} coins went to your piggy bank.</p>`:''}`;
+  h+=c.format==='rr'?cupTableHTML(c):cupBracketHTML(c);
+  const mine=myCupMatches(c);
+  if(mine.length&&c.format==='rr')h+=`<div class="cupsec">Your matches</div><div class="cms">${mine.map(x=>cupMatchRow(c,x)).join('')}</div>`;
+  if(c.feed.length)h+=`<div class="cupsec">Latest</div><ul class="cupfeed">${c.feed.slice(0,8).map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`}
+ body.innerHTML=h;
+ const cb=$('cupCodeBtn');if(cb)cb.onclick=async()=>{sfx('ui');toast(await copyText(c.code)?`Cup code ${c.code} copied.`:'Could not copy the code.')};
+ const cc=$('cupCopy');if(cc)cc.onclick=async()=>{sfx('ui');toast(await copyText(cupInviteText(c))?'Invite copied. Paste it in your group chat.':'Could not copy.')};
+ const st=$('cupStart');if(st)st.onclick=()=>{sfx('ui');NET.send({t:'cup_start',code:c.code})};
+ const lv=$('cupLeave');if(lv)lv.onclick=()=>{if(lv.dataset.armed){sfx('ui');NET.send({t:'cup_leave',code:c.code})}else{lv.dataset.armed='1';lv.textContent=c.host?'Tap again to cancel the cup':'Tap again to leave';sfx('select')}};
+ body.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{sfx('ui');if(NET.send({t:'cup_play',code:c.code,m:+b.dataset.play}))b.disabled=true})}
+function cupTableHTML(c){const rows=c.table.length?c.table:c.players.map((_,p)=>({p,pl:0,w:0,d:0,l:0,pts:0,diff:0}));
+ return`<table class="cuptab"><thead><tr><th></th><th class="nm">Player</th><th>P</th><th>W</th><th>D</th><th>L</th><th>+/-</th><th>Pts</th></tr></thead><tbody>${rows.map((r,k)=>`<tr class="${r.p===c.me?'me':''} ${c.state==='done'&&k===0?'win':''}"><td>${k+1}</td><td class="nm">${esc(c.players[r.p].n)}</td><td>${r.pl}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.diff>0?'+':''}${r.diff}</td><td><b>${r.pts}</b></td></tr>`).join('')}</tbody></table>`}
+function cupRoundName(c,r){const max=Math.max(...c.matches.map(x=>x.r));return r===max?'Final':r===max-1?'Semi-finals':'Round 1'}
+function cupBracketHTML(c){const rounds=[...new Set(c.matches.map(x=>x.r))].sort((a,b)=>a-b);
+ return`<div class="bracket">${rounds.map(r=>`<div class="bcol"><div class="bhead">${cupRoundName(c,r)}</div>${c.matches.map((x,i)=>({...x,i})).filter(x=>x.r===r).map(x=>{
+   const line=(p,score,won)=>`<div class="bl ${won?'won':''} ${p!=null&&p===c.me?'me':''}"><span>${cupName(c,p)}</span>${x.res&&!x.res.wo?`<b>${score}</b>`:''}</div>`;
+   const mine=x.a===c.me||x.b===c.me;
+   return`<div class="bm ${mine?'mine':''}">${line(x.a,x.res?x.res.sa:0,x.res&&x.res.w===x.a)}${line(x.b,x.res?x.res.sb:0,x.res&&x.res.w===x.b)}${x.res&&x.res.wo?'<small>walkover</small>':x.draws&&!x.res?`<small>drawn ${x.draws}× · replay</small>`:''}${mine&&c.state==='live'?cupPlayBit(c,x):''}</div>`}).join('')}</div>`).join('')}</div>`}
+function cupPlayBit(c,x){if(!cupOpenMatch(x))return'';const opp=c.players[cupOpp(c,x)].n,due=cupDue(c,x),side=cupSide(c,x);
+ const live=cupPinged(c,x),theyReady=x.ready[1-side];
+ return`<div class="cmplay"><button class="gb green sm ${live?'pulse':''}" data-play="${x.i}" type="button">${live?`Play now · ${esc(opp)} is waiting`:'Play'}</button><small>${theyReady&&!live?`${esc(opp)} showed up · `:''}${due!=null?`due in ${fmtSpan(due)}`:''}</small></div>`}
+function cupMatchRow(c,x){const o=cupOpp(c,x),side=cupSide(c,x),opp=o!=null?esc(c.players[o].n):'?';let st='';
+ if(x.res){const mine=side===0?x.res.sa:x.res.sb,theirs=side===0?x.res.sb:x.res.sa;
+  st=x.res.wo?(x.res.w===c.me?'Won (they did not show)':x.res.w==null?'Not played':'Lost (you did not show)'):x.res.w===c.me?`Won ${mine}–${theirs}`:x.res.w==null?`Draw ${mine}–${theirs}`:`Lost ${mine}–${theirs}`}
+ return`<div class="cm ${x.res?(x.res.w===c.me?'w':x.res.w==null?'d':'l'):'open'}"><span class="cm-o">vs <b>${opp}</b></span>${x.res?`<span class="cm-s">${st}</span>`:cupPlayBit(c,x)}</div>`}
 
 /* ================= App state ================= */
 let M={mode:'home'};          // mode: home | ai | queue | room | online
@@ -528,6 +631,10 @@ $('tab-guide').innerHTML=`
   <p>Computer: +12 / −8. Players: +30 / −20. You never drop below an arena you reached.</p>
   <p>Each arena sharpens the computer and unlocks a card style (Settings). Battles earn XP.</p>
   <p>With a clock, only your own turns count down.</p></div>
+ <div class="pn gsec"><div class="pn-h ol">Cups</div>
+  <p>A private tournament for 3 to 6 friends. Create one in the Cups tab and share the code.</p>
+  <p><b>Round robin:</b> everyone plays everyone once; win 3 points, draw 1; three days to play. <b>Knockout:</b> a bracket seeded by trophies; a day per round; a draw is replayed.</p>
+  <p>Tap Play when you are ready; your friend is told. Miss the deadline and whoever showed up wins. Champion: 100 coins and the Champion’s Laurel card back. Cup games never change trophies.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Rewards</div>
   <p>Every finished online battle pays coins: 15 for a win, 8 for a draw, 5 for a loss (half against the computer), up to 150 a day.</p>
   <p>A free chest every few hours (bank of 2), plus daily and weekly quests. Saved on the server.</p>
@@ -540,7 +647,7 @@ let curTab='battle';
 let lbScope=ST.get('ft-lbscope','season')==='all'?'all':'season';
 const LBS={season:null,all:null};
 function setTab(t){curTab=t;document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
- for(const k of ['battle','leaders','records','guide'])$('tab-'+k).hidden=k!==t;if(t==='leaders'){renderLeaders();requestLeaders()}try{scrollTo({top:0})}catch(e){}}
+ for(const k of ['battle','leaders','cups','records','guide'])$('tab-'+k).hidden=k!==t;if(t==='leaders'){renderLeaders();requestLeaders()}if(t==='cups'){renderCups();if(NET.ready)NET.raw({t:'cup_list'})}try{scrollTo({top:0})}catch(e){}}
 /* ---- Leaderboard (ranked online quick matches, kept by the server): this season, or all time ---- */
 function requestLeaders(){if(NET.ready)NET.raw({t:'leaderboard',season:lbScope==='season'})}
 function cleanLB(m){const n=v=>Math.max(0,Math.floor(Number(v))||0);
@@ -605,7 +712,7 @@ function cleanMe(m){
   daily:q(m.daily),weekly:q(m.weekly),dailyIn:numOf(m.dailyIn,1e7),weeklyIn:numOf(m.weeklyIn,1e8),
   season:{name:String(m.season&&m.season.name||'').slice(0,30),endsIn:numOf(m.season&&m.season.endsIn)},reward:r,shop:cleanShop(m.shop),at:Date.now()}}
 function cleanShop(x){if(!x||typeof x!=='object'||!Array.isArray(x.items))return null;
- const items=x.items.filter(i=>i&&okItem(i.id,i.kind)).map(i=>({id:i.id,kind:i.kind,price:numOf(i.price),tr:numOf(i.tr),have:i.have===true}));
+ const items=x.items.filter(i=>i&&okItem(i.id,i.kind)).map(i=>({id:i.id,kind:i.kind,price:numOf(i.price),tr:numOf(i.tr),cup:i.cup===true,have:i.have===true}));
  return{items,table:okItem(x.table,'table')?x.table:'classic',back:okItem(x.back,'back')?x.back:'stripes'}}
 /* Seconds left of a countdown the server reported `secs` seconds ago. */
 const left=secs=>Math.max(0,secs-(Date.now()-(ME?ME.at:Date.now()))/1000);
@@ -796,7 +903,7 @@ function dealAnim(){const deckR=rectOf($('deck'));let i=0;document.querySelector
  document.querySelectorAll('#oppHand .back').forEach((el,j)=>animateFrom(el,deckR,j*70));sfx('deal');
  setTimeout(()=>{if(!V||V.ov)return;callout(V.mt?'Your turn!':(M.mode==='ai'?'Computer starts':`${oppInfo().name} starts`),V.mt?'#7dffa0':'#ffd23a');if(V.mt)sfx('go');aiSay(0,.5)},650)}
 function vsSplash(cb){const o=$('vs'),opp=oppInfo(),me_=meInfo(),ai=arenaIdx(REC.tr);
- const tag=M.mode==='ai'?`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:M.kind==='bot'?'Computer battle · Unranked':'Quick match · Ranked';
+ const tag=M.mode==='ai'?`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`:M.kind==='cup'?`${esc(CUPS[M.code]?CUPS[M.code].name:'Cup')} · Cup match`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:M.kind==='bot'?'Computer battle · Unranked':'Quick match · Ranked';
  o.innerHTML=`<div class="vs-in">
   <div class="vs-band top"><div class="vs-pl">${avatarHTML(opp.name,opp.lv,opp.cpu)}<div><div class="vs-n ol">${esc(opp.name)}</div><div class="vs-t ol">${opp.cpu?esc(opp.sub):TROPHY+(Number(opp.tr)||0)}</div></div></div></div>
   <div class="vs-mid ol">VS</div>
@@ -866,7 +973,7 @@ function oppEmote(e){if(!e||typeof e.k!=='number'||!EMOTES[e.k])return;if(M.oppE
 let shownFor=null;
 function outcome(){const me=total(V.ex[0]),them=total(V.ex[1]);return{me,them,r:V.fl?(V.fl==='me'?'l':'w'):me>them?'w':me<them?'l':'d'}}
 function finalize(){if(!V||!V.ov)return null;const{me,them,r}=outcome(),o=oppInfo();
- return recordGame(vsCpu()?'ai':'pvp',o.name,vsCpu()?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,r)}
+ return recordGame(vsCpu()?'ai':'pvp',o.name,vsCpu()?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,r,M.kind==='cup')}
 function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&!$('over').hidden)return;
  const first=shownFor!==V.gid;shownFor=V.gid;const info=finalize();const{me,them,r}=outcome(),o=oppInfo();
  if(first){sfx(r==='l'?'lose':'win');if(r==='w')confetti();if(M.mode==='ai')setTimeout(()=>aiSay(5,.75,true),900)}
@@ -880,10 +987,10 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
   <div class="rscore"><div class="rs-p ${r==='w'?'win':''}">${avatarHTML(nick(),lvlInfo(REC.xp).lv)}<b class="ol">${me}</b><span>You</span></div><div class="rs-vs">vs</div><div class="rs-p ${r==='l'?'win':''}">${avatarHTML(o.name,o.lv,o.cpu)}<b class="ol">${them}</b><span>${esc(o.name)}</span></div></div>
   <div class="rcols" aria-label="Trail scores, yours on top">${lanes}</div>
   <div class="rrow">${TROPHY}<div class="bar"><i id="rTrBar"></i><b class="ols" id="rTrTxt"></b></div><span class="dchip ${info&&info.dT<0?'neg':info&&info.dT===0?'zero':''}" id="rTrD">${info?(info.dT>0?'+':'')+info.dT:'0'}</span></div>
-  <div class="rrow coinrow" id="rCoinRow">${PIGGY}<div class="bar coin"><b class="ols" id="rCoinTxt">${M.mode==='online'?'Counting coins…':'Play online to earn coins'}</b></div><span class="dchip coin" id="rCoinD" ${M.mode==='online'?'':'hidden'}>+0</span></div>
+  <div class="rrow coinrow" id="rCoinRow">${PIGGY}<div class="bar coin"><b class="ols" id="rCoinTxt">${M.kind==='cup'&&M.mode==='online'?'Cup match · prizes when the cup ends':M.mode==='online'?'Counting coins…':'Play online to earn coins'}</b></div><span class="dchip coin" id="rCoinD" ${M.mode==='online'&&M.kind!=='cup'?'':'hidden'}>+0</span></div>
   <div class="rrow"><div class="lvbox ol" id="rLv">${L0.lv}</div><div class="bar xp"><i id="rXpBar"></i><b class="ols" id="rXpTxt"></b></div><span class="dchip xp">+${info?info.dX:0} XP</span></div>
   ${h?`<p class="note" style="text-align:center">Head to head with ${esc(o.name)}: ${wld(h)}</p>`:''}
-  <div class="rbtns"><button class="gb green" id="oAgain">${M.mode==='ai'?'Battle again':'Rematch'}</button><button class="gb blue" id="oHome">Lobby</button></div>
+  <div class="rbtns"><button class="gb green" id="oAgain">${M.mode==='ai'?'Battle again':M.kind==='cup'?'Back to cup':'Rematch'}</button><button class="gb blue" id="oHome">Lobby</button></div>
   <button class="linkbtn" id="oView">See the table</button><p class="note" id="rmNote" style="text-align:center"></p></div>`;
  $('over').hidden=false;
  $('oAgain').onclick=()=>{sfx('ui');again()};$('oHome').onclick=()=>{sfx('ui');goHome()};$('oView').onclick=()=>{$('over').hidden=true};
@@ -899,6 +1006,7 @@ function flyIcons(html,fromEl,toEl,n,onHit,done){const a=fromEl&&fromEl.getBound
   const an=d.animate([{transform:`translate(${sx}px,${sy}px) scale(.2)`,opacity:0},{transform:`translate(${sx}px,${sy-24}px) scale(1.15)`,opacity:1,offset:.18},{transform:`translate(${mx}px,${my}px) scale(1)`,opacity:1,offset:.55},{transform:`translate(${tx}px,${ty}px) scale(.55)`,opacity:.9}],{duration:900,delay:i*95,easing:'cubic-bezier(.5,0,.6,1)',fill:'both'});
   an.onfinish=()=>{d.remove();toEl.classList.remove('hit');void toEl.offsetWidth;toEl.classList.add('hit');onHit&&onHit(i);if(--left===0)done&&done()}}}
 function showEarned(first){const e=M.earned;if(!e||!$('rCoinRow'))return;const txt=$('rCoinTxt'),chip=$('rCoinD');
+ if(e.cup){txt.textContent='Cup match · prizes when the cup ends';chip.hidden=true;return}
  if(!e.counted){txt.textContent='Too short for coins';chip.hidden=true;return}
  if(e.coins<=0){txt.textContent="Today's battle coins are collected";chip.hidden=true;return}
  const total=ME?ME.coins:null;
@@ -955,6 +1063,7 @@ function scheduleAi(){clearTimeout(aiT);const S=M.S;if(S.over||S.turn!==1)return
  aiT=setTimeout(()=>{if(!alive())return;if(okRush(S,1)&&S.deck.length<=34&&Math.random()<.2){doRush(S,1);rr();aiT=setTimeout(sabStep,1200)}else sabStep()},wait)}
 function again(){$('over').hidden=true;
  if(M.mode==='ai'){startAi();return}
+ if(M.kind==='cup'){const code=M.code;goHome();setTab('cups');if(code&&CUPS[code])openCup(code);return}
  if(!V||!V.ov)return;
  if(M.closed||M.oppLeft||!NET.ready){toast('Your opponent has left. Find a new match from the lobby.');showResult();return}
  if(NET.send({t:'rematch'}))M.iWantRm=V.gid;
@@ -1026,7 +1135,11 @@ $('join').onclick=()=>{const c=$('joinCode').value.trim().toUpperCase();if(!/^[A
 $('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('join').click()});
 $('joinCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z]/g,'')});
 const nickNote=(t,bad)=>{const n=$('nickNote');n.textContent=t||'';n.classList.toggle('bad',!!bad)};
-function saveNick(){nickNote('');trySetName($('nick').value,(ok,msg)=>{if(ok){nickNote(msg||'Name saved.');sfx('ui')}else{nickNote(msg,true);sfx('bad')}})}
+function saveNick(){nickNote('');const was=NAME,b=$('nickSave');trySetName($('nick').value,(ok,msg)=>{
+  if(ok){const same=NAME===was&&!msg;nickNote(msg||(same?`That is already your name, ${NAME}.`:`Saved! You are now ${NAME}.`));sfx(same?'ui':'levelup');
+   $('nick').value=NAME;b.textContent='Saved ✓';b.classList.add('saved');clearTimeout(b._t);b._t=setTimeout(()=>{b.textContent='Save';b.classList.remove('saved')},1800);
+   if(!same){toast(`Name saved: ${NAME}`);renderHome()}}
+  else{nickNote(msg,true);sfx('bad');$('nick').focus()}})}
 $('nick').value=NAME;$('nickSave').onclick=saveNick;$('nick').addEventListener('keydown',e=>{if(e.key==='Enter')saveNick()});
 $('topProf').onclick=$('gearBtn').onclick=()=>{sfx('ui');$('nick').value=NAME;nickNote('');renderCardPick();openSheet('setSheet')};
 /* ---- Card style picker (Settings) ---- */
@@ -1040,6 +1153,15 @@ $('cardPick').addEventListener('click',e=>{const b=e.target.closest('[data-cs]')
 $('replayIntro').onclick=()=>{sfx('ui');openIntro()};
 /* ---- Rewards, quests, computer offer ---- */
 $('chestBtn').onclick=()=>{sfx('ui');if(ME&&ME.chest.n>0)NET.send({t:'claim_chest'});else if(ME&&ME.chest.nextIn!=null)toast(`Your next free chest arrives in ${fmtSpan(left(ME.chest.nextIn))}.`)};
+document.querySelectorAll('#cupFmt [data-fmt]').forEach(b=>b.onclick=()=>{sfx('select');cupFmtSel=b.dataset.fmt;paintCupNew()});
+document.querySelectorAll('#cupClk [data-cclk]').forEach(b=>b.onclick=()=>{sfx('select');cupClkSel=+b.dataset.cclk;paintCupNew()});
+$('cupMake').onclick=()=>{const name=$('cupName').value.trim();if(!name){sfx('bad');toast('Give the cup a name.');return}
+ if(!NET.ready){sfx('bad');toast('Connect to the game server to create a cup.');return}
+ sfx('ui');if(NET.send({t:'cup_create',name,format:cupFmtSel,clock:cupClkSel})){closeSheets();setTab('cups');cupAwaitNew=true}};
+const cupJoinGo=()=>{const code=$('cupCode').value.trim().toUpperCase();if(!/^[A-Z]{6}$/.test(code)){sfx('bad');$('cupJoinNote').textContent='A cup code is 6 letters.';return}
+ if(!NET.ready){sfx('bad');$('cupJoinNote').textContent='Connect to the game server first.';return}
+ sfx('ui');cupAwaitJoin=code;NET.send({t:'cup_join',code})};
+$('cupJoinGo').onclick=cupJoinGo;$('cupCode').addEventListener('keydown',e=>{if(e.key==='Enter')cupJoinGo()});
 $('coinBox').onclick=()=>{sfx('ui');shopArmed=null;renderShop();openSheet('shopSheet')};
 $('shopOpen').onclick=()=>{sfx('ui');shopArmed=null;renderShop();openSheet('shopSheet')};
 $('questBtn').onclick=()=>{sfx('ui');renderQuests();openSheet('questSheet')};
@@ -1066,7 +1188,7 @@ $('keyRestore').onclick=()=>{
  RESTORE.prev=KEY;ST.set('ft-restore',KEY);KEY=k;ST.set('ft-key',k);paintKey();keyNote('Restoring…');NET.reconnect()};
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{if(b.getAttribute('aria-selected')!=='true')sfx('ui');setTab(b.dataset.tab)});
 $('clkpick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;clkSet=+b.dataset.clk;ST.set('ft-clock',clkSet);paintPicker();sfx('select')});
-const goHome=(quiet)=>{leaveRoom();if(!quiet){if(M.mode==='online')NET.raw({t:'leave_match'});else if(M.mode==='queue')NET.raw({t:'unqueue'});else if(M.mode==='room')NET.raw({t:'cancel_room'})}
+const goHome=(quiet)=>{leaveRoom();if(!quiet){if(M.mode==='online')NET.raw({t:'leave_match'});else if(M.mode==='queue')NET.raw({t:'unqueue'});else if(M.mode==='room')NET.raw({t:'cancel_room'});else if(M.mode==='cupwait')NET.raw({t:'unqueue'})}
  if(M.mode==='online')SS.set('ft-resume',null);M={mode:'home'};V=null;prevGid=null;sel=null;pending=false;show('home');renderHome()};
 $('waitCancel').onclick=()=>{sfx('ui');goHome()};
 $('leave').onclick=()=>{sfx('ui');askLeave()};
@@ -1079,11 +1201,12 @@ $('sfx').onclick=toggleSound;$('sndTog').onclick=toggleSound;
 $('musTog').onclick=()=>{musicOn=!musicOn;ST.set('ft-music',musicOn);paintSound();musicSync()};
 
 /* ================= Boot ================= */
-$('navBattle').innerHTML=IC.swords+'Battle';$('navLeaders').innerHTML=IC.crown+'Ranks';$('navRecords').innerHTML=IC.cup+'Records';$('navGuide').innerHTML=IC.book+'Guide';
+$('navBattle').innerHTML=IC.swords+'Battle';$('navLeaders').innerHTML=IC.crown+'Ranks';$('navCups').innerHTML=CUPIC+'Cups';$('navRecords').innerHTML=IC.cup+'Records';$('navGuide').innerHTML=IC.book+'Guide';
 $('gearBtn').innerHTML=IC.gear;$('leave').innerHTML=IC.x;$('emoBtn').innerHTML=IC.chat;$('clkLbl').innerHTML=IC.clock+'Clock each';
 document.querySelectorAll('.xbtn').forEach(b=>b.innerHTML=IC.x);
 paintSound();paintPicker();applyCards();applyTheme();renderGuide();paintKey();paintRem();renderHome();
 const hc0=(location.hash||'').slice(1).toUpperCase();if(/^[A-Z]{5}$/.test(hc0)){$('joinCode').value=hc0}
+const hcup=/^CUP-([A-Z]{6})$/.exec(hc0);if(hcup){setTab('cups');$('cupCode').value=hcup[1];setTimeout(()=>{if($('intro').hidden)openSheet('cupJoinSheet')},600)}
 if(!ST.get('ft-intro',false))openIntro();else if(/^[A-Z]{5}$/.test(hc0))openSheet('friendSheet');
 NET.connect();
 })();

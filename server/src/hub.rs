@@ -3,6 +3,7 @@
 //! memory and disappears on restart; the registry is saved to disk.
 
 use crate::bot;
+use crate::cup::{CupError, Format};
 use crate::economy::{self, PlayEvent, PlayKind};
 use crate::matchroom::{MatchCmd, MatchId, MatchKind, MatchRoom, MatchTx, Player};
 use crate::protocol::{self, Profile, CLOCK_CHOICES, ROOM_ALPHABET, ROOM_CODE_LEN};
@@ -31,6 +32,10 @@ const RANKING_MIN_AGE: Duration = Duration::from_secs(3);
 const PRUNE_EVERY: Duration = Duration::from_secs(60 * 60);
 /// Rows sent to a client; its own place is sent separately.
 const LEADERBOARD_ROWS: usize = 50;
+/// How often cup deadlines are checked.
+const CUP_CHECK_EVERY: Duration = Duration::from_secs(30);
+/// Cups listed for one player.
+const CUPS_LISTED: usize = 12;
 /// After this long in the queue, anyone with the same clock setting is a fair match.
 const QUEUE_OPEN_AFTER: Duration = Duration::from_secs(20);
 /// After this long in the queue the player is offered a game against the computer.
@@ -69,7 +74,14 @@ pub enum HubCmd {
     /// Play the computer instead of waiting for an opponent.
     Bot { id: ConnId },
     /// An online match finished. `pids` and `events` are in seat order; the computer's pid is empty.
-    MatchResult { pids: [String; 2], outcome: Outcome, kind: PlayKind, events: [PlayEvent; 2], counted: bool },
+    MatchResult { pids: [String; 2], outcome: Outcome, kind: PlayKind, events: [PlayEvent; 2], counted: bool, cup: Option<(String, usize)>, scores: [i32; 2] },
+    CupCreate { id: ConnId, name: String, format: String, clock: u32 },
+    CupJoin { id: ConnId, code: String },
+    CupLeave { id: ConnId, code: String },
+    CupStart { id: ConnId, code: String },
+    CupList { id: ConnId },
+    CupGet { id: ConnId, code: String },
+    CupPlay { id: ConnId, code: String, m: usize },
     /// Write player data to disk now and confirm (used on shutdown).
     Flush { done: oneshot::Sender<()> },
     LeftMatch { id: ConnId },
@@ -83,6 +95,8 @@ enum Activity {
     Queued,
     Hosting(String),
     InMatch(MatchId),
+    /// Waiting for the opponent of cup match `.1` in cup `.0`.
+    CupWait(String, usize),
 }
 
 struct ConnInfo {
@@ -131,6 +145,7 @@ pub struct Hub {
     room_ttl: Duration,
     /// How long a queued player waits before the computer is offered.
     bot_offer_after: Duration,
+    last_cup_check: Instant,
 }
 
 fn random_token() -> String {
@@ -140,6 +155,10 @@ fn random_token() -> String {
 
 fn random_code() -> String {
     (0..ROOM_CODE_LEN).map(|_| ROOM_ALPHABET[OsRng.gen_range(0..ROOM_ALPHABET.len())] as char).collect()
+}
+
+fn random_cup_code() -> String {
+    (0..crate::cup::CUP_CODE_LEN).map(|_| ROOM_ALPHABET[OsRng.gen_range(0..ROOM_ALPHABET.len())] as char).collect()
 }
 
 /// Trophy gap allowed for a pairing, widening the longer someone waits.
@@ -183,6 +202,7 @@ impl Hub {
             ranking_dirty: false,
             room_ttl,
             bot_offer_after: BOT_OFFER_AFTER,
+            last_cup_check: Instant::now(),
         };
         (hub, tx)
     }
@@ -267,6 +287,157 @@ impl Hub {
         self.conns.get(&id).and_then(|c| c.profile.as_ref()).map(|p| p.pid.clone())
     }
 
+    fn conns_of(&self, pid: &str) -> Vec<ConnId> {
+        self.conns.iter().filter(|(_, c)| c.profile.as_ref().is_some_and(|p| p.pid == pid)).map(|(&id, _)| id).collect()
+    }
+
+    fn send_to_pid(&self, pid: &str, text: &str) {
+        for id in self.conns_of(pid) {
+            self.send(id, text.to_owned());
+        }
+    }
+
+    /// Send every member their own view of a cup.
+    fn push_cup(&self, code: &str) {
+        let Some(c) = self.store.cup(code) else { return };
+        let now = store::now_secs();
+        for (i, p) in c.players.iter().enumerate() {
+            let text = protocol::msg(json!({ "t": "cup", "cup": c.view(Some(i), now) }));
+            self.send_to_pid(&p.pid, &text);
+        }
+    }
+
+    fn cup_error(&self, id: ConnId, e: CupError) {
+        self.send(id, protocol::error(e.code()));
+    }
+
+    /// Tell each winner what a finished cup paid, and refresh their coins.
+    fn announce_prizes(&mut self, code: &str, paid: crate::cup::Paid) {
+        let name = self.store.cup(code).map(|c| c.name.clone()).unwrap_or_default();
+        for (pid, place, coins) in paid {
+            let text = protocol::msg(json!({ "t": "cup_prize", "code": code, "name": name, "place": place, "coins": coins }));
+            self.send_to_pid(&pid, &text);
+            self.send_me_to_pid(&pid);
+        }
+    }
+
+    fn handle_cup(&mut self, cmd: HubCmd) {
+        let now = store::now_secs();
+        match cmd {
+            HubCmd::CupCreate { id, name, format, clock } => {
+                let Some(pid) = self.pid_of(id) else { return };
+                let Some(format) = Format::parse(&format) else { return self.send(id, protocol::error("bad_format")) };
+                if !CLOCK_CHOICES.contains(&clock) {
+                    return self.send(id, protocol::error("bad_clock"));
+                }
+                let code = loop {
+                    let c = random_cup_code();
+                    if !self.store.cup_code_taken(&c) {
+                        break c;
+                    }
+                };
+                match self.store.cup_create(&pid, code.clone(), &name, format, clock, now) {
+                    Ok(_) => self.push_cup(&code),
+                    Err(e) => self.cup_error(id, e),
+                }
+            }
+            HubCmd::CupJoin { id, code } => {
+                let Some(pid) = self.pid_of(id) else { return };
+                let t = Instant::now();
+                if self.conns.get(&id).is_some_and(|c| c.join_blocked_until.is_some_and(|b| t < b)) {
+                    return self.send(id, protocol::error("too_many_attempts"));
+                }
+                let Some(code) = protocol::clean_cup_code(&code) else {
+                    self.note_failed_attempt(id, t);
+                    return self.cup_error(id, CupError::NotFound);
+                };
+                match self.store.cup_join(&pid, &code) {
+                    Ok(_) => self.push_cup(&code),
+                    Err(e) => {
+                        if e == CupError::NotFound {
+                            self.note_failed_attempt(id, t);
+                        }
+                        self.cup_error(id, e);
+                    }
+                }
+            }
+            HubCmd::CupLeave { id, code } => {
+                let Some(pid) = self.pid_of(id) else { return };
+                match self.store.cup_leave(&pid, &code) {
+                    Ok(gone) if !gone.is_empty() => {
+                        let text = protocol::msg(json!({ "t": "cup_gone", "code": code }));
+                        for p in gone {
+                            self.send_to_pid(&p, &text);
+                        }
+                    }
+                    Ok(_) => {
+                        self.send_to_pid(&pid, &protocol::msg(json!({ "t": "cup_gone", "code": code })));
+                        self.push_cup(&code);
+                    }
+                    Err(e) => self.cup_error(id, e),
+                }
+            }
+            HubCmd::CupStart { id, code } => {
+                let Some(pid) = self.pid_of(id) else { return };
+                match self.store.cup_start(&pid, &code, now) {
+                    Ok(()) => self.push_cup(&code),
+                    Err(e) => self.cup_error(id, e),
+                }
+            }
+            HubCmd::CupList { id } => {
+                let Some(pid) = self.pid_of(id) else { return };
+                let cups: Vec<Value> = self.store.cups_of(&pid).into_iter().take(CUPS_LISTED).map(|c| c.view(c.index_of(&pid), now)).collect();
+                self.send(id, protocol::msg(json!({ "t": "cups", "cups": cups })));
+            }
+            HubCmd::CupGet { id, code } => {
+                let Some(pid) = self.pid_of(id) else { return };
+                match self.store.cup(&code).filter(|c| c.index_of(&pid).is_some()) {
+                    Some(c) => {
+                        let v = c.view(c.index_of(&pid), now);
+                        self.send(id, protocol::msg(json!({ "t": "cup", "cup": v })));
+                    }
+                    None => self.cup_error(id, CupError::NotFound),
+                }
+            }
+            HubCmd::CupPlay { id, code, m } => self.cup_play(id, &code, m),
+            _ => {}
+        }
+    }
+
+    /// A player is ready for a cup match: start it if the opponent is already waiting.
+    fn cup_play(&mut self, id: ConnId, code: &str, m: usize) {
+        let Some(pid) = self.pid_of(id) else { return };
+        if self.conns.get(&id).is_none_or(|c| c.activity != Activity::Idle) {
+            return self.send(id, protocol::error("busy"));
+        }
+        let Some(cup) = self.store.cup(code) else { return self.cup_error(id, CupError::NotFound) };
+        let opp = match cup.playable(m, &pid) {
+            Ok(o) => o,
+            Err(e) => return self.cup_error(id, e),
+        };
+        let (opp_pid, opp_name, clock) = (cup.players[opp].pid.clone(), cup.players[opp].name.clone(), cup.clock);
+        let my_name = cup.index_of(&pid).map(|i| cup.players[i].name.clone()).unwrap_or_default();
+        self.store.cup_mark_ready(code, m, &pid);
+        let waiting = self.conns_of(&opp_pid).into_iter().find(|cid| self.conns.get(cid).is_some_and(|c| c.activity == Activity::CupWait(code.to_owned(), m)));
+        match waiting {
+            Some(other) => {
+                if let Some(c) = self.conns.get_mut(&other) {
+                    c.activity = Activity::Idle;
+                }
+                self.start_match(other, id, clock, MatchKind::Cup(code.to_owned(), m));
+            }
+            None => {
+                if let Some(c) = self.conns.get_mut(&id) {
+                    c.activity = Activity::CupWait(code.to_owned(), m);
+                }
+                self.send(id, protocol::msg(json!({ "t": "cup_wait", "code": code, "m": m, "opp": opp_name })));
+                let ping = protocol::msg(json!({ "t": "cup_ping", "code": code, "m": m, "from": my_name }));
+                self.send_to_pid(&opp_pid, &ping);
+            }
+        }
+        self.push_cup(code);
+    }
+
     /// Write the player data to disk on this thread (shutdown).
     fn save_now(&mut self) {
         let Some(path) = &self.data_path else { return };
@@ -301,6 +472,7 @@ impl Hub {
 
     fn handle(&mut self, cmd: HubCmd) {
         match cmd {
+            c @ (HubCmd::CupCreate { .. } | HubCmd::CupJoin { .. } | HubCmd::CupLeave { .. } | HubCmd::CupStart { .. } | HubCmd::CupList { .. } | HubCmd::CupGet { .. } | HubCmd::CupPlay { .. }) => self.handle_cup(c),
             HubCmd::Connect { id, tx } => {
                 self.conns.insert(id, ConnInfo { tx, profile: None, activity: Activity::Idle, join_fails: 0, join_blocked_until: None });
             }
@@ -433,8 +605,24 @@ impl Hub {
                 }
             }
             HubCmd::Bot { id } => self.start_bot_for(id),
-            HubCmd::MatchResult { pids, outcome, kind, events, counted } => {
+            HubCmd::MatchResult { pids, outcome, kind, events, counted, cup, scores } => {
                 let now = store::now_secs();
+                if let Some((code, idx)) = cup {
+                    let winner = match outcome {
+                        Outcome::Win(s) => Some(pids[s].as_str()),
+                        Outcome::Draw => None,
+                    };
+                    let paid = self.store.cup_record(&code, idx, [&pids[0], &pids[1]], scores, winner, now);
+                    for (seat, pid) in pids.iter().enumerate() {
+                        self.store.record_play(pid, &events[seat], false, false, now);
+                        self.send_to_pid(pid, &protocol::msg(json!({ "t": "earned", "coins": 0, "counted": true, "cup": code })));
+                    }
+                    self.push_cup(&code);
+                    if let Some(paid) = paid {
+                        self.announce_prizes(&code, paid);
+                    }
+                    return;
+                }
                 if kind == PlayKind::Ranked {
                     self.store.record_match([&pids[0], &pids[1]], outcome, now);
                     self.ranking_dirty = true;
@@ -470,6 +658,12 @@ impl Hub {
             HubCmd::Unqueue { id } => {
                 if self.leave_queue(id) {
                     self.send(id, protocol::msg(json!({ "t": "unqueued" })));
+                }
+                if let Some(c) = self.conns.get_mut(&id) {
+                    if matches!(c.activity, Activity::CupWait(..)) {
+                        c.activity = Activity::Idle;
+                        self.send(id, protocol::msg(json!({ "t": "cup_unwait" })));
+                    }
                 }
             }
             HubCmd::Create { id, clock, code } => {
@@ -733,6 +927,13 @@ impl Hub {
                 self.send_me_to_pid(&pid);
             }
         }
+        if now.duration_since(self.last_cup_check) >= CUP_CHECK_EVERY {
+            self.last_cup_check = now;
+            for (code, paid) in self.store.cup_expire(store::now_secs()) {
+                self.push_cup(&code);
+                self.announce_prizes(&code, paid);
+            }
+        }
         if now.duration_since(self.last_prune) >= PRUNE_EVERY {
             self.last_prune = now;
             self.store.prune(store::now_secs());
@@ -955,6 +1156,96 @@ mod tests {
         assert_eq!(hub.conns[&1].profile.as_ref().unwrap().to_json()["back"], "paws");
     }
 
+    fn find(msgs: &[Value], t: &str) -> Option<Value> {
+        msgs.iter().rev().find(|m| m["t"] == t).cloned()
+    }
+
+    #[tokio::test]
+    async fn a_round_robin_cup_runs_from_lobby_to_prizes() {
+        let (mut hub, mut rx) = hub_with_players(4, Duration::from_secs(120));
+        for r in &mut rx {
+            all_msgs(r);
+        }
+        hub.handle(HubCmd::CupCreate { id: 1, name: "  Saturday   Cup ".into(), format: "rr".into(), clock: 300 });
+        let c = find(&all_msgs(&mut rx[0]), "cup").expect("host sees the new cup")["cup"].clone();
+        let code = c["code"].as_str().unwrap().to_owned();
+        assert_eq!((c["name"].as_str(), c["state"].as_str(), c["host"].as_bool()), (Some("Saturday Cup"), Some("lobby"), Some(true)));
+        hub.handle(HubCmd::CupJoin { id: 2, code: code.to_lowercase() });
+        hub.handle(HubCmd::CupJoin { id: 3, code: "ZZZZZZ".into() });
+        assert_eq!(last_msg(&mut rx[2])["code"], "cup_not_found");
+        hub.handle(HubCmd::CupStart { id: 1, code: code.clone() });
+        assert_eq!(last_msg(&mut rx[0])["code"], "cup_too_few");
+        hub.handle(HubCmd::CupJoin { id: 3, code: code.clone() });
+        hub.handle(HubCmd::CupStart { id: 2, code: code.clone() });
+        assert_eq!(last_msg(&mut rx[1])["code"], "cup_not_host");
+        hub.handle(HubCmd::CupStart { id: 1, code: code.clone() });
+        let v = find(&all_msgs(&mut rx[2]), "cup").unwrap()["cup"].clone();
+        assert_eq!((v["state"].as_str(), v["me"].as_u64(), v["matches"].as_array().unwrap().len()), (Some("live"), Some(2), 3));
+        assert!(!v.to_string().contains("pid-"), "no pids in what players see");
+        hub.handle(HubCmd::CupJoin { id: 4, code: code.clone() });
+        assert_eq!(last_msg(&mut rx[3])["code"], "cup_started");
+        let ms = v["matches"].as_array().unwrap().clone();
+        let idx = |x: u64, y: u64| ms.iter().position(|m| (m["a"] == x && m["b"] == y) || (m["a"] == y && m["b"] == x)).unwrap();
+        // P1 (player 0) shows up for the match with P2 (player 1) and waits; P2 is told.
+        let m01 = idx(0, 1);
+        hub.handle(HubCmd::CupPlay { id: 3, code: code.clone(), m: m01 });
+        assert_eq!(last_msg(&mut rx[2])["code"], "cup_not_your_match");
+        hub.handle(HubCmd::CupPlay { id: 1, code: code.clone(), m: m01 });
+        let a = all_msgs(&mut rx[0]);
+        assert_eq!(find(&a, "cup_wait").unwrap()["opp"], "P2");
+        let b = all_msgs(&mut rx[1]);
+        assert_eq!(find(&b, "cup_ping").unwrap()["from"], "P1");
+        hub.handle(HubCmd::Queue { id: 1, clock: 300 });
+        assert_eq!(last_msg(&mut rx[0])["code"], "busy", "waiting for a cup match is being busy");
+        // P2 taps Play: the match starts for both.
+        hub.handle(HubCmd::CupPlay { id: 2, code: code.clone(), m: m01 });
+        let joined = |r: &mut mpsc::Receiver<ConnCtl>| {
+            let mut j = false;
+            while let Ok(c) = r.try_recv() {
+                j |= matches!(c, ConnCtl::Joined { .. });
+            }
+            j
+        };
+        assert!(joined(&mut rx[0]) && joined(&mut rx[1]), "both players are put in the match");
+        // Report the three results directly (the match task would do this).
+        let pid = |i: u64| format!("pid-{i:08}");
+        let report = |hub: &mut Hub, x: u64, y: u64, m: usize, sx: i32, sy: i32| {
+            let outcome = if sx > sy { Outcome::Win(0) } else if sx < sy { Outcome::Win(1) } else { Outcome::Draw };
+            hub.handle(HubCmd::MatchResult {
+                pids: [pid(x), pid(y)],
+                outcome,
+                kind: PlayKind::Cup,
+                events: [event(PlayKind::Cup, sx > sy), event(PlayKind::Cup, sy > sx)],
+                counted: false,
+                cup: Some((code.clone(), m)),
+                scores: [sx, sy],
+            });
+        };
+        report(&mut hub, 1, 2, m01, 30, 12);
+        let after = all_msgs(&mut rx[1]);
+        assert_eq!(find(&after, "earned").unwrap()["coins"], 0, "cup matches pay no battle coins");
+        report(&mut hub, 3, 1, idx(0, 2), 5, 25);
+        report(&mut hub, 2, 3, idx(1, 2), 20, 20);
+        let m = all_msgs(&mut rx[0]);
+        let done = find(&m, "cup").unwrap()["cup"].clone();
+        assert_eq!((done["state"].as_str(), done["champion"].as_u64()), (Some("done"), Some(0)));
+        assert_eq!(done["table"][0]["pts"], 6);
+        let prize = find(&m, "cup_prize").expect("the champion is told");
+        assert_eq!((prize["place"].as_u64(), prize["coins"].as_u64()), (Some(1), Some(100)));
+        assert_eq!(find(&m, "me").unwrap()["coins"], 100);
+        assert_eq!(hub.store.get(&pid(1)).unwrap().tr, 0, "cup games never move trophies");
+        let p3 = all_msgs(&mut rx[2]);
+        assert_eq!(find(&p3, "cup_prize").unwrap()["coins"], 15);
+        // The champion can now wear the Laurel.
+        hub.handle(HubCmd::Equip { id: 1, kind: "back".into(), item: "laurel".into() });
+        assert_eq!(last_msg(&mut rx[0])["shop"]["back"], "laurel");
+        hub.handle(HubCmd::Equip { id: 3, kind: "back".into(), item: "laurel".into() });
+        assert_eq!(last_msg(&mut rx[2])["code"], "item_locked");
+        hub.handle(HubCmd::CupList { id: 2 });
+        let l = last_msg(&mut rx[1]);
+        assert_eq!(l["cups"].as_array().unwrap().len(), 1);
+    }
+
     #[test]
     fn the_free_chest_pays_once_and_the_screen_updates() {
         let (mut hub, mut rx) = hub_with_players(1, Duration::from_secs(120));
@@ -985,6 +1276,8 @@ mod tests {
             kind: PlayKind::Friend,
             events: [event(PlayKind::Friend, true), event(PlayKind::Friend, false)],
             counted: true,
+            cup: None,
+            scores: [0, 0],
         });
         assert_eq!(hub.store.get(&pids[0]).unwrap().games(), 0, "friend rooms never rank");
         assert_eq!(hub.store.get(&pids[0]).unwrap().plays, 1);
@@ -997,6 +1290,8 @@ mod tests {
             kind: PlayKind::Ranked,
             events: [event(PlayKind::Ranked, true), event(PlayKind::Ranked, false)],
             counted: true,
+            cup: None,
+            scores: [0, 0],
         });
         assert_eq!((hub.store.get(&pids[0]).unwrap().tr, hub.store.get(&pids[0]).unwrap().w), (30, 1));
         assert_eq!(hub.store.get(&pids[1]).unwrap().l, 1);
@@ -1007,6 +1302,8 @@ mod tests {
             kind: PlayKind::Bot,
             events: [event(PlayKind::Bot, true), event(PlayKind::Bot, false)],
             counted: true,
+            cup: None,
+            scores: [0, 0],
         });
         assert_eq!(hub.store.get(&pids[0]).unwrap().plays, 3);
         assert_eq!(hub.store.get(&pids[0]).unwrap().games(), 1, "the computer game did not rank");
@@ -1018,6 +1315,8 @@ mod tests {
             kind: PlayKind::Friend,
             events: [event(PlayKind::Friend, false), event(PlayKind::Friend, false)],
             counted: false,
+            cup: None,
+            scores: [0, 0],
         });
         assert_eq!(hub.store.me_json(&pids[1], store::now_secs()).unwrap()["daily"], before);
     }
