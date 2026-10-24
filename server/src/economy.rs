@@ -192,6 +192,7 @@ enum Metric {
     Play,
     Win,
     Sabotage,
+    Eye,
     Rush,
     Wagers,
     Score(i32),
@@ -215,10 +216,11 @@ const fn q(id: &'static str, text: &'static str, metric: Metric, scope: Scope, n
 pub const DAILY_SLOTS: usize = 3;
 pub const WEEKLY_SLOTS: usize = 2;
 
-pub const DAILY: [QuestDef; 7] = [
+pub const DAILY: [QuestDef; 8] = [
     q("play2", "Finish 2 online battles", Metric::Play, Scope::Any, 2, 20),
     q("win1", "Win an online battle", Metric::Win, Scope::Any, 1, 30),
     q("sab1", "Use Sabotage in a battle", Metric::Sabotage, Scope::Any, 1, 25),
+    q("eye1", "Use Evil Eye in a battle", Metric::Eye, Scope::Any, 1, 25),
     q("rush1", "Use Rush in a battle", Metric::Rush, Scope::Any, 1, 25),
     q("wager3", "Play 3 wager cards", Metric::Wagers, Scope::Any, 3, 25),
     q("score30", "Score 30 or more in a battle", Metric::Score(30), Scope::Any, 1, 30),
@@ -238,6 +240,7 @@ pub struct PlayEvent {
     pub kind: PlayKind,
     pub won: bool,
     pub sab: u8,
+    pub eye: u8,
     pub rush: u8,
     pub wagers: u8,
     pub score: i32,
@@ -258,6 +261,7 @@ impl QuestDef {
             Metric::Play => 1,
             Metric::Win => u32::from(e.won),
             Metric::Sabotage => u32::from(e.sab),
+            Metric::Eye => u32::from(e.eye),
             Metric::Rush => u32::from(e.rush),
             Metric::Wagers => u32::from(e.wagers),
             Metric::Score(n) => u32::from(e.score >= n),
@@ -394,7 +398,7 @@ mod tests {
     const T: Tuning = Tuning { day_offset: 0, chest_every: 100 };
 
     fn ev(kind: PlayKind, won: bool) -> PlayEvent {
-        PlayEvent { kind, won, sab: 0, rush: 0, wagers: 0, score: 0, longest: 0 }
+        PlayEvent { kind, won, sab: 0, eye: 0, rush: 0, wagers: 0, score: 0, longest: 0 }
     }
 
     #[test]
@@ -490,7 +494,7 @@ mod tests {
         let now = 10 * DAY;
         let defs = daily_for(pid, day);
         // A game that ticks every metric at once.
-        let big = PlayEvent { kind: PlayKind::Friend, won: true, sab: 1, rush: 1, wagers: 3, score: 40, longest: 8 };
+        let big = PlayEvent { kind: PlayKind::Friend, won: true, sab: 1, eye: 1, rush: 1, wagers: 3, score: 40, longest: 8 };
         q.record(pid, &big, now, &T);
         for (i, def) in defs.iter().enumerate() {
             let expected = match def.id {
@@ -521,7 +525,7 @@ mod tests {
         let defs = weekly_for(pid, week);
         let mut q = Quests::default();
         for _ in 0..30 {
-            q.record(pid, &PlayEvent { kind: PlayKind::Bot, won: true, sab: 0, rush: 0, wagers: 0, score: 0, longest: 8 }, 40 * DAY, &T);
+            q.record(pid, &PlayEvent { kind: PlayKind::Bot, won: true, sab: 0, eye: 0, rush: 0, wagers: 0, score: 0, longest: 8 }, 40 * DAY, &T);
         }
         for (i, def) in defs.iter().enumerate() {
             match def.id {
@@ -536,7 +540,7 @@ mod tests {
         let pid = "pid-cccccccc";
         let mut q = Quests::default();
         let monday = u64::try_from(days_from_civil(2026, 10, 19)).unwrap() * DAY;
-        let e = PlayEvent { kind: PlayKind::Friend, won: true, sab: 1, rush: 1, wagers: 3, score: 40, longest: 8 };
+        let e = PlayEvent { kind: PlayKind::Friend, won: true, sab: 1, eye: 1, rush: 1, wagers: 3, score: 40, longest: 8 };
         q.record(pid, &e, monday, &T);
         let (d0, w0) = (q.d, q.w);
         assert!(d0.iter().any(|&x| x > 0) && w0.iter().any(|&x| x > 0));

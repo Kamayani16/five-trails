@@ -103,8 +103,8 @@ pub enum Action {
     Disc,
     Draw,
     Sab,
-    Rush,
     Eye,
+    Rush,
 }
 
 /// What a player tells the server about themselves. Self-reported and unverified:

@@ -38,6 +38,9 @@ pub enum Phase {
     Draw,
 }
 
+/// Evil Eye cannot be used once the deck is this small (the endgame is easy enough to count).
+pub const EYE_MIN_DECK: usize = 10;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EndReason {
     Time,
@@ -50,8 +53,8 @@ pub enum Kind {
     Discard,
     Draw,
     Sabotage,
-    Rush,
     Eye,
+    Rush,
     Flag,
 }
 
@@ -124,10 +127,15 @@ pub struct Game {
     pub loser_by_flag: Option<usize>,
     pub end_reason: Option<EndReason>,
     pub sabotage_left: [u8; 2],
+    /// Evil Eye (reveal one random card of the opponent's hand): one use per game, separate from Sabotage.
+    pub eye_used: [bool; 2],
+    /// The card of each seat's hand that the opponent has seen, until it leaves that hand.
+    pub exposed: [Option<Card>; 2],
+    /// Finished turns per seat, so the Eye can say on which of its user's turns it was used.
+    pub turns_done: [u32; 2],
+    /// Per seat that used the Eye: the card it showed and that seat's turn number.
+    pub eye_log: [Option<(Card, u32)>; 2],
     pub rush_left: [u8; 2],
-    pub eye_left: [u8; 2],
-    /// Private snapshots; only the activating seat receives its own reveal.
-    pub eye_reveal: [Option<Vec<Card>>; 2],
     pub rush_next: Option<usize>,
     pub rush_until: Option<Instant>,
     pub rush_seat: Option<usize>,
@@ -188,9 +196,11 @@ impl Game {
             loser_by_flag: None,
             end_reason: None,
             sabotage_left: [1, 1],
+            eye_used: [false, false],
+            exposed: [None, None],
+            turns_done: [0, 0],
+            eye_log: [None, None],
             rush_left: [1, 1],
-            eye_left: [1, 1],
-            eye_reveal: [None, None],
             rush_next: None,
             rush_until: None,
             rush_seat: None,
@@ -330,7 +340,7 @@ impl Game {
         };
         self.clock_spend(now);
         self.hands[seat].push(card);
-        self.eye_reveal = [None, None];
+        self.turns_done[seat] += 1;
         self.just_discarded = None;
         self.phase = Phase::Play;
         if self.deck.is_empty() {
@@ -372,6 +382,24 @@ impl Game {
         Ok(())
     }
 
+    /// Evil Eye: reveal one random card from the opponent's hand to both players.
+    /// Free action, once per game, on top of Sabotage; not available late in the game or
+    /// on a rushed turn (the long reveal would eat the player's whole turn).
+    pub fn eye<R: Rng + ?Sized>(&mut self, seat: usize, rng: &mut R) -> Result<(), RuleError> {
+        self.check_turn(seat, Some(Phase::Play))?;
+        let victim = 1 - seat;
+        let rushed = self.rush_seat == Some(seat) && self.rush_until.is_some();
+        if self.eye_used[seat] || self.deck.len() < EYE_MIN_DECK || rushed || self.hands[victim].is_empty() {
+            return Err(RuleError::Unavailable);
+        }
+        let card = self.hands[victim][rng.gen_range(0..self.hands[victim].len())];
+        self.eye_used[seat] = true;
+        self.exposed[victim] = Some(card);
+        self.eye_log[seat] = Some((card, self.turns_done[seat] + 1));
+        self.bump(seat, Kind::Eye, Some(card), Some(color(card)));
+        Ok(())
+    }
+
     /// Limit the opponent's next turn to `RUSH_TURN`.
     pub fn rush(&mut self, seat: usize) -> Result<(), RuleError> {
         self.check_turn(seat, None)?;
@@ -381,18 +409,6 @@ impl Game {
         self.rush_left[seat] -= 1;
         self.rush_next = Some(1 - seat);
         self.bump(seat, Kind::Rush, None, None);
-        Ok(())
-    }
-
-    /// Reveal a snapshot of the rival's hand privately until this turn ends.
-    pub fn eye(&mut self, seat: usize) -> Result<(), RuleError> {
-        self.check_turn(seat, Some(Phase::Play))?;
-        if self.eye_left[seat] == 0 {
-            return Err(RuleError::Unavailable);
-        }
-        self.eye_left[seat] -= 1;
-        self.eye_reveal[seat] = Some(self.hands[1 - seat].clone());
-        self.bump(seat, Kind::Eye, None, None);
         Ok(())
     }
 
@@ -426,7 +442,6 @@ impl Game {
         }
         self.over = true;
         self.loser_by_flag = Some(seat);
-        self.eye_reveal = [None, None];
         self.end_reason = Some(why);
         self.rush_until = None;
         self.rush_seat = None;
@@ -442,10 +457,10 @@ impl Game {
         View {
             pw: Powers {
                 sab: [self.sabotage_left[seat], self.sabotage_left[opp]],
-                rush: [self.rush_left[seat], self.rush_left[opp]],
-                eye: [self.eye_left[seat], self.eye_left[opp]],
+                eye: [u8::from(!self.eye_used[seat]), u8::from(!self.eye_used[opp])],
+                // A rush is a surprise: the rival's Rush status is never revealed.
+                rush: [self.rush_left[seat], 1],
             },
-            peek: if !self.over && self.turn == seat { self.eye_reveal[seat].clone() } else { None },
             ru: match (self.over, self.rush_until) {
                 (false, Some(until)) => Some(RushView {
                     seat: rel(self.rush_seat.unwrap_or(self.turn)),
@@ -454,11 +469,14 @@ impl Game {
                 }),
                 _ => None,
             },
-            rn: self.rush_next.map(rel),
+            rn: self.rush_next.filter(|&s| s != seat).map(rel),
             gid: self.gid.clone(),
             seq: self.seq,
             me: self.hands[seat].clone(),
             on: self.hands[opp].len(),
+            el: [self.eye_log[seat].map(|(c, t)| [i16::from(c), t as i16]), self.eye_log[opp].map(|(c, t)| [i16::from(c), t as i16])],
+            ey: self.exposed[opp].filter(|c| self.hands[opp].contains(c)).map_or(-1, i16::from),
+            em: self.exposed[seat].filter(|c| self.hands[seat].contains(c)).map_or(-1, i16::from),
             ex: [self.columns[seat].to_vec(), self.columns[opp].to_vec()],
             di: self.discards.to_vec(),
             dn: self.deck.len(),
@@ -493,8 +511,10 @@ impl Game {
                         Kind::Discard => "disc",
                         Kind::Draw => "draw",
                         Kind::Sabotage => "sab",
-                        Kind::Rush => "rush",
                         Kind::Eye => "eye",
+                        Kind::Rush if l.seat == seat => "rush",
+                        // The rival must not learn of a rush before their turn starts.
+                        Kind::Rush => "none",
                         Kind::Flag => "flag",
                     },
                     id: if hidden { -1 } else { l.card.map_or(-1, i16::from) },
@@ -514,14 +534,18 @@ impl Game {
 #[derive(Serialize, Debug)]
 pub struct View {
     pub pw: Powers,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub peek: Option<Vec<Card>>,
     pub ru: Option<RushView>,
     pub rn: Option<u8>,
     pub gid: String,
     pub seq: u32,
     pub me: Vec<Card>,
     pub on: usize,
+    /// The opponent's card you have seen with the Evil Eye (-1 = none), while it is still in their hand.
+    /// Evil Eye history: [yours, theirs], each `[card, turn]` or null if not used yet.
+    pub el: [Option<[i16; 2]>; 2],
+    pub ey: i16,
+    /// Your card the opponent has seen with the Evil Eye (-1 = none), while it is still in your hand.
+    pub em: i16,
     pub ex: [Vec<Vec<Card>>; 2],
     pub di: Vec<Vec<Card>>,
     pub dn: usize,
@@ -538,8 +562,8 @@ pub struct View {
 #[derive(Serialize, Debug)]
 pub struct Powers {
     pub sab: [u8; 2],
-    pub rush: [u8; 2],
     pub eye: [u8; 2],
+    pub rush: [u8; 2],
 }
 
 #[derive(Serialize, Debug)]
@@ -720,57 +744,89 @@ mod tests {
     }
 
     #[test]
-    fn evil_eye_is_private_snapshot_and_expires_after_turn() {
-        let mut rng = StdRng::seed_from_u64(42);
+    fn evil_eye_reveals_one_opponent_card_and_leaves_sabotage_alone() {
+        let mut rng = StdRng::seed_from_u64(21);
         let t = Instant::now();
         let mut g = Game::new(&mut rng, 0, None, t);
-        assert!(g.view(0, t).peek.is_none());
-        assert!(!serde_json::to_string(&g.view(1, t)).unwrap().contains("\"peek\""));
-        let snapshot = g.hands[1].clone();
-        let seq = g.seq;
-        g.eye(0).unwrap();
-        assert_eq!(g.seq, seq + 1);
-        assert_eq!(g.view(0, t).peek, Some(snapshot.clone()));
-        assert_eq!(g.view(0, t).pw.eye, [0, 1]);
-        assert_eq!(g.view(1, t).pw.eye, [1, 0]);
-        assert!(g.view(1, t).peek.is_none());
-        assert!(!serde_json::to_string(&g.view(1, t)).unwrap().contains("\"peek\""));
-        assert_eq!(g.view(1, t).la.unwrap().k, "eye");
-        assert_eq!(g.eye(0), Err(RuleError::Unavailable));
-        // A later sabotage must not reveal its hidden replacement through Evil Eye.
-        g.sabotage(0, &mut rng).unwrap();
-        assert_ne!(g.hands[1], snapshot);
-        g.pause(t);
-        g.resume(t);
-        assert_eq!(g.view(0, t).peek, Some(snapshot));
-        let card = g.hands[0][0];
-        g.play(0, card, false).unwrap();
-        assert!(g.view(0, t).peek.is_some());
+        let before = g.view(1, t);
+        assert_eq!(before.ey, -1);
+        assert_eq!(g.eye(1, &mut rng), Err(RuleError::NotYourTurn));
+        g.eye(0, &mut rng).unwrap();
+        // The seer sees which card; the victim learns which of their cards is known.
+        let seer = g.view(0, t);
+        let victim = g.view(1, t);
+        assert!(seer.ey >= 0 && g.hands[1].contains(&(seer.ey as u8)));
+        assert_eq!(victim.em, seer.ey);
+        assert_eq!(seer.el[0], Some([seer.ey, 1]));
+        assert_eq!(victim.el[1], Some([seer.ey, 1]));
+        assert_eq!((seer.el[1], victim.el[0]), (None, None));
+        assert_eq!((seer.em, victim.ey), (-1, -1));
+        assert_eq!(seer.la.as_ref().unwrap().k, "eye");
+        assert_eq!(seer.la.as_ref().unwrap().id, seer.ey);
+        assert_eq!(victim.la.as_ref().unwrap().id, seer.ey);
+        // The eye is once per game, but Sabotage is still available.
+        assert_eq!(g.eye(0, &mut rng), Err(RuleError::Unavailable));
+        assert_eq!(seer.pw.eye, [0, 1]);
+        assert_eq!(seer.pw.sab, [1, 1]);
+        // Using the eye does not touch the Sabotage counter, so it never counts as a Sabotage for quests.
+        assert_eq!(g.sabotage_left[0], 1);
+        // The exposure ends when the card leaves their hand.
+        let known = seer.ey as u8;
+        let other = g.hands[0][0];
+        g.play(0, other, false).unwrap();
         g.draw(0, None, t).unwrap();
-        assert!(g.view(0, t).peek.is_none());
-        g.eye(1).unwrap();
-        assert_eq!(g.view(1, t).peek, Some(g.hands[0].clone()));
-        assert!(g.view(0, t).peek.is_none());
-        g.flag(1, EndReason::Forfeit, t);
-        assert!(g.eye_reveal.iter().all(Option::is_none));
+        g.play(1, known, false).unwrap();
+        assert_eq!(g.view(0, t).ey, -1);
     }
 
     #[test]
-    fn evil_eye_checks_turn_phase_game_over_and_auto_turn_expiry() {
-        let mut rng = StdRng::seed_from_u64(43);
+    fn both_powers_work_in_one_game_and_the_eye_waits_for_a_big_deck() {
+        let mut rng = StdRng::seed_from_u64(5);
         let t = Instant::now();
         let mut g = Game::new(&mut rng, 0, None, t);
-        assert_eq!(g.eye(1), Err(RuleError::NotYourTurn));
-        let card = g.hands[0][0];
-        g.play(0, card, false).unwrap();
-        assert_eq!(g.eye(0), Err(RuleError::WrongPhase));
-        assert_eq!(g.eye_left, [1, 1]);
+        g.sabotage(0, &mut rng).unwrap();
+        g.eye(0, &mut rng).unwrap();
+        assert_eq!(g.view(0, t).pw.eye[0], 0);
+        assert_eq!(g.view(0, t).pw.sab[0], 0);
+        let mut g = Game::new(&mut rng, 0, None, t);
+        g.deck.truncate(EYE_MIN_DECK - 1);
+        assert_eq!(g.eye(0, &mut rng), Err(RuleError::Unavailable));
+        g.deck.push(0);
+        g.eye(0, &mut rng).unwrap();
+    }
+
+    #[test]
+    fn the_eye_is_refused_on_a_rushed_turn() {
+        let mut rng = StdRng::seed_from_u64(8);
+        let t = Instant::now();
+        let mut g = Game::new(&mut rng, 0, None, t);
+        g.rush(0).unwrap();
+        let c = g.hands[0][0];
+        g.play(0, c, false).unwrap();
         g.draw(0, None, t).unwrap();
-        g.eye(1).unwrap();
-        g.auto_move(t, &mut rng);
-        assert!(g.eye_reveal.iter().all(Option::is_none));
-        g.flag(0, EndReason::Time, t);
-        assert_eq!(g.eye(0), Err(RuleError::GameOver));
+        // Seat 1 now plays on the 10-second rush clock, so the long reveal is not allowed.
+        assert_eq!(g.rush_seat, Some(1));
+        assert_eq!(g.eye(1, &mut rng), Err(RuleError::Unavailable));
+    }
+
+    #[test]
+    fn a_rush_is_invisible_to_the_rival_until_their_turn_starts() {
+        let mut rng = StdRng::seed_from_u64(31);
+        let t = Instant::now();
+        let mut g = Game::new(&mut rng, 0, None, t);
+        g.rush(0).unwrap();
+        let (me, rival) = (g.view(0, t), g.view(1, t));
+        assert_eq!(me.la.as_ref().unwrap().k, "rush");
+        assert_eq!(me.rn, Some(1));
+        assert_eq!(rival.la.as_ref().unwrap().k, "none");
+        assert_eq!(rival.rn, None);
+        assert_eq!(rival.pw.rush, [1, 1]);
+        assert_eq!(me.pw.rush, [0, 1]);
+        let c = g.hands[0][0];
+        g.play(0, c, false).unwrap();
+        g.draw(0, None, t).unwrap();
+        // Their turn begins: now the 10-second clock is visible to them.
+        assert!(g.view(1, t).ru.is_some());
     }
 
     #[test]

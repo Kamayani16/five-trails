@@ -238,6 +238,7 @@ impl MatchRoom {
             kind,
             won: outcome == Outcome::Win(seat),
             sab: 1u8.saturating_sub(self.game.sabotage_left[seat]),
+            eye: u8::from(self.game.eye_used[seat]),
             rush: 1u8.saturating_sub(self.game.rush_left[seat]),
             wagers: u8::try_from(cols.iter().flatten().filter(|&&c| value(c) == 0).count()).unwrap_or(u8::MAX),
             score: self.game.total(seat),
@@ -300,7 +301,7 @@ impl MatchRoom {
         let result = match step {
             Step::Rush => self.game.rush(b),
             Step::Sabotage => self.game.sabotage(b, &mut self.rng),
-            Step::Eye => self.game.eye(b),
+            Step::Eye => self.game.eye(b, &mut self.rng),
             Step::Play(card, to_column) => self.game.play(b, card, to_column),
             Step::Draw(pile) => self.game.draw(b, pile, now),
         };
@@ -492,8 +493,8 @@ impl MatchRoom {
                 self.game.draw(seat, pile, now)
             }
             Action::Sab => self.game.sabotage(seat, &mut self.rng),
+            Action::Eye => self.game.eye(seat, &mut self.rng),
             Action::Rush => self.game.rush(seat),
-            Action::Eye => self.game.eye(seat),
         }
     }
 

@@ -3,8 +3,7 @@
 //! It plays the same way as the practice opponent in the browser (this is a port of it): it
 //! scores every card in its hand as "add to a trail" or "discard", adds a little random
 //! noise (more noise = weaker), picks the best, then decides where to draw from. It only
-//! ever asks the rules engine for moves the rules allow. Evil Eye follows the same private
-//! snapshot and expiry rules as a human player's power.
+//! ever asks the rules engine for moves the rules allow, and it never sees the human's hand.
 
 use crate::game::{can_extend, color, value, Card, Game, Phase, COLORS};
 use rand::Rng;
@@ -33,15 +32,15 @@ impl Step {
     pub fn pause_after_ms(self) -> u64 {
         match self {
             Step::Rush => 1200,
-            Step::Sabotage => 1300,
-            Step::Eye => 1000,
+            // The 6-second take-over plays on both screens, so the computer waits for it.
+            Step::Sabotage | Step::Eye => 6600,
             Step::Play(..) => 800,
             Step::Draw(_) => 0,
         }
     }
 }
 
-/// Optional Rush, Sabotage, Evil Eye, then play and draw.
+/// Where the computer is within its own turn: optional Rush, optional Sabotage, play, draw.
 #[derive(Debug, Default)]
 pub struct Brain {
     stage: u8,
@@ -83,7 +82,7 @@ impl Brain {
                 }
                 2 => {
                     self.stage = 3;
-                    if g.eye_left[seat] > 0 && g.deck.len() <= 28 && rng.gen::<f32>() < 0.25 {
+                    if !g.eye_used[seat] && g.deck.len() >= crate::game::EYE_MIN_DECK && !g.hands[1 - seat].is_empty() && !(g.rush_seat == Some(seat) && g.rush_until.is_some()) && rng.gen::<f32>() < 0.22 {
                         return Step::Eye;
                     }
                 }
@@ -216,7 +215,7 @@ mod tests {
                 match brains[seat].next(&g, seat, tiers[seat], &mut rng) {
                     Step::Rush => g.rush(seat).unwrap(),
                     Step::Sabotage => g.sabotage(seat, &mut rng).unwrap(),
-                    Step::Eye => g.eye(seat).unwrap(),
+                    Step::Eye => g.eye(seat, &mut rng).unwrap(),
                     Step::Play(card, to_column) => g.play(seat, card, to_column).unwrap(),
                     Step::Draw(pile) => g.draw(seat, pile, now).unwrap(),
                 }
@@ -242,7 +241,7 @@ mod tests {
                 match brains[seat].next(&g, seat, tiers[seat], &mut rng) {
                     Step::Rush => g.rush(seat).unwrap(),
                     Step::Sabotage => g.sabotage(seat, &mut rng).unwrap(),
-                    Step::Eye => g.eye(seat).unwrap(),
+                    Step::Eye => g.eye(seat, &mut rng).unwrap(),
                     Step::Play(card, to_column) => g.play(seat, card, to_column).unwrap(),
                     Step::Draw(pile) => g.draw(seat, pile, now).unwrap(),
                 }
@@ -263,7 +262,7 @@ mod tests {
         let now = Instant::now();
         let mut g = Game::new(&mut rng, 0, None, now);
         let mut brain = Brain::new();
-        let (mut rushes, mut sabs, mut eyes) = (0, 0, 0);
+        let (mut rushes, mut sabs) = (0, 0);
         while !g.over {
             let seat = g.turn;
             let phase_before = g.phase;
@@ -276,20 +275,17 @@ mod tests {
                     rushes += 1;
                     g.rush(seat).unwrap()
                 }
-                Step::Eye => {
-                    eyes += 1;
-                    g.eye(seat).unwrap()
-                }
                 Step::Sabotage => {
                     sabs += 1;
                     g.sabotage(seat, &mut rng).unwrap()
                 }
+                Step::Eye => g.eye(seat, &mut rng).unwrap(),
                 Step::Play(card, to_column) => g.play(seat, card, to_column).unwrap(),
                 Step::Draw(pile) => g.draw(seat, pile, now).unwrap(),
             }
         }
         // Both seats were driven by one brain here, so at most one power of each kind per seat.
-        assert!(rushes <= 2 && sabs <= 2 && eyes <= 2);
+        assert!(rushes <= 2 && sabs <= 2);
     }
 
     #[test]

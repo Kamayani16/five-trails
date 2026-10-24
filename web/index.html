@@ -64,7 +64,7 @@
       <p class="note" id="waitMsg">Waiting for your opponent to join…</p>
       <p class="note" id="waitTimer" aria-live="off" hidden></p>
       <div class="botoffer" id="botOffer" hidden>
-        <p class="note" style="color:var(--ink);font-size:14px">Nobody has joined yet. Play the computer while you wait? It is unranked, but it still counts toward quests.</p>
+        <p class="note" style="color:var(--ink);font-size:14px">Nobody yet. Play the computer meanwhile? Unranked, still counts for quests.</p>
         <div class="sharerow"><button class="gb green sm" id="botGo" type="button">Play the computer</button><button class="gb gray sm" id="botWait" type="button">Keep waiting</button></div>
       </div>
       <div class="sharerow" id="waitShare" hidden>
@@ -90,10 +90,6 @@
       <div class="clk" id="oppClk" hidden></div>
       <div class="pscore ol" id="oppScore">0</div>
       <div class="bubble" id="oppBub" hidden></div>
-    </div>
-    <div class="eye-peek pn" id="eyePeek" hidden aria-live="polite">
-      <div class="eye-label">Evil Eye · Rival hand snapshot · This turn</div>
-      <div class="eye-cards" id="eyeCards"></div>
     </div>
     <div class="board" id="board"></div>
     <div class="strip">
@@ -135,14 +131,14 @@
   <div class="pn">
     <div class="pn-h ol">Settings</div>
     <button class="gb red sq xbtn" data-close aria-label="Close"></button>
-    <label class="note" for="nick">Your name (every player's name is unique)</label>
+    <label class="note" for="nick">Name</label>
     <div class="row2"><input id="nick" maxlength="16" placeholder="Explorer" autocomplete="nickname"><button class="gb green sm" id="nickSave" type="button">Save</button></div>
     <p class="note" id="nickNote" aria-live="polite"></p>
-    <span class="note">Card style. A fancier one unlocks in each arena.</span>
+    <span class="note">Card style · one unlocks per arena</span>
     <div class="cardpick" id="cardPick"></div>
     <div class="acct">
       <span class="note">Your account</span>
-      <p class="note">Your progress and coins are saved on the game server. Keep this recovery code to get them back on a new phone, and never share it.</p>
+      <p class="note">Saved on the server. Keep this code to restore on a new phone. Never share it.</p>
       <div class="keyrow"><code id="keyShow" aria-live="polite"></code><button class="gb sm" id="keyReveal" type="button">Show</button><button class="gb blue sm" id="keyCopy" type="button">Copy</button></div>
       <div class="row2"><input id="keyIn" maxlength="30" placeholder="Restore with a code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Recovery code to restore an account"><button class="gb sm" id="keyRestore" type="button">Restore</button></div>
       <p class="note" id="keyNote" aria-live="polite"></p>
@@ -177,6 +173,7 @@
 <div class="sheet intro" id="intro" hidden><div class="pn" id="introPn"></div></div>
 <div class="overlay" id="over" hidden></div>
 <div class="vs" id="vs" hidden></div>
+<div class="eye" id="eye" hidden role="status" aria-live="polite"></div>
 <div id="callouts"></div>
 <canvas id="fx" aria-hidden="true"></canvas>
 </body>

@@ -867,7 +867,7 @@ mod tests {
     }
 
     fn event(kind: PlayKind, won: bool) -> PlayEvent {
-        PlayEvent { kind, won, sab: 1, rush: 1, wagers: 3, score: 40, longest: 8 }
+        PlayEvent { kind, won, sab: 1, eye: 1, rush: 1, wagers: 3, score: 40, longest: 8 }
     }
 
     #[test]
