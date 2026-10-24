@@ -170,6 +170,8 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                     ClientMsg::CupList => Some(HubCmd::CupList { id }),
                     ClientMsg::CupGet { code } => Some(HubCmd::CupGet { id, code }),
                     ClientMsg::CupPlay { code, m } => Some(HubCmd::CupPlay { id, code, m }),
+                    ClientMsg::Watch { code, m } => Some(HubCmd::Watch { id, code, m }),
+                    ClientMsg::Unwatch => Some(HubCmd::Unwatch { id }),
                     ClientMsg::Bot => Some(HubCmd::Bot { id }),
                     ClientMsg::Profile { name, tr, lv } => match protocol::clean_name(&name) {
                         Some(name) => Some(HubCmd::UpdateProfile { id, name, trophies: tr, level: lv }),

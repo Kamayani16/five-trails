@@ -474,6 +474,7 @@ impl Game {
             seq: self.seq,
             me: self.hands[seat].clone(),
             on: self.hands[opp].len(),
+            mn: None,
             el: [self.eye_log[seat].map(|(c, t)| [i16::from(c), t as i16]), self.eye_log[opp].map(|(c, t)| [i16::from(c), t as i16])],
             ey: self.exposed[opp].filter(|c| self.hands[opp].contains(c)).map_or(-1, i16::from),
             em: self.exposed[seat].filter(|c| self.hands[seat].contains(c)).map_or(-1, i16::from),
@@ -540,6 +541,9 @@ pub struct View {
     pub seq: u32,
     pub me: Vec<Card>,
     pub on: usize,
+    /// Spectators only: how many cards the bottom player holds (`me` is then empty).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mn: Option<usize>,
     /// The opponent's card you have seen with the Evil Eye (-1 = none), while it is still in their hand.
     /// Evil Eye history: [yours, theirs], each `[card, turn]` or null if not used yet.
     pub el: [Option<[i16; 2]>; 2],
@@ -557,6 +561,34 @@ pub struct View {
     pub fl: Option<&'static str>,
     pub ck: Option<ClockView>,
     pub la: Option<LastView>,
+}
+
+impl Game {
+    /// What a spectator sees: the board from seat 0's side, with both hands hidden and
+    /// nothing a player keeps secret (Evil Eye cards, a pending Rush, cards drawn from the deck).
+    pub fn spectator_view(&self, now: Instant) -> View {
+        let mut v = self.view(0, now);
+        v.mn = Some(v.me.len());
+        v.me.clear();
+        v.ey = -1;
+        v.em = -1;
+        v.el = v.el.map(|e| e.map(|[_, t]| [-1, t]));
+        v.pw.rush = [1, 1];
+        v.rn = None;
+        if let Some(la) = v.la.as_mut() {
+            match la.k {
+                "rush" | "none" => {
+                    la.k = "none";
+                    la.id = -1;
+                }
+                "eye" => la.id = -1,
+                "draw" if la.p < 0 => la.id = -1,
+                _ => {}
+            }
+            la.r = -1;
+        }
+        v
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -595,6 +627,29 @@ pub struct LastView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spectators_never_see_a_hand_or_a_secret() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(7);
+        let now = Instant::now();
+        let mut g = Game::new(&mut rng, 0, None, now);
+        g.eye(0, &mut rng).unwrap();
+        let v = g.spectator_view(now);
+        assert!(v.me.is_empty() && v.mn == Some(8) && v.on == 8);
+        assert_eq!((v.ey, v.em), (-1, -1));
+        assert_eq!(v.el[0].map(|e| e[0]), Some(-1), "the seen card stays hidden");
+        assert_eq!(v.la.as_ref().map(|l| (l.k, l.id)), Some(("eye", -1)));
+        let id = g.hands[0][0];
+        g.play(0, id, false).unwrap();
+        g.draw(0, None, now).unwrap();
+        let v = g.spectator_view(now);
+        assert_eq!(v.la.as_ref().map(|l| (l.k, l.id)), Some(("draw", -1)), "a card drawn from the deck is hidden");
+        g.rush(1).unwrap();
+        let v = g.spectator_view(now);
+        assert_eq!((v.pw.rush, v.rn), ([1, 1], None));
+        assert_eq!(v.la.as_ref().map(|l| l.k), Some("none"), "a rush stays a surprise");
+        assert!(!serde_json::to_string(&v).unwrap().contains("\"me\":[1"), "no hand in the JSON");
+    }
     use rand::{rngs::StdRng, SeedableRng};
     use std::collections::HashSet;
 

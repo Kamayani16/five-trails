@@ -82,6 +82,8 @@ pub enum HubCmd {
     CupList { id: ConnId },
     CupGet { id: ConnId, code: String },
     CupPlay { id: ConnId, code: String, m: usize },
+    Watch { id: ConnId, code: String, m: usize },
+    Unwatch { id: ConnId },
     /// Write player data to disk now and confirm (used on shutdown).
     Flush { done: oneshot::Sender<()> },
     LeftMatch { id: ConnId },
@@ -97,6 +99,8 @@ enum Activity {
     InMatch(MatchId),
     /// Waiting for the opponent of cup match `.1` in cup `.0`.
     CupWait(String, usize),
+    /// Watching a match as a spectator.
+    Watching(MatchId),
 }
 
 struct ConnInfo {
@@ -146,6 +150,10 @@ pub struct Hub {
     /// How long a queued player waits before the computer is offered.
     bot_offer_after: Duration,
     last_cup_check: Instant,
+    /// Cup matches being played now: (cup, match) -> the match task.
+    cup_live: HashMap<(String, usize), (MatchId, MatchTx)>,
+    /// Spectators: connection -> the match they watch.
+    watching: HashMap<ConnId, (MatchId, MatchTx)>,
 }
 
 fn random_token() -> String {
@@ -203,6 +211,8 @@ impl Hub {
             room_ttl,
             bot_offer_after: BOT_OFFER_AFTER,
             last_cup_check: Instant::now(),
+            cup_live: HashMap::new(),
+            watching: HashMap::new(),
         };
         (hub, tx)
     }
@@ -302,9 +312,53 @@ impl Hub {
         let Some(c) = self.store.cup(code) else { return };
         let now = store::now_secs();
         for (i, p) in c.players.iter().enumerate() {
-            let text = protocol::msg(json!({ "t": "cup", "cup": c.view(Some(i), now) }));
+            let text = protocol::msg(json!({ "t": "cup", "cup": self.cup_view(c, Some(i), now) }));
             self.send_to_pid(&p.pid, &text);
         }
+    }
+
+    /// A cup as one member sees it, with the matches being played right now marked live.
+    fn cup_view(&self, c: &crate::cup::Cup, me: Option<usize>, now: u64) -> Value {
+        let mut v = c.view(me, now);
+        for (code, m) in self.cup_live.keys() {
+            if *code == c.code {
+                if let Some(x) = v["matches"].get_mut(*m) {
+                    x["live"] = json!(true);
+                }
+            }
+        }
+        v
+    }
+
+    /// A cup member asks to watch a match of that cup that is being played.
+    fn watch(&mut self, id: ConnId, code: &str, m: usize) {
+        let Some(pid) = self.pid_of(id) else { return };
+        if self.conns.get(&id).is_none_or(|c| c.activity != Activity::Idle) {
+            return self.send(id, protocol::error("busy"));
+        }
+        if self.store.cup(code).is_none_or(|c| c.index_of(&pid).is_none()) {
+            return self.cup_error(id, CupError::NotFound);
+        }
+        let Some((mid, mtx)) = self.cup_live.get(&(code.to_owned(), m)).cloned() else {
+            return self.send(id, protocol::error("not_live"));
+        };
+        let Some(c) = self.conns.get_mut(&id) else { return };
+        if mtx.try_send(MatchCmd::Watch { conn: id, tx: c.tx.clone() }).is_err() {
+            return self.send(id, protocol::error("not_live"));
+        }
+        c.activity = Activity::Watching(mid);
+        self.watching.insert(id, (mid, mtx));
+    }
+
+    fn unwatch(&mut self, id: ConnId) -> bool {
+        let Some((_, mtx)) = self.watching.remove(&id) else { return false };
+        let _ = mtx.try_send(MatchCmd::Unwatch { conn: id });
+        if let Some(c) = self.conns.get_mut(&id) {
+            if matches!(c.activity, Activity::Watching(_)) {
+                c.activity = Activity::Idle;
+            }
+        }
+        true
     }
 
     fn cup_error(&self, id: ConnId, e: CupError) {
@@ -386,20 +440,22 @@ impl Hub {
             }
             HubCmd::CupList { id } => {
                 let Some(pid) = self.pid_of(id) else { return };
-                let cups: Vec<Value> = self.store.cups_of(&pid).into_iter().take(CUPS_LISTED).map(|c| c.view(c.index_of(&pid), now)).collect();
+                let cups: Vec<Value> = self.store.cups_of(&pid).into_iter().take(CUPS_LISTED).map(|c| self.cup_view(c, c.index_of(&pid), now)).collect();
                 self.send(id, protocol::msg(json!({ "t": "cups", "cups": cups })));
             }
             HubCmd::CupGet { id, code } => {
                 let Some(pid) = self.pid_of(id) else { return };
                 match self.store.cup(&code).filter(|c| c.index_of(&pid).is_some()) {
                     Some(c) => {
-                        let v = c.view(c.index_of(&pid), now);
+                        let v = self.cup_view(c, c.index_of(&pid), now);
                         self.send(id, protocol::msg(json!({ "t": "cup", "cup": v })));
                     }
                     None => self.cup_error(id, CupError::NotFound),
                 }
             }
             HubCmd::CupPlay { id, code, m } => self.cup_play(id, &code, m),
+            HubCmd::Watch { id, code, m } => self.watch(id, &code, m),
+            HubCmd::Unwatch { id } if self.unwatch(id) => self.send(id, protocol::msg(json!({ "t": "watch_end" }))),
             _ => {}
         }
     }
@@ -472,7 +528,7 @@ impl Hub {
 
     fn handle(&mut self, cmd: HubCmd) {
         match cmd {
-            c @ (HubCmd::CupCreate { .. } | HubCmd::CupJoin { .. } | HubCmd::CupLeave { .. } | HubCmd::CupStart { .. } | HubCmd::CupList { .. } | HubCmd::CupGet { .. } | HubCmd::CupPlay { .. }) => self.handle_cup(c),
+            c @ (HubCmd::CupCreate { .. } | HubCmd::CupJoin { .. } | HubCmd::CupLeave { .. } | HubCmd::CupStart { .. } | HubCmd::CupList { .. } | HubCmd::CupGet { .. } | HubCmd::CupPlay { .. } | HubCmd::Watch { .. } | HubCmd::Unwatch { .. }) => self.handle_cup(c),
             HubCmd::Connect { id, tx } => {
                 self.conns.insert(id, ConnInfo { tx, profile: None, activity: Activity::Idle, join_fails: 0, join_blocked_until: None });
             }
@@ -722,11 +778,26 @@ impl Hub {
                 }
             }
             HubCmd::Disconnect { id } => {
+                self.unwatch(id);
                 self.leave_queue(id);
                 self.close_room_of(id);
                 self.conns.remove(&id);
             }
             HubCmd::MatchClosed { id, tokens, conns } => {
+                let ended: Vec<(String, usize)> = self.cup_live.iter().filter(|(_, (mid, _))| *mid == id).map(|(k, _)| k.clone()).collect();
+                for k in &ended {
+                    self.cup_live.remove(k);
+                }
+                let watchers: Vec<ConnId> = self.watching.iter().filter(|(_, (mid, _))| *mid == id).map(|(&c, _)| c).collect();
+                for c in watchers {
+                    self.watching.remove(&c);
+                    if let Some(ci) = self.conns.get_mut(&c) {
+                        ci.activity = Activity::Idle;
+                    }
+                }
+                for (code, _) in ended {
+                    self.push_cup(&code);
+                }
                 for t in tokens {
                     self.resumes.remove(&t);
                 }
@@ -870,11 +941,15 @@ impl Hub {
         let _ = cb.tx.try_send(ConnCtl::Joined { tx: mtx.clone(), seat: 1 });
         let players = [Player::new(pa, ta.clone(), a, ca.tx.clone()), Player::new(pb, tb.clone(), b, cb.tx.clone())];
         self.resumes.insert(ta, (id, mtx.clone(), 0));
-        self.resumes.insert(tb, (id, mtx, 1));
+        self.resumes.insert(tb, (id, mtx.clone(), 1));
         for cid in [a, b] {
             if let Some(c) = self.conns.get_mut(&cid) {
                 c.activity = Activity::InMatch(id);
             }
+        }
+        let live_cup = if let MatchKind::Cup(code, m) = &kind { Some((code.clone(), *m)) } else { None };
+        if let Some(k) = &live_cup {
+            self.cup_live.insert(k.clone(), (id, mtx.clone()));
         }
         let room = MatchRoom::new(id, kind, clock, players, mrx, self.tx.clone());
         tokio::spawn(room.run());

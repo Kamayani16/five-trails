@@ -52,6 +52,7 @@ const OLC='#0b1640';
 const TROPHY=`<svg class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v5a6 6 0 0 1-12 0Z" fill="#ffd23a" stroke="${OLC}" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 5H3v1.5A3.5 3.5 0 0 0 6.5 10M18 5h3v1.5a3.5 3.5 0 0 1-3.5 3.5" fill="none" stroke="${OLC}" stroke-width="1.8"/><path d="M10 14h4v3h-4z" fill="#ffaa00" stroke="${OLC}" stroke-width="1.8"/><path d="M7 17h10v4H7z" fill="#ffd23a" stroke="${OLC}" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 5.5v2.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
 const LAUREL='<svg viewBox="0 0 100 100" class="laurel" aria-hidden="true"><g fill="#ffd23a" stroke="#8a5a00" stroke-width="1.6"><ellipse cx="18.1" cy="40.4" rx="7" ry="3.4" transform="rotate(255 18.1 40.4)"/><ellipse cx="24.0" cy="30.1" rx="7" ry="3.4" transform="rotate(275 24.0 30.1)"/><ellipse cx="33.0" cy="22.6" rx="7" ry="3.4" transform="rotate(295 33.0 22.6)"/><ellipse cx="44.1" cy="18.5" rx="7" ry="3.4" transform="rotate(315 44.1 18.5)"/><ellipse cx="55.9" cy="18.5" rx="7" ry="3.4" transform="rotate(335 55.9 18.5)"/><ellipse cx="67.0" cy="22.6" rx="7" ry="3.4" transform="rotate(355 67.0 22.6)"/><ellipse cx="76.0" cy="30.1" rx="7" ry="3.4" transform="rotate(375 76.0 30.1)"/><ellipse cx="81.9" cy="40.4" rx="7" ry="3.4" transform="rotate(-75 81.9 40.4)"/><ellipse cx="76.0" cy="30.1" rx="7" ry="3.4" transform="rotate(-95 76.0 30.1)"/><ellipse cx="67.0" cy="22.6" rx="7" ry="3.4" transform="rotate(-115 67.0 22.6)"/><ellipse cx="55.9" cy="18.5" rx="7" ry="3.4" transform="rotate(-135 55.9 18.5)"/><ellipse cx="44.1" cy="18.5" rx="7" ry="3.4" transform="rotate(-155 44.1 18.5)"/><ellipse cx="33.0" cy="22.6" rx="7" ry="3.4" transform="rotate(-175 33.0 22.6)"/><ellipse cx="24.0" cy="30.1" rx="7" ry="3.4" transform="rotate(-195 24.0 30.1)"/></g><path d="M50 30l5.5 11.2 12.3 1.8-8.9 8.7 2.1 12.3L50 58.2l-11 5.8 2.1-12.3-8.9-8.7 12.3-1.8z" fill="#fff3b0" stroke="#8a5a00" stroke-width="2"/></svg>';
 const SV=(p,f='none',w=2.6)=>`<svg viewBox="0 0 24 24" fill="${f}" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const EYEMINI=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>`;
 const CUPIC=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5h5v5h3.5M2.5 19.5h5v-5h3.5M11 9.5v5M11 12h4"/><rect x="15" y="9" width="6.5" height="6" rx="1.5"/></svg>`;
 const IC={
  swords:SV('<path d="M4 4l9.5 9.5M4 4h4.5M4 4v4.5M20 4l-9.5 9.5M20 4h-4.5M20 4v4.5M6.5 15.5l2 2M17.5 15.5l-2 2M5 19l2.5-2.5M19 19l-2.5-2.5"/>'),
@@ -404,7 +405,7 @@ const ERRS={room_not_found:'No open room has that code. Check it and try again.'
  opponent_left:'Your opponent has left.',opponent_away:'Waiting for your opponent to reconnect.',rate_limited:'Slow down a little.',replaced:'This battle continued in another tab.',
  code_taken:'That room code is already in use. Pick another one.',bad_code:'A room code is exactly 5 letters.',name_taken:'That name is taken. Try another.',
  no_chest:'No chest is ready yet.',quest_not_done:'Finish that quest first.',already_claimed:'Already collected.',bad_quest:'That quest is not available any more.',
- bot_unavailable:'The computer is not available yet. Keep waiting a little.',not_enough_coins:'Not enough coins yet.',cup_not_found:'No cup has that code. Check it and try again.',cup_full:'That cup is full (6 players).',cup_started:'That cup has already started.',cup_not_host:'Only the host can start the cup.',cup_too_few:'A cup needs at least 3 players to start.',cup_not_your_match:'That is not your match.',cup_match_closed:'That match is already decided.',cup_too_many:'You are in 5 cups already. Finish one first.',cup_bad_name:'Give the cup a name (up to 24 letters).',cup_no_rematch:'Cup matches are one game each. Head back to the cup.',bad_format:'Pick round robin or knockout.',already_owned:'You already own that.',not_for_sale:'That one is not sold.',item_locked:'Win more trophies to unlock that.',bad_item:'That item is not available.',unknown_key:'No account has that recovery code.'};
+ bot_unavailable:'The computer is not available yet. Keep waiting a little.',not_enough_coins:'Not enough coins yet.',cup_not_found:'No cup has that code. Check it and try again.',cup_full:'That cup is full (6 players).',cup_started:'That cup has already started.',cup_not_host:'Only the host can start the cup.',cup_too_few:'A cup needs at least 3 players to start.',cup_not_your_match:'That is not your match.',cup_match_closed:'That match is already decided.',cup_too_many:'You are in 5 cups already. Finish one first.',cup_bad_name:'Give the cup a name (up to 24 letters).',cup_no_rematch:'Cup matches are one game each. Head back to the cup.',bad_format:'Pick round robin or knockout.',not_live:'That match is not being played right now.',watch_full:'Too many people are watching that match.',already_owned:'You already own that.',not_for_sale:'That one is not sold.',item_locked:'Win more trophies to unlock that.',bad_item:'That item is not available.',unknown_key:'No account has that recovery code.'};
 function onServer(m){switch(m.t){
  case 'welcome':onWelcome(m);break;
  case 'name':if(typeof m.name==='string'&&m.name){commitName(m.name);ST.set('ft-nick-pending',false);nameReply(true)}break;
@@ -431,7 +432,15 @@ function onServer(m){switch(m.t){
  case 'room_expired':if(M.mode==='room'){goHome(true);toast('Nobody joined in time, so the room closed. Create a new one any time.')}break;
  case 'match':onMatch(m);break;
  case 'state':if(M.mode==='online'&&m.view&&typeof m.view==='object'){V=m.view;V.at=Date.now();pending=false;M.reconnecting=false;renderGame();updateRmNote()}break;
- case 'emote':if(M.mode==='online'&&Number.isInteger(m.k)&&EMOTES[m.k])showBubble('opp',EMOTES[m.k]);break;
+ case 'emote':if(M.mode==='online'&&Number.isInteger(m.k)&&EMOTES[m.k])showBubble('opp',EMOTES[m.k]);else if(M.mode==='watch'&&Number.isInteger(m.k)&&EMOTES[m.k])showBubble(m.side===0?'me':'opp',EMOTES[m.k]);break;
+ case 'watch_start':{const v=m.view;if(!v||typeof v!=='object'||!Array.isArray(m.players))break;
+  const pl=m.players.slice(0,2).map(p=>({n:String(p&&p.name||'Player').slice(0,16),lv:Math.max(1,Number(p&&p.lv)||1),tr:numOf(p&&p.tr),back:okItem(p&&p.back,'back')?p.back:'stripes'}));
+  closeSheets();M={mode:'watch',players:pl,opp:{back:pl[1].back},oppHere:true,kind:'cup',code:typeof m.code==='string'?m.code:null,cupM:numOf(m.cupMatch,99)};
+  V=v;V.at=Date.now();prevGid=null;sel=null;pending=false;$('over').hidden=true;
+  const c=CUPS[M.code];$('roomTag').textContent=`Watching${c?' · '+c.name:''}`;show('game');renderGame();break}
+ case 'watch_state':if(M.mode==='watch'&&m.view&&typeof m.view==='object'){V=m.view;V.at=Date.now();renderGame()}break;
+ case 'watch_end':if(M.mode==='watch'){if(V&&!V.ov){toast('The match has ended.');stopWatching(true)}}break;
+ case 'watchers':M.watchers=numOf(m.n,99);paintWatchers();break;
  case 'opp':if(M.mode==='online'){M.oppHere=!!m.connected;M.oppLeft=!!m.left;if(V)renderGame();updateRmNote()}break;
  case 'rematch':if(M.mode==='online'&&V){M.iWantRm=m.me?V.gid:null;M.theyWantRm=m.opp?V.gid:null;updateRmNote()}break;
  case 'closed':if(M.mode==='online'){M.closed=true;SS.set('ft-resume',null);updateRmNote()}break;
@@ -464,7 +473,7 @@ function onMatch(m){const v=m.view,o=m.opp;if(!v||typeof v!=='object'||!o)return
  const opp={nick:String(o.name||'Opponent').slice(0,16),tr:Math.max(0,Number(o.tr)||0),lv:Math.max(1,Number(o.lv)||1),pid:String(o.pid||'').slice(0,64),bot:o.bot===true,tier:Math.max(0,Math.min(ARENAS.length-1,Math.floor(Number(o.tier))||0)),back:okItem(o.back,'back')?o.back:'stripes'};
  if(M.mode!=='online')M={mode:'online',oppEmoT:undefined};
  Object.assign(M,{opp,oppKey:'p:'+opp.pid,kind:m.kind==='room'?'room':m.kind==='bot'?'bot':m.kind==='cup'?'cup':'quick',cupM:Number.isInteger(m.cupMatch)?m.cupMatch:null,code:typeof m.code==='string'?m.code.replace(/[^A-Z]/g,''):null,
-  oppHere:m.oppConnected!==false,oppLeft:false,earned:null,closed:false,reconnecting:false,iWantRm:null,theyWantRm:null});
+  oppHere:m.oppConnected!==false,oppLeft:false,earned:null,watchers:0,closed:false,reconnecting:false,iWantRm:null,theyWantRm:null});
  V=v;V.at=Date.now();pending=false;sel=null;
  $('roomTag').textContent=M.kind==='room'?'Room '+M.code:M.kind==='bot'?'Computer battle':M.kind==='cup'?(CUPS[M.code]?CUPS[M.code].name:'Cup match'):'Quick match';
  if($('game').hidden)show('game');
@@ -501,7 +510,7 @@ function cleanCup(v){if(!v||typeof v!=='object'||!/^[A-Z]{6}$/.test(String(v.cod
  const int=(x,max)=>Number.isInteger(x)&&x>=0&&x<max?x:null,n=Array.isArray(v.players)?v.players.slice(0,6).map(p=>({n:String(p&&p.n||'?').slice(0,16),tr:numOf(p&&p.tr)})):[],np=n.length;
  const matches=Array.isArray(v.matches)?v.matches.slice(0,20).map(x=>({a:int(x&&x.a,np),b:int(x&&x.b,np),r:numOf(x&&x.r,9),draws:numOf(x&&x.draws,99),
   res:x&&x.res&&typeof x.res==='object'?{w:int(x.res.w,np),sa:Number(x.res.sa)||0,sb:Number(x.res.sb)||0,wo:!!x.res.wo}:null,
-  ready:Array.isArray(x&&x.ready)?[!!x.ready[0],!!x.ready[1]]:[false,false],dueIn:x&&x.dueIn!=null?numOf(x.dueIn,1e8):null})):[];
+  ready:Array.isArray(x&&x.ready)?[!!x.ready[0],!!x.ready[1]]:[false,false],live:!!(x&&x.live),dueIn:x&&x.dueIn!=null?numOf(x.dueIn,1e8):null})):[];
  const table=Array.isArray(v.table)?v.table.slice(0,6).map(r=>({p:int(r&&r.p,np),pl:numOf(r&&r.pl),w:numOf(r&&r.w),d:numOf(r&&r.d),l:numOf(r&&r.l),pts:numOf(r&&r.pts),diff:Number(r&&r.diff)||0})).filter(r=>r.p!=null):[];
  return{code:v.code,name:String(v.name||'Cup').slice(0,24),format:v.format==='ko'?'ko':'rr',clock:numOf(v.clock,3600),state:['lobby','live','done'].includes(v.state)?v.state:'lobby',
   me:int(v.me,np),host:v.host===true,players:n,matches,table,champion:int(v.champion,np),runner:int(v.runner,np),
@@ -531,7 +540,7 @@ function renderCups(){const el=$('tab-cups');if(!el)return;
  if(!SERVER_URL)body='<div class="pn pad"><p class="note">Cups need the game server. Open the game from its server address to create or join one.</p></div>';
  else if(!NET.ready)body='<div class="pn pad"><p class="note">Connecting to the game server…</p></div>';
  else{const list=Object.values(CUPS).sort((a,b)=>(a.state==='done')-(b.state==='done')||cupNeedsMe(b)-cupNeedsMe(a)||a.name.localeCompare(b.name));
-  body=list.length?`<div class="cuplist">${list.map(c=>`<button class="cupcard ${c.state}" data-cup="${c.code}" type="button"><span class="cc-ic">${c.state==='done'?IC.cup:CUPIC}</span><span class="cc-t"><b>${esc(c.name)}</b><small>${cupFmtName(c.format)} · ${cupStatus(c)}</small></span>${cupNeedsMe(c)?'<i class="dot" aria-label="Something for you to do"></i>':''}</button>`).join('')}</div>`
+  body=list.length?`<div class="cuplist">${list.map(c=>`<button class="cupcard ${c.state}" data-cup="${c.code}" type="button"><span class="cc-ic">${c.state==='done'?IC.cup:CUPIC}</span><span class="cc-t"><b>${esc(c.name)}</b><small>${cupFmtName(c.format)} · ${cupStatus(c)}${c.matches.some(x=>x.live)?' · <span class="livetag"><span class="livedot"></span>LIVE</span>':''}</small></span>${cupNeedsMe(c)?'<i class="dot" aria-label="Something for you to do"></i>':''}</button>`).join('')}</div>`
    :'<div class="pn pad"><p class="note" style="text-align:center">No cups yet. Create one and share the code with your friends.</p></div>'}
  el.innerHTML=head+body;
  $('cupNewBtn').onclick=()=>{sfx('ui');openCupNew()};$('cupJoinBtn').onclick=()=>{sfx('ui');$('cupCode').value='';$('cupJoinNote').textContent='';openSheet('cupJoinSheet')};
@@ -554,6 +563,8 @@ function renderCupSheet(){const c=CUPS[cupOpen],body=$('cupBody');if(!body)retur
   if(c.state==='done')h+=`<div class="champ">${LAUREL}<div><small>Champion</small><b class="ol">${c.champion!=null?esc(c.players[c.champion].n):'—'}</b>${c.runner!=null?`<span>Runner-up: ${esc(c.players[c.runner].n)}</span>`:''}</div></div>${c.prize?`<p class="note" style="text-align:center">${c.prize.place===1?'You won the cup! The Champion’s Laurel card back is yours.':c.prize.place===2?'You finished second.':'Thanks for playing.'} ${c.prize.coins} coins went to your piggy bank.</p>`:''}`;
   h+=c.format==='rr'?cupTableHTML(c):cupBracketHTML(c);
   const mine=myCupMatches(c);
+  const others=c.matches.map((x,i)=>({...x,i})).filter(x=>x.live&&x.a!==c.me&&x.b!==c.me);
+  if(others.length)h+=`<div class="cupsec"><span class="livedot"></span>Live now</div><div class="cms">${others.map(x=>`<div class="cm open"><span class="cm-o"><b>${esc(c.players[x.a].n)}</b> vs <b>${esc(c.players[x.b].n)}</b></span>${cupWatchBit(c,x)}</div>`).join('')}</div>`;
   if(mine.length&&c.format==='rr')h+=`<div class="cupsec">Your matches</div><div class="cms">${mine.map(x=>cupMatchRow(c,x)).join('')}</div>`;
   if(c.feed.length)h+=`<div class="cupsec">Latest</div><ul class="cupfeed">${c.feed.slice(0,8).map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`}
  body.innerHTML=h;
@@ -561,7 +572,8 @@ function renderCupSheet(){const c=CUPS[cupOpen],body=$('cupBody');if(!body)retur
  const cc=$('cupCopy');if(cc)cc.onclick=async()=>{sfx('ui');toast(await copyText(cupInviteText(c))?'Invite copied. Paste it in your group chat.':'Could not copy.')};
  const st=$('cupStart');if(st)st.onclick=()=>{sfx('ui');NET.send({t:'cup_start',code:c.code})};
  const lv=$('cupLeave');if(lv)lv.onclick=()=>{if(lv.dataset.armed){sfx('ui');NET.send({t:'cup_leave',code:c.code})}else{lv.dataset.armed='1';lv.textContent=c.host?'Tap again to cancel the cup':'Tap again to leave';sfx('select')}};
- body.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{sfx('ui');if(NET.send({t:'cup_play',code:c.code,m:+b.dataset.play}))b.disabled=true})}
+ body.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{sfx('ui');if(NET.send({t:'cup_play',code:c.code,m:+b.dataset.play}))b.disabled=true});
+ body.querySelectorAll('[data-watch]').forEach(b=>b.onclick=()=>{sfx('ui');if(NET.send({t:'watch',code:c.code,m:+b.dataset.watch}))b.disabled=true})}
 function cupTableHTML(c){const rows=c.table.length?c.table:c.players.map((_,p)=>({p,pl:0,w:0,d:0,l:0,pts:0,diff:0}));
  return`<table class="cuptab"><thead><tr><th></th><th class="nm">Player</th><th>P</th><th>W</th><th>D</th><th>L</th><th>+/-</th><th>Pts</th></tr></thead><tbody>${rows.map((r,k)=>`<tr class="${r.p===c.me?'me':''} ${c.state==='done'&&k===0?'win':''}"><td>${k+1}</td><td class="nm">${esc(c.players[r.p].n)}</td><td>${r.pl}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.diff>0?'+':''}${r.diff}</td><td><b>${r.pts}</b></td></tr>`).join('')}</tbody></table>`}
 function cupRoundName(c,r){const max=Math.max(...c.matches.map(x=>x.r));return r===max?'Final':r===max-1?'Semi-finals':'Round 1'}
@@ -569,8 +581,9 @@ function cupBracketHTML(c){const rounds=[...new Set(c.matches.map(x=>x.r))].sort
  return`<div class="bracket">${rounds.map(r=>`<div class="bcol"><div class="bhead">${cupRoundName(c,r)}</div>${c.matches.map((x,i)=>({...x,i})).filter(x=>x.r===r).map(x=>{
    const line=(p,score,won)=>`<div class="bl ${won?'won':''} ${p!=null&&p===c.me?'me':''}"><span>${cupName(c,p)}</span>${x.res&&!x.res.wo?`<b>${score}</b>`:''}</div>`;
    const mine=x.a===c.me||x.b===c.me;
-   return`<div class="bm ${mine?'mine':''}">${line(x.a,x.res?x.res.sa:0,x.res&&x.res.w===x.a)}${line(x.b,x.res?x.res.sb:0,x.res&&x.res.w===x.b)}${x.res&&x.res.wo?'<small>walkover</small>':x.draws&&!x.res?`<small>drawn ${x.draws}× · replay</small>`:''}${mine&&c.state==='live'?cupPlayBit(c,x):''}</div>`}).join('')}</div>`).join('')}</div>`}
-function cupPlayBit(c,x){if(!cupOpenMatch(x))return'';const opp=c.players[cupOpp(c,x)].n,due=cupDue(c,x),side=cupSide(c,x);
+   return`<div class="bm ${mine?'mine':''}">${line(x.a,x.res?x.res.sa:0,x.res&&x.res.w===x.a)}${line(x.b,x.res?x.res.sb:0,x.res&&x.res.w===x.b)}${x.res&&x.res.wo?'<small>walkover</small>':x.draws&&!x.res?`<small>drawn ${x.draws}× · replay</small>`:''}${mine&&c.state==='live'?cupPlayBit(c,x):!mine?cupWatchBit(c,x):''}</div>`}).join('')}</div>`).join('')}</div>`}
+function cupWatchBit(c,x){return x.live&&c.state==='live'?`<div class="cmplay"><button class="gb red sm" data-watch="${x.i}" type="button"><span class="livedot"></span>Watch live</button></div>`:''}
+function cupPlayBit(c,x){if(!cupOpenMatch(x))return'';if(x.live)return`<div class="cmplay"><small class="livetag"><span class="livedot"></span>Playing now</small></div>`;const opp=c.players[cupOpp(c,x)].n,due=cupDue(c,x),side=cupSide(c,x);
  const live=cupPinged(c,x),theyReady=x.ready[1-side];
  return`<div class="cmplay"><button class="gb green sm ${live?'pulse':''}" data-play="${x.i}" type="button">${live?`Play now · ${esc(opp)} is waiting`:'Play'}</button><small>${theyReady&&!live?`${esc(opp)} showed up · `:''}${due!=null?`due in ${fmtSpan(due)}`:''}</small></div>`}
 function cupMatchRow(c,x){const o=cupOpp(c,x),side=cupSide(c,x),opp=o!=null?esc(c.players[o].n):'?';let st='';
@@ -634,6 +647,7 @@ $('tab-guide').innerHTML=`
  <div class="pn gsec"><div class="pn-h ol">Cups</div>
   <p>A private tournament for 3 to 6 friends. Create one in the Cups tab and share the code.</p>
   <p><b>Round robin:</b> everyone plays everyone once; win 3 points, draw 1; three days to play. <b>Knockout:</b> a bracket seeded by trophies; a day per round; a draw is replayed.</p>
+  <p>Matches being played show <b>Watch live</b> to everyone in the cup. Spectators see the board, never anyone’s hand.</p>
   <p>Tap Play when you are ready; your friend is told. Miss the deadline and whoever showed up wins. Champion: 100 coins and the Champion’s Laurel card back. Cup games never change trophies.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Rewards</div>
   <p>Every finished online battle pays coins: 15 for a win, 8 for a draw, 5 for a loss (half against the computer), up to 150 a day.</p>
@@ -807,10 +821,11 @@ function ghost(html,from,to,fade){if(reduced||!from||!to)return;const g=document
  a.onfinish=()=>el.remove()}
 const vsCpu=()=>M.mode==='ai'||(M.mode==='online'&&M.kind==='bot');
 function oppInfo(){const ai=arenaIdx(REC.tr);
+ if(M.mode==='watch'){const p=M.players[1];return{name:p.n,lv:p.lv,tr:p.tr,cpu:false,sub:''}}
  if(M.mode==='online'&&M.kind==='bot')return{name:'Computer',lv:null,tr:null,cpu:true,sub:`${AI_TIER[(M.opp&&M.opp.tier)||0]} bot`};
  if(M.mode==='ai')return{name:'Computer',lv:null,tr:null,cpu:true,sub:`${AI_TIER[M.tier??ai]} bot`};
  const o=M.opp||{};const h=M.oppKey&&REC.opp[M.oppKey];return{name:o.nick||'Opponent',lv:o.lv||null,tr:o.tr??null,cpu:false,sub:`${o.tr!=null?TROPHY+(Number(o.tr)||0):''}${h?` · You ${h.w}–${h.l}`:''}`}}
-const meInfo=()=>({name:nick(),lv:lvlInfo(REC.xp).lv});
+const meInfo=()=>M.mode==='watch'?{name:M.players[0].n,lv:M.players[0].lv}:({name:nick(),lv:lvlInfo(REC.xp).lv});
 function setScore(id,v){const el=$(id);if(el.textContent!==String(v)){el.textContent=v;el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump')}}
 function renderGame(){
  if(!V)return;
@@ -826,9 +841,9 @@ function renderGame(){
  if(ev)M.lastBy=ev.by;
  $('oppAv').innerHTML=avatarHTML(opp.name,opp.lv,opp.cpu);$('oppName').textContent=opp.name;$('oppSub').innerHTML=opp.cpu?opp.sub:'';
  $('meAv').innerHTML=avatarHTML(me_.name,me_.lv);$('meName').textContent=me_.name;$('meSub').innerHTML='';
- paintOppHand();
+ paintOppHand();paintWatchers();
  setScore('oppScore',total(V.ex[1]));setScore('meScore',total(V.ex[0]));
- const pwb=i=>{const p=V.pw||{sab:[0,0],rush:[0,0]};return `<span class="pwb ${p.sab[i]?'':'used'}" title="Sabotage">SABOTAGE</span>${p.eye?`<span class="pwb ${p.eye[i]?'':'used'}" title="Evil Eye">EVIL EYE</span>`:''}${i===0&&p.rush[0]?`<span class="pwb" title="Rush">RUSH</span>`:''}${V.rn===i?'<span class="pwb hit">RUSHED</span>':''}`};
+ const pwb=i=>{const p=V.pw||{sab:[0,0],rush:[0,0]};return `<span class="pwb ${p.sab[i]?'':'used'}" title="Sabotage">SABOTAGE</span>${p.eye?`<span class="pwb ${p.eye[i]?'':'used'}" title="Evil Eye">EVIL EYE</span>`:''}${i===0&&p.rush[0]&&M.mode!=='watch'?`<span class="pwb" title="Rush">RUSH</span>`:''}${V.rn===i?'<span class="pwb hit">RUSHED</span>':''}`};
  $('mePw').innerHTML=pwb(0);$('oppPw').innerHTML=pwb(1);
  $('oppBar').classList.toggle('turn',!V.mt&&!V.ov);$('meBar').classList.toggle('turn',myT);
  $('deckN').textContent=V.dn;$('deck').classList.toggle('low',V.dn<=6);
@@ -844,15 +859,17 @@ function renderGame(){
  if(M.placed!=null&&!V.ov){const el=document.querySelector(`#board [data-id="${M.placed}"]`);if(el){el.classList.add('last');if(ev&&!reduced)el.classList.add('fresh')}}
  const hand=V.me.slice().sort((a,b)=>cC(a)-cC(b)||cV(a)-cV(b));
  if(sel!=null&&!hand.includes(sel))sel=null;
- $('hand').innerHTML=hand.map(id=>cardHTML(id,sel===id?'sel':'').replace('<div ','<div role="button" tabindex="0" data-h="1" ')).join('');
+ if(M.mode==='watch'){$('hand').innerHTML=`<div class="whand bk-${M.players[0].back}" aria-label="${esc(M.players[0].n)} holds ${V.mn||0} cards">${'<div class="back"></div>'.repeat(V.mn||0)}</div>`}
+ else $('hand').innerHTML=hand.map(id=>cardHTML(id,sel===id?'sel':'').replace('<div ','<div role="button" tabindex="0" data-h="1" ')).join('');
  if(ev&&ev.by==='me'){if(ev.k==='draw'){const nw=hand.filter(id=>!prev.has(String(id)));M.drawn=ev.p>=0&&hand.includes(ev.id)?ev.id:(nw.length?nw[0]:null)}else if(ev.k==='play'||ev.k==='disc')M.drawn=null}
  if(M.drawn!=null&&!hand.includes(M.drawn))M.drawn=null;
  if(M.drawn!=null&&!V.ov){const el=document.querySelector(`#hand [data-id="${M.drawn}"]`);if(el){el.classList.add('drawn');if(!el.querySelector('.newtag'))el.insertAdjacentHTML('beforeend','<span class="newtag">NEW</span>');if(ev&&ev.k==='draw'&&!reduced)el.classList.add('freshg')}}
  paintEyeMarks();
- $('hand').classList.toggle('off',!(myT&&V.ph==='play'));
+ $('hand').classList.toggle('off',M.mode==='watch'||!(myT&&V.ph==='play'));
  renderActs();
  let m='';
- if(V.ov)m=V.fl==='me'?(V.why==='forfeit'?'<b>You left the battle.</b>':'<b>Your time ran out.</b>'):V.fl==='opp'?(V.why==='forfeit'?`<b>${esc(opp.name)} left the battle.</b>`:`<b>${esc(opp.name)} ran out of time.</b>`):'<b>Battle over!</b>';
+ if(M.mode==='watch')m=V.ov?watchOverText():`<b>${esc(V.mt?me_.name:opp.name)}</b>'s turn · ${V.ph==='play'?'play or discard':'draw'}`;
+ else if(V.ov)m=V.fl==='me'?(V.why==='forfeit'?'<b>You left the battle.</b>':'<b>Your time ran out.</b>'):V.fl==='opp'?(V.why==='forfeit'?`<b>${esc(opp.name)} left the battle.</b>`:`<b>${esc(opp.name)} ran out of time.</b>`):'<b>Battle over!</b>';
  else if(M.mode==='online'&&M.reconnecting)m='Connection lost. Reconnecting…';
  else if(M.mode!=='ai'&&!M.oppHere)m=`${esc(opp.name)} disconnected. Waiting for them to return…`;
  else if(myT)m=V.ph==='play'?(lastText()?`<b>Your turn</b> · ${lastText()}`:'<b>Your turn</b> · play or discard'):'<b>Draw</b> · deck or a discard pile';
@@ -869,13 +886,27 @@ function renderGame(){
  if(!newGame){prev.forEach((p,id)=>{if(!now.has(id))ghost(p.h,p.r,oppR,true)});
   if(ev&&ev.k==='sab'&&ev.by==='me')ghost(`<div class="back bk-${oppBack()}" style="border-radius:8px"></div>`,deckR,oppR,true);
   if(ev&&ev.by==='opp'&&ev.k==='draw'&&ev.p<0)ghost(`<div class="back bk-${oppBack()}" style="border-radius:8px"></div>`,deckR,oppR,true)}
- if(ev&&(ev.k==='eye'||ev.k==='sab'))powerScene(ev,opp);
- {const nowRu=!!(V.ru&&V.ru.seat===0);if(nowRu&&!M.ruWas&&!V.ov){callout('Rushed!','#ff7aa8','10 seconds. Go!');sfx('alarm');shake(1)}M.ruWas=nowRu}
+ if(ev&&(ev.k==='eye'||ev.k==='sab')){if(M.mode==='watch'){eyeUntil=0;const a=ev.by==='me'?me_.name:opp.name,b=ev.by==='me'?opp.name:me_.name;
+  if(ev.k==='eye'){callout('Evil Eye!','#f6d27c',`${a} looks at one of ${b}'s cards`);sfx('levelup')}else{callout('Sabotage!','#c58bff',`${a} knocks ${b}'s ${COL[cC(ev.id)].n} ${cV(ev.id)||'wager'} away`);shake(2)}}
+  else powerScene(ev,opp)}
+ if(M.mode==='watch'){const r=V.ru&&!V.ov?V.ru.seat:null;if(r!=null&&M.ruWas!==r){callout('Rushed!','#ff7aa8',`${r===0?me_.name:opp.name} has 10 seconds`);sfx('alarm')}M.ruWas=r}
+ else{const nowRu=!!(V.ru&&V.ru.seat===0);if(nowRu&&!M.ruWas&&!V.ov){callout('Rushed!','#ff7aa8','10 seconds. Go!');sfx('alarm');shake(1)}M.ruWas=nowRu}
  if(ev){eventSfx(ev);fxEvent(ev,opp);if(ev.by==='opp'&&ev.k==='draw'&&!V.ov)setTimeout(()=>sfx('turn'),250)}
  scorePops();
  prevGid=V.gid;prevSeq=V.seq;
- if(V.ov)setTimeout(showResult,ev?1800:200);
+ if(V.ov)setTimeout(M.mode==='watch'?watchResult:showResult,ev?1800:200);
 }
+function paintWatchers(){const el=$('watchN');if(!el)return;const n=M.mode==='online'?(M.watchers||0):0;el.hidden=!n;el.innerHTML=n?`${EYEMINI}${n}`:'';el.title=n?`${n} watching`:''}
+function watchOverText(){const a=total(V.ex[0]),b=total(V.ex[1]),A=M.players[0].n,B=M.players[1].n;
+ if(V.fl)return`<b>${esc(V.fl==='me'?B:A)} wins</b> · ${esc(V.fl==='me'?A:B)} ${V.why==='forfeit'?'left':'ran out of time'}`;
+ return a===b?'<b>A draw!</b>':`<b>${esc(a>b?A:B)} wins</b> ${Math.max(a,b)}–${Math.min(a,b)}`}
+function watchResult(){if(M.mode!=='watch'||!V||!V.ov||!$('over').hidden&&M.shownFor===V.gid)return;M.shownFor=V.gid;
+ const a=total(V.ex[0]),b=total(V.ex[1]),A=M.players[0],B=M.players[1];sfx('win');
+ $('over').innerHTML=`<div class="res w"><div class="rib ol">Full time</div><div class="rsub">${watchOverText()}</div>
+  <div class="rscore"><div class="rs-p ${a>b||V.fl==='opp'?'win':''}">${avatarHTML(A.n,A.lv)}<b class="ol">${a}</b><span>${esc(A.n)}</span></div><div class="rs-vs">vs</div><div class="rs-p ${b>a||V.fl==='me'?'win':''}">${avatarHTML(B.n,B.lv)}<b class="ol">${b}</b><span>${esc(B.n)}</span></div></div>
+  <div class="rbtns"><button class="gb green" id="oAgain">Back to cup</button><button class="gb blue" id="oHome">Lobby</button></div><button class="linkbtn" id="oView">See the table</button></div>`;
+ $('over').hidden=false;$('oAgain').onclick=()=>{sfx('ui');stopWatching(true)};$('oHome').onclick=()=>{sfx('ui');stopWatching(false)};$('oView').onclick=()=>{$('over').hidden=true}}
+function stopWatching(toCup){const code=M.code;if(M.mode==='watch')NET.raw({t:'unwatch'});M={mode:'home'};V=null;prevGid=null;show('home');renderHome();setTab('cups');if(toCup&&code&&CUPS[code])openCup(code)}
 function lastText(){const L=M.oppLast;if(!L)return '';const ch=id=>{const C=COL[cC(id)];return `<span class="mchip" style="--cc:${C.cc};--cd:${C.cd};--ct:${C.ct}">${C.n} ${cV(id)||'wager'}</span>`};const parts=[];
  if(L.sab)parts.push(`hit your ${ch(L.sab.id)}`);if(L.rush)parts.push('Rush');
  if(L.act)parts.push(`${L.act.k==='play'?'played':'discarded'} ${ch(L.act.id)}`);
@@ -885,7 +916,7 @@ function scorePops(){const cur=[0,1].map(s=>V.ex[s].map(expScore)),lens=[0,1].ma
  if(PS&&PS.g===V.gid)for(let s=0;s<2;s++)for(let c=0;c<5;c++){if(lens[s][c]>PS.l[s][c]){const d=cur[s][c]-PS.v[s][c];if(!d)continue;
    const el=document.querySelectorAll(`#board .col[data-c="${c}"] .cs`)[s?0:1];setTimeout(()=>popup(el,(d>0?'+':'−')+Math.abs(d),d>0?'up':'dn'),reduced?0:430)}}
  PS={g:V.gid,v:cur,l:lens}}
-function fxEvent(ev,opp){const side=ev.by==='me'?0:1,D=reduced?0:430,who=side?opp.name:'';const nm=id=>COL[cC(id)].n+' '+(cV(id)||'wager');
+function fxEvent(ev,opp){const side=ev.by==='me'?0:1,D=reduced?0:430,who=side?opp.name:M.mode==='watch'?meInfo().name:'';const nm=id=>COL[cC(id)].n+' '+(cV(id)||'wager');
  if(ev.k==='play'){const c=ev.p,C=COL[c],v=cV(ev.id),e=V.ex[side][c];
   setTimeout(()=>{const el=document.querySelector(`#board .col[data-c="${c}"] .stack.${side?'opp':'me'} [data-id="${ev.id}"]`);
    if(el){const[x,y]=centerOf(el);burst(x,y,[C.cc,C.cd,'#ffffff'],v===0||v>=9?28:14,{sp:v>=9?7.5:5})}if(v>=9)shake(2)},D);
@@ -942,7 +973,8 @@ function powerScene(ev,opp){const o=$('eye');if(!o)return;const sab=ev.k==='sab'
  let closing=false;const close=()=>{if(closing)return;closing=true;clearTimeout(eyeT);o.onclick=null;o.classList.add('out');setTimeout(()=>{o.hidden=true;o.classList.remove('out');eyeUntil=0;if(V)renderGame()},600)};
  o.onclick=()=>{if(Date.now()-t0>=(reduced?800:3750))close()};
  eyeT=setTimeout(close,D-600)}
-function renderActs(){const myT=V&&V.mt&&!V.ov;let h='';
+function renderActs(){const myT=V&&V.mt&&!V.ov&&M.mode!=='watch';let h='';$('emoBtn').hidden=M.mode==='watch';
+ if(M.mode==='watch'){$('acts').innerHTML=V&&V.ov?'':'<span class="watchnote">You are watching. Hands stay hidden.</span>';return}
  if(myT&&V.ph==='play'&&sel!=null&&!pending)h=`<button class="gb green" id="aPlay">Play to ${COL[cC(sel)].n}</button><button class="gb gray" id="aDisc">Discard</button>`;
  else if(V&&V.ov)h=`<button class="gb" id="aAgain">${M.mode==='ai'?'Battle again':'Rematch'}</button>`;
  else if(myT&&!pending){const p=V.pw||{sab:[0,0],rush:[0,0]};
@@ -1028,7 +1060,7 @@ function updateRmNote(){const n=$('rmNote');if(!n||!V)return;n.textContent=M.mod
 
 /* ================= Actions ================= */
 function act(kind,arg,x,el){
- if(!V||V.ov||pending)return;armed=null;
+ if(!V||V.ov||pending||M.mode==='watch')return;armed=null;
  if(kind==='eye'){if(!V.mt||Date.now()<eyeUntil)return;
   if(M.mode==='ai'){if(!okEye(M.S,0))return;doEye(M.S,0);afterLocal()}
   else if(M.mode==='online'){if(NET.send({t:'move',seq:V.seq,a:'eye'}))pending=true;renderActs()}
@@ -1068,7 +1100,8 @@ function again(){$('over').hidden=true;
  if(M.closed||M.oppLeft||!NET.ready){toast('Your opponent has left. Find a new match from the lobby.');showResult();return}
  if(NET.send({t:'rematch'}))M.iWantRm=V.gid;
  showResult()}
-function askLeave(){if(V&&!V.ov&&(M.mode==='ai'||M.mode==='online')){
+function askLeave(){if(M.mode==='watch'){stopWatching(true);return}
+ if(V&&!V.ov&&(M.mode==='ai'||M.mode==='online')){
   $('leaveMsg').textContent=vsCpu()?'Leaving a battle against the computer is free. It will not count as a win or a loss.':'Leaving now counts as a loss.';openSheet('leaveSheet')}else goHome()}
 function forfeit(){closeSheets();if(!V||V.ov){goHome();return}
  if(vsCpu()){goHome();return} // a battle against the computer: nothing is recorded and no trophies change
@@ -1188,7 +1221,7 @@ $('keyRestore').onclick=()=>{
  RESTORE.prev=KEY;ST.set('ft-restore',KEY);KEY=k;ST.set('ft-key',k);paintKey();keyNote('Restoring…');NET.reconnect()};
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{if(b.getAttribute('aria-selected')!=='true')sfx('ui');setTab(b.dataset.tab)});
 $('clkpick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;clkSet=+b.dataset.clk;ST.set('ft-clock',clkSet);paintPicker();sfx('select')});
-const goHome=(quiet)=>{leaveRoom();if(!quiet){if(M.mode==='online')NET.raw({t:'leave_match'});else if(M.mode==='queue')NET.raw({t:'unqueue'});else if(M.mode==='room')NET.raw({t:'cancel_room'});else if(M.mode==='cupwait')NET.raw({t:'unqueue'})}
+const goHome=(quiet)=>{leaveRoom();if(!quiet){if(M.mode==='online')NET.raw({t:'leave_match'});else if(M.mode==='queue')NET.raw({t:'unqueue'});else if(M.mode==='room')NET.raw({t:'cancel_room'});else if(M.mode==='cupwait')NET.raw({t:'unqueue'});else if(M.mode==='watch')NET.raw({t:'unwatch'})}
  if(M.mode==='online')SS.set('ft-resume',null);M={mode:'home'};V=null;prevGid=null;sel=null;pending=false;show('home');renderHome()};
 $('waitCancel').onclick=()=>{sfx('ui');goHome()};
 $('leave').onclick=()=>{sfx('ui');askLeave()};

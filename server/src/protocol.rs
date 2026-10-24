@@ -90,6 +90,12 @@ pub enum ClientMsg {
         code: String,
         m: usize,
     },
+    /// Watch cup match `m` while it is being played.
+    Watch {
+        code: String,
+        m: usize,
+    },
+    Unwatch,
     /// While waiting in the quick-match queue: play the computer instead.
     Bot,
     /// Rename and update the trophy count shown to opponents. The server answers a name
@@ -253,6 +259,8 @@ mod tests {
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"cup_create","name":"Sat","format":"rr","clock":300}"#), Ok(ClientMsg::CupCreate { .. })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"cup_play","code":"ABCDEF","m":2}"#), Ok(ClientMsg::CupPlay { m: 2, .. })));
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"cup_list"}"#), Ok(ClientMsg::CupList)));
+        assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"watch","code":"ABCDEF","m":0}"#), Ok(ClientMsg::Watch { .. })));
+        assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"unwatch"}"#), Ok(ClientMsg::Unwatch)));
         assert_eq!(clean_cup_code(" abcdef "), Some("ABCDEF".into()));
         assert_eq!(clean_cup_code("ABCDE"), None);
         assert!(matches!(serde_json::from_str::<ClientMsg>(r#"{"t":"equip","kind":"back","item":"dots"}"#), Ok(ClientMsg::Equip { .. })));

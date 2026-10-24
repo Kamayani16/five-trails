@@ -38,7 +38,13 @@ pub enum MatchCmd {
     Leave { seat: usize, conn: ConnId },
     Detach { seat: usize, conn: ConnId },
     Attach { seat: usize, conn: ConnId, tx: ConnTx },
+    /// A spectator starts or stops watching.
+    Watch { conn: ConnId, tx: ConnTx },
+    Unwatch { conn: ConnId },
 }
+
+/// Most spectators one match will take.
+const MAX_SPECTATORS: usize = 20;
 
 #[derive(Clone, Debug)]
 pub enum MatchKind {
@@ -98,6 +104,8 @@ pub struct MatchRoom {
     bot_pause: Option<u64>,
     /// When the current game began.
     started: Instant,
+    /// Connections watching this match (they see public information only).
+    spectators: Vec<(ConnId, ConnTx)>,
 }
 
 fn send(tx: &Option<ConnTx>, text: String) {
@@ -135,6 +143,7 @@ impl MatchRoom {
             bot_due: None,
             bot_pause: None,
             started: now,
+            spectators: Vec::new(),
         }
     }
 
@@ -153,6 +162,9 @@ impl MatchRoom {
                 },
                 _ = tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)) => self.on_timer(Instant::now()),
             }
+        }
+        for (_, tx) in &self.spectators {
+            let _ = tx.try_send(ConnCtl::Send(protocol::msg(json!({ "t": "watch_end" }))));
         }
         for p in &self.players {
             send(&p.tx, protocol::msg(json!({ "t": "closed" })));
@@ -363,6 +375,25 @@ impl MatchRoom {
                     }
                 }
             }
+            MatchCmd::Watch { conn, tx } => {
+                if !self.spectators.iter().any(|(c, _)| *c == conn) {
+                    if self.spectators.len() >= MAX_SPECTATORS {
+                        let _ = tx.try_send(ConnCtl::Send(protocol::error("watch_full")));
+                        let _ = tx.try_send(ConnCtl::Send(protocol::msg(json!({ "t": "watch_end" }))));
+                        return;
+                    }
+                    self.spectators.push((conn, tx.clone()));
+                }
+                self.send_watch_start(&tx, now);
+                self.send_watchers();
+            }
+            MatchCmd::Unwatch { conn } => {
+                let before = self.spectators.len();
+                self.spectators.retain(|(c, _)| *c != conn);
+                if self.spectators.len() != before {
+                    self.send_watchers();
+                }
+            }
             MatchCmd::Emote { seat, conn, k } => {
                 if !self.is_current(seat, conn) || k >= EMOTE_COUNT {
                     return;
@@ -373,6 +404,7 @@ impl MatchRoom {
                 }
                 p.last_emote = Some(now);
                 send(&self.players[1 - seat].tx, protocol::msg(json!({ "t": "emote", "k": k })));
+                self.to_spectators(&protocol::msg(json!({ "t": "emote", "side": seat, "k": k })));
             }
             MatchCmd::Forfeit { seat, conn } => {
                 if self.is_current(seat, conn) && !self.game.over {
@@ -546,6 +578,38 @@ impl MatchRoom {
     fn broadcast_state(&self, now: Instant) {
         for seat in 0..2 {
             self.send_state(seat, now);
+        }
+        if !self.spectators.is_empty() {
+            self.to_spectators(&protocol::msg(json!({ "t": "watch_state", "view": self.game.spectator_view(now) })));
+        }
+    }
+
+    fn to_spectators(&self, text: &str) {
+        for (_, tx) in &self.spectators {
+            let _ = tx.try_send(ConnCtl::Send(text.to_owned()));
+        }
+    }
+
+    fn send_watch_start(&self, tx: &ConnTx, now: Instant) {
+        let (kind, code, m) = match &self.kind {
+            MatchKind::Cup(c, i) => ("cup", Some(c.as_str()), Some(*i)),
+            MatchKind::Room(c) => ("room", Some(c.as_str()), None),
+            MatchKind::Quick => ("quick", None, None),
+            MatchKind::Bot(_) => ("bot", None, None),
+        };
+        let m = json!({
+            "t": "watch_start", "view": self.game.spectator_view(now),
+            "players": [self.players[0].profile.to_json(), self.players[1].profile.to_json()],
+            "kind": kind, "code": code, "cupMatch": m, "clock": self.base.map_or(0, |b| b.as_secs()),
+        });
+        let _ = tx.try_send(ConnCtl::Send(protocol::msg(m)));
+    }
+
+    /// Tell both players how many people are watching.
+    fn send_watchers(&self) {
+        let text = protocol::msg(json!({ "t": "watchers", "n": self.spectators.len() }));
+        for p in &self.players {
+            send(&p.tx, text.clone());
         }
     }
 

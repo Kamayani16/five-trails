@@ -782,3 +782,15 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .champ span{font-size:12px;color:var(--ink2)}
 #cupSheet>.pn{max-width:460px}
 .cupbtns .gb{font-size:17px;padding-inline:6px;white-space:nowrap}
+
+/* ================= Spectators ================= */
+.gtag{display:flex;align-items:center;justify-content:center;gap:8px}
+.watchn{display:inline-flex;align-items:center;gap:3px;font-family:var(--display);font-size:13px;color:#fff;background:rgba(8,22,80,.55);border:2px solid var(--ol);border-radius:999px;padding:1px 8px 2px;-webkit-text-stroke:0;text-shadow:none}
+.watchn svg{width:16px;height:16px}
+.whand{display:flex;justify-content:center;align-items:center;gap:0;min-height:56px;width:100%;grid-column:1/-1}
+.whand .back{width:30px;height:44px;border-radius:6px}
+.whand .back+.back{margin-left:-12px}
+.watchnote{display:block;text-align:center;font-size:12px;color:#c9d7f5;padding:6px}
+.livedot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff3b5c;margin-right:5px;vertical-align:1px;box-shadow:0 0 0 0 rgba(255,59,92,.6);animation:liveP 1.4s ease-out infinite}
+@keyframes liveP{70%{box-shadow:0 0 0 6px rgba(255,59,92,0)}100%{box-shadow:0 0 0 0 rgba(255,59,92,0)}}
+.livetag{font-weight:900;color:#d61f3f}
