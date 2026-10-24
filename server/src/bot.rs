@@ -32,8 +32,8 @@ impl Step {
     pub fn pause_after_ms(self) -> u64 {
         match self {
             Step::Rush => 1200,
-            // The 8-second take-over plays on both screens, so the computer waits for it.
-            Step::Sabotage | Step::Eye => 8600,
+            // The take-over (about 4.5 s, then held until a tap) plays on both screens, so the computer waits.
+            Step::Sabotage | Step::Eye => 6600,
             Step::Play(..) => 800,
             Step::Draw(_) => 0,
         }

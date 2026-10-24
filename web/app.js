@@ -155,7 +155,7 @@ function tone(f,dur,type='sine',vol=.15,when=0,to){const a=ac();if(!a)return;con
 function noise(dur,freq,ftype='bandpass',vol=.25,q=1,when=0,to){const a=ac();if(!a)return;const t=a.currentTime+when,n=Math.floor(a.sampleRate*dur),b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);
  for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource();s.buffer=b;const f=a.createBiquadFilter();f.type=ftype;f.frequency.setValueAtTime(freq,t);if(to)f.frequency.exponentialRampToValueAtTime(to,t+dur);f.Q.value=q;
  const g=a.createGain();g.gain.value=vol;s.connect(f).connect(g).connect(a.destination);s.start(t)}
-const SLO=(fn)=>()=>{const T=1.5;const t0=tone,n0=noise;return fn((f,d,ty,v,w=0,g)=>t0(f,d*T,ty,v,w*T,g),(d,f,ty,v,q,w=0,g)=>n0(d*T,f,ty,v,q,w*T,g))};
+const SLO=(fn)=>()=>{const T=1.125;const t0=tone,n0=noise;return fn((f,d,ty,v,w=0,g)=>t0(f,d*T,ty,v,w*T,g),(d,f,ty,v,q,w=0,g)=>n0(d*T,f,ty,v,q,w*T,g))};
 const SFX={
  ui:()=>{tone(660,.05,'triangle',.08);tone(990,.07,'triangle',.06,.035)},
  select:()=>tone(880,.05,'triangle',.06),
@@ -830,10 +830,10 @@ function powerScene(ev,opp){const o=$('eye');if(!o)return;const sab=ev.k==='sab'
   <div class="ey-fan">${fan}<div class="ey-beam"></div><div class="sb-slash"></div><div class="sb-slash s2"></div></div>
   <div class="ey-cap ${sab?'ol':''}"><b class="${sab?'':'ol'}">${esc(nm)}</b>${cap}</div><div class="ey-flash"></div>`;
  o.hidden=false;sfx(sab?'sabx':'eye');
- if(!reduced){if(sab)setTimeout(()=>shake(3),4425);setTimeout(()=>burst(innerWidth/2,innerHeight*.62,sab?['#c58bff','#7a2bff','#fff']:['#ffe9a8','#f6c453','#fff','#c9b6ff'],sab?34:30,{sp:sab?7:5}),4470);if(sab){setTimeout(()=>shake(2),2850);setTimeout(()=>shake(2),3450);setTimeout(()=>burst(innerWidth/2,innerHeight*.5,['#d9a6ff','#fff','#7a2bff'],30,{sp:9}),5100)}}
- // The reveal lands at about 4.4 s and then holds until a tap (or 15 s, since a turn clock may be running).
+ if(!reduced){if(sab)setTimeout(()=>shake(3),3320);setTimeout(()=>burst(innerWidth/2,innerHeight*.62,sab?['#c58bff','#7a2bff','#fff']:['#ffe9a8','#f6c453','#fff','#c9b6ff'],sab?34:30,{sp:sab?7:5}),3350);if(sab){setTimeout(()=>shake(2),2140);setTimeout(()=>shake(2),2590);setTimeout(()=>burst(innerWidth/2,innerHeight*.5,['#d9a6ff','#fff','#7a2bff'],30,{sp:9}),3825)}}
+ // The reveal lands at about 3.3 s and then holds until a tap (or 15 s, since a turn clock may be running).
  let closing=false;const close=()=>{if(closing)return;closing=true;clearTimeout(eyeT);o.onclick=null;o.classList.add('out');setTimeout(()=>{o.hidden=true;o.classList.remove('out');eyeUntil=0;if(V)renderGame()},600)};
- o.onclick=()=>{if(Date.now()-t0>=(reduced?800:5000))close()};
+ o.onclick=()=>{if(Date.now()-t0>=(reduced?800:3750))close()};
  eyeT=setTimeout(close,D-600)}
 function renderActs(){const myT=V&&V.mt&&!V.ov;let h='';
  if(myT&&V.ph==='play'&&sel!=null&&!pending)h=`<button class="gb green" id="aPlay">Play to ${COL[cC(sel)].n}</button><button class="gb gray" id="aDisc">Discard</button>`;
@@ -949,8 +949,8 @@ function scheduleAi(){clearTimeout(aiT);const S=M.S;if(S.over||S.turn!==1)return
  const rr=()=>{freshView(S);renderGame()};
  const playStep=()=>{if(!alive())return;if(Date.now()<eyeUntil){aiT=setTimeout(playStep,300);return}const b=aiChoosePlay(S,AI_NOISE[M.tier||0]);doPlay(S,1,b.id,b.x);rr();
   aiT=setTimeout(()=>{if(!alive())return;doDraw(S,1,aiChooseDraw(S));rr()},780)};
- const eyeStep=()=>{if(!alive())return;if(okEye(S,1)&&Math.random()<.22){doEye(S,1);rr();aiT=setTimeout(playStep,8600)}else playStep()};
- const sabStep=()=>{if(!alive())return;const L=S.deck.length;if(okSab(S,1)&&L<=30&&L>=6&&Math.random()<.25){doSab(S,1);rr();aiT=setTimeout(eyeStep,8600)}else eyeStep()};
+ const eyeStep=()=>{if(!alive())return;if(okEye(S,1)&&Math.random()<.22){doEye(S,1);rr();aiT=setTimeout(playStep,6600)}else playStep()};
+ const sabStep=()=>{if(!alive())return;const L=S.deck.length;if(okSab(S,1)&&L<=30&&L>=6&&Math.random()<.25){doSab(S,1);rr();aiT=setTimeout(eyeStep,6600)}else eyeStep()};
  const wait=Math.max(850,(S.t0||0)-Date.now()+1300);
  aiT=setTimeout(()=>{if(!alive())return;if(okRush(S,1)&&S.deck.length<=34&&Math.random()<.2){doRush(S,1);rr();aiT=setTimeout(sabStep,1200)}else sabStep()},wait)}
 function again(){$('over').hidden=true;
