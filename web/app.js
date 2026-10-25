@@ -278,13 +278,13 @@ const SHOPN={classic:'Classic Blue',peach:'Peach Sorbet',slate:'Slate Night',can
  stripes:'Classic Stripes',dots:'Polka Dots',chevron:'Chevron',paws:'Paw Prints',stars:'Stars & Moon',flames:'Flames',bolt:'Lightning Bolt',circuit:'Circuit Board',crest:'Golden Crest',summit:'Summit Crown',laurel:'Champion\u2019s Laurel'};
 const AI_BACKS=['stripes','dots','chevron','paws','flames','circuit','crest'];
 const okItem=(id,kind)=>SHOP0.some(i=>i.id===id&&i.kind===kind);
-let EQ={table:'classic',back:'stripes'},shopTab='table',shopArmed=null;
+let EQ={table:'classic',back:'stripes'},shopTab='table',shopArmed=null,shopNeed=null,needPaidFor=null;
 function shopItems(){if(ME&&ME.shop)return ME.shop.items;const t=Math.max(REC.best,REC.tr);return SHOP0.map(i=>({...i,have:i.cup?false:i.tr?t>=i.tr:i.price===0}))}
 function applyTheme(){const b=document.body;[...b.classList].filter(c=>c.startsWith('tb-')).forEach(c=>b.classList.remove(c));b.classList.add('tb-'+EQ.table)}
 function setBk(el,id){if(!el)return;[...el.classList].filter(c=>c.startsWith('bk-')).forEach(c=>el.classList.remove(c));if(id&&id!=='stripes')el.classList.add('bk-'+id)}
 function oppBack(){if(M&&M.mode==='ai')return AI_BACKS[Math.min(AI_BACKS.length-1,M.tier||0)];return M&&M.opp&&okItem(M.opp.back,'back')?M.opp.back:'stripes'}
 function equipLocal(kind,id){EQ[kind]=id;ST.set('ft-'+kind,id);applyTheme()}
-function renderShop(){const body=$('shopBody');if(!body)return;if(shopTab==='coins'&&!iapReady())shopTab='table';const items=shopItems().filter(i=>i.kind===shopTab),coins=ME?ME.coins:null;
+function renderShop(){const body=$('shopBody');if(!body)return;if(shopNeed){renderNeed(body);return}if(shopTab==='coins'&&!iapReady())shopTab='table';const items=shopItems().filter(i=>i.kind===shopTab),coins=ME?ME.coins:null;
  const sw=id=>shopTab==='table'?`<div class="tsw tb-${id}">${[0,1,2,3,4].map(c=>`<i style="left:${20+c*13}%;background:${COL[c].cc}"></i>`).join('')}</div>`:`<div class="back bkp bk-${id}"></div>`;
  const chip=i=>{if(EQ[i.kind]===i.id)return'<span class="pr own">In use</span>';if(i.have)return'<span class="pr use">Use</span>';
   if(i.cup)return`<span class="pr lock">Win a cup</span>`;
@@ -325,7 +325,8 @@ async function iapBuy(id,el){const C=window.CdvPurchase,st=iapStore();if(!st)ret
  try{const err=await offer.order();if(err&&err.code!==C.ErrorCode.PAYMENT_CANCELLED){sfx('bad');toast(err.message||'The purchase did not go through.')}}catch(e){sfx('bad');toast('The purchase did not go through.')}}
 let iapFrom=null;
 function onIapOk(m){const tx=String(m.tx||''),t=IAP_PENDING[tx];if(t){try{t.finish()}catch(e){}delete IAP_PENDING[tx]}
- const added=numOf(m.added);if(added>0){sfx('levelup');callout(`+${added.toLocaleString()} coins`,'#ffd23a','Thank you!');depositCoins(added,iapFrom,Math.max(0,numOf(m.coins)-added));iapFrom=null}}
+ const added=numOf(m.added);if(added>0){sfx('levelup');callout(`+${added.toLocaleString()} coins`,'#ffd23a','Thank you!');depositCoins(added,iapFrom,Math.max(0,numOf(m.coins)-added));iapFrom=null;
+  if(needPaidFor){const id=needPaidFor,it=SHOP0.find(i=>i.id===id);needPaidFor=null;setTimeout(()=>{shopNeed=null;if(it)shopTab=it.kind;shopArmed=id;if(!$('shopSheet').hidden)renderShop();toast(`Tap ${SHOPN[id]} again to buy it.`)},1800)}}}
 const IAP_TRIES={};
 function onIapFail(m){const tx=String(m.tx||''),code=String(m.code||'');
  // Apple may need a moment to know a brand-new purchase: keep it open and ask again a few times.
@@ -333,13 +334,37 @@ function onIapFail(m){const tx=String(m.tx||''),code=String(m.code||'');
  if(code==='iap_retry'){toast('Apple has not confirmed the purchase yet. Your coins will be added shortly.');setTimeout(()=>{if(IAP_PENDING[tx])iapSend(tx)},30000);return}
  const t=IAP_PENDING[tx];if(t&&code!=='iap_off'){try{t.finish()}catch(e){}delete IAP_PENDING[tx]}
  sfx('bad');toast(code==='iap_other_account'?'That purchase belongs to another account.':code==='iap_revoked'?'That purchase was refunded.':code==='iap_off'?'Purchases are not set up on this server yet.':'That purchase could not be confirmed. Contact support if you were charged.')}
+
+/* "Not enough coins": what is missing, and two equal ways to get there (pay or play). */
+function needPack(short){if(!iapReady())return null;const ok=IAP_PACKS.filter(p=>p.coins>=short).sort((a,b)=>a.coins-b.coins);return ok[0]||IAP_PACKS.slice().sort((a,b)=>b.coins-a.coins)[0]}
+function renderNeed(body){const it=SHOP0.find(i=>i.id===shopNeed);if(!it||!ME){shopNeed=null;renderShop();return}
+ const short=Math.max(0,it.price-ME.coins);if(!short){shopNeed=null;shopArmed=it.id;renderShop();return}
+ const pack=needPack(short),wins=Math.ceil(short/15),chest=ME.chest&&ME.chest.n>0,quests=[...ME.daily,...ME.weekly].filter(x=>x.have>=x.need&&!x.claimed),qc=quests.reduce((a,x)=>a+x.coins,0);
+ const prev=it.kind==='table'?`<div class="tsw tb-${it.id}">${[0,1,2,3,4].map(c=>`<i style="left:${20+c*13}%;background:${COL[c].cc}"></i>`).join('')}</div>`:`<div class="back bkp bk-${it.id}"></div>`;
+ const online=M.mode==='home'&&NET.ready;
+ body.innerHTML=`<div class="need">
+  <div class="need-top"><div class="need-prev">${prev}</div><div><b>${esc(SHOPN[it.id]||it.id)}</b><span>${COIN}${it.price}</span></div></div>
+  <div class="need-bar"><div class="bar"><i style="width:${Math.min(100,ME.coins/it.price*100)}%"></i><b class="ols">${ME.coins} / ${it.price}</b></div><p><b>${short}</b> more coins to go</p></div>
+  ${pack?`<div class="need-opt pay"><div class="no-h">Get coins now</div><button class="gb green" id="needPay" type="button"><span>${pack.coins.toLocaleString()} coins</span><small>${iapPrice(pack.id)}</small></button><p class="note">Paid through the App Store. Your ${esc(SHOPN[it.id])} is ready to buy as soon as the coins land.</p></div>`:''}
+  <div class="need-opt earn"><div class="no-h">${pack?'Or earn them':'Earn them'}</div>
+   ${chest?`<button class="gb sm" id="needChest" type="button">Open your free chest · +${ME.chest.coins}</button>`:''}
+   ${qc?`<button class="gb sm" id="needQuest" type="button">Collect quest rewards · +${qc}</button>`:''}
+   <button class="gb blue sm" id="needPlay" type="button">${DEMO?'Battle the computer':'Play online'} · +15 a win</button>
+   <p class="note">About ${wins} win${wins===1?'':'s'}${chest||qc?' (fewer with your chest and quests)':''}. A loss still pays 5.</p></div>
+  <button class="linkbtn" id="needBack" type="button">Back to the shop</button></div>`;
+ const close=()=>{shopNeed=null;renderShop()};
+ $('needBack').onclick=()=>{sfx('ui');close()};
+ const pay=$('needPay');if(pay)pay.onclick=()=>{needPaidFor=it.id;iapBuy(pack.id,pay)};
+ const ch=$('needChest');if(ch)ch.onclick=()=>{sfx('ui');if(DEMO)demoClaimChest();else NET.send({t:'claim_chest'});setTimeout(()=>{if(shopNeed)renderShop()},2600)};
+ const qu=$('needQuest');if(qu)qu.onclick=()=>{sfx('ui');shopNeed=null;renderQuests();openSheet('questSheet')};
+ $('needPlay').onclick=()=>{sfx('ui');shopNeed=null;closeSheets();if(DEMO)startAi();else if(online)$('quickBtn').click();else toast('Connect to the game server to play online.')}}
 function shopTap(id){const i=shopItems().find(x=>x.id===id);if(!i)return;
  if(EQ[i.kind]===id){sfx('ui');return}
  if(i.have){sfx('select');shopArmed=null;equipLocal(i.kind,id);if(ME&&NET.ready)NET.send({t:'equip',kind:i.kind,item:id});renderShop();return}
  if(i.cup){sfx('bad');toast(`Win a cup to unlock ${SHOPN[id]}.`);return}
  if(i.tr){sfx('bad');toast(`Reach ${i.tr} trophies to unlock ${SHOPN[id]}.`);return}
  if(!DEMO&&(!ME||!NET.ready)){sfx('bad');toast('Go online to buy with coins.');return}
- if(ME.coins<i.price){sfx('bad');toast(`You need ${i.price-ME.coins} more coins for ${SHOPN[id]}.`);return}
+ if(ME.coins<i.price){sfx('select');shopNeed=id;shopArmed=null;renderShop();return}
  if(shopArmed!==id){sfx('select');shopArmed=id;renderShop();return}
  shopArmed=null;if(DEMO)demoBuy(id);else NET.send({t:'buy',item:id});renderShop()}
 function onBought(m){const id=String(m.item||''),it=SHOP0.find(i=>i.id===id);if(!it)return;sfx('coin');setTimeout(()=>sfx('levelup'),120);
@@ -1262,8 +1287,8 @@ const cupJoinGo=()=>{const code=$('cupCode').value.trim().toUpperCase();if(!/^[A
  if(!NET.ready){sfx('bad');$('cupJoinNote').textContent='Connect to the game server first.';return}
  sfx('ui');cupAwaitJoin=code;NET.send({t:'cup_join',code})};
 $('cupJoinGo').onclick=cupJoinGo;$('cupCode').addEventListener('keydown',e=>{if(e.key==='Enter')cupJoinGo()});
-$('coinBox').onclick=()=>{sfx('ui');shopArmed=null;renderShop();openSheet('shopSheet')};
-$('shopOpen').onclick=()=>{sfx('ui');shopArmed=null;renderShop();openSheet('shopSheet')};
+$('coinBox').onclick=()=>{sfx('ui');shopArmed=null;shopNeed=null;renderShop();openSheet('shopSheet')};
+$('shopOpen').onclick=()=>{sfx('ui');shopArmed=null;shopNeed=null;renderShop();openSheet('shopSheet')};
 $('questBtn').onclick=()=>{sfx('ui');renderQuests();openSheet('questSheet')};
 $('botGo').onclick=()=>{sfx('ui');NET.send({t:'bot'})};
 $('botWait').onclick=()=>{sfx('ui');$('botOffer').hidden=true};

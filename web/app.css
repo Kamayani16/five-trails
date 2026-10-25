@@ -805,3 +805,20 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .si.pack .nm{font-size:13px;min-height:0}.si.pack .nm b{font-family:var(--display);font-weight:400;font-size:20px;margin-right:3px}
 .si.pack .bonus{font-size:10px;font-weight:900;color:#fff;background:var(--go2);border-radius:999px;padding:1px 7px}
 .si.pack .pr{font-size:15px;padding:3px 12px}
+
+/* ================= Not enough coins ================= */
+.need{display:flex;flex-direction:column;gap:12px}
+.need-top{display:flex;align-items:center;gap:12px}
+.need-prev{width:88px;flex-shrink:0;display:flex;justify-content:center}
+.need-prev .tsw{width:88px}.need-prev .bkp{width:52px;height:72px}
+.need-top b{display:block;font-family:var(--display);font-weight:400;font-size:22px;color:var(--ink)}
+.need-top span{display:inline-flex;align-items:center;gap:4px;font-family:var(--display);font-size:17px;color:var(--ink2)}
+.need-top span svg{width:18px;height:18px}
+.need-bar .bar{height:22px}
+.need-bar p{margin:6px 0 0;text-align:center;font-size:14px;color:var(--ink2)}.need-bar p b{font-family:var(--display);font-weight:400;font-size:18px;color:var(--ink)}
+.need-opt{border:2.5px solid var(--ol);border-radius:14px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:7px}
+.need-opt.pay{background:linear-gradient(180deg,#fffaf0,#fff1c7)}
+.no-h{font-family:var(--display);font-size:15px;color:var(--ink)}
+#needPay{display:flex;justify-content:space-between;align-items:center;font-size:18px}
+#needPay small{font-family:var(--display);font-size:16px;background:rgba(255,255,255,.25);border-radius:999px;padding:1px 10px}
+.need-opt .gb.sm{width:100%}
