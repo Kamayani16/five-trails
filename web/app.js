@@ -293,7 +293,7 @@ function renderShop(){const body=$('shopBody');if(!body)return;if(shopTab==='coi
  body.innerHTML=`<div class="shoptabs" role="tablist"><button type="button" data-st="table" class="${shopTab==='table'?'on':''}">Tables</button><button type="button" data-st="back" class="${shopTab==='back'?'on':''}">Card backs</button>${iapReady()?`<button type="button" data-st="coins" class="${shopTab==='coins'?'on':''}">Get coins</button>`:''}</div>
   ${coins!=null?`<div class="shopbal">${COIN}<span>${coins}</span></div>`:''}
   ${shopTab==='coins'?iapGridHTML():`<div class="shopgrid">${items.map(i=>`<button type="button" class="si ${EQ[i.kind]===i.id?'eq':''} ${shopArmed===i.id?'armed':''}" data-id="${i.id}" aria-label="${SHOPN[i.id]||i.id}">${sw(i.id)}<span class="nm">${SHOPN[i.id]||i.id}</span>${chip(i)}</button>`).join('')}</div>`}
-  <p class="shopnote">${shopTab==='coins'?'Paid securely through the App Store. Coins land in your piggy bank as soon as Apple confirms.':shopTab==='table'?'Your table theme changes how the game looks for you.':'Your rival sees your card back during battles.'}${ME?'':' Go online to buy with coins.'}</p>`;
+  <p class="shopnote">${shopTab==='coins'?'Paid securely through the App Store. Coins land in your piggy bank as soon as Apple confirms.':shopTab==='table'?'Your table theme changes how the game looks for you.':'Your rival sees your card back during battles.'}${DEMO?' Preview: these coins stay in this browser only.':ME?'':' Go online to buy with coins.'}</p>`;
  body.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{sfx('ui');shopTab=b.dataset.st;shopArmed=null;renderShop()});
  body.querySelectorAll('.si').forEach(b=>b.onclick=()=>shopTap(b.dataset.id));
  body.querySelectorAll('[data-pack]').forEach(b=>b.onclick=()=>iapBuy(b.dataset.pack,b))}
@@ -338,10 +338,10 @@ function shopTap(id){const i=shopItems().find(x=>x.id===id);if(!i)return;
  if(i.have){sfx('select');shopArmed=null;equipLocal(i.kind,id);if(ME&&NET.ready)NET.send({t:'equip',kind:i.kind,item:id});renderShop();return}
  if(i.cup){sfx('bad');toast(`Win a cup to unlock ${SHOPN[id]}.`);return}
  if(i.tr){sfx('bad');toast(`Reach ${i.tr} trophies to unlock ${SHOPN[id]}.`);return}
- if(!ME||!NET.ready){sfx('bad');toast('Go online to buy with coins.');return}
+ if(!DEMO&&(!ME||!NET.ready)){sfx('bad');toast('Go online to buy with coins.');return}
  if(ME.coins<i.price){sfx('bad');toast(`You need ${i.price-ME.coins} more coins for ${SHOPN[id]}.`);return}
  if(shopArmed!==id){sfx('select');shopArmed=id;renderShop();return}
- shopArmed=null;NET.send({t:'buy',item:id});renderShop()}
+ shopArmed=null;if(DEMO)demoBuy(id);else NET.send({t:'buy',item:id});renderShop()}
 function onBought(m){const id=String(m.item||''),it=SHOP0.find(i=>i.id===id);if(!it)return;sfx('coin');setTimeout(()=>sfx('levelup'),120);
  equipLocal(it.kind,id);NET.send({t:'equip',kind:it.kind,item:id});
  const el=document.querySelector(`.si[data-id="${id}"]`);if(el&&el.getBoundingClientRect().width){const[x,y]=centerOf(el);burst(x,y,['#ffd23a','#fff','#7dffa0'],26,{sp:7})}
@@ -404,7 +404,7 @@ const tot=()=>({w:REC.ai.w+REC.pvp.w,l:REC.ai.l+REC.pvp.l,d:REC.ai.d+REC.pvp.d})
 const wld=o=>`${o.w}W · ${o.l}L${o.d?` · ${o.d}D`:''}`;
 
 /* ================= Network: stateless match server ================= */
-const SERVER_URL=(()=>{const m=document.querySelector('meta[name="five-trails-server"]');const u=m&&m.content.trim();if(u)return u;
+const SERVER_URL=(()=>{if(document.querySelector('meta[name="five-trails-demo"]'))return null;const m=document.querySelector('meta[name="five-trails-server"]');const u=m&&m.content.trim();if(u)return u;
  if(location.protocol!=='http:'&&location.protocol!=='https:')return null;
  const proto=location.protocol==='https:'?'wss://':'ws://';
  const basePath=(location.pathname||'/').replace(/\/[^/]*$/, '/');
@@ -773,7 +773,7 @@ function fmtSpan(s){s=Math.max(0,Math.floor(s));const d=Math.floor(s/86400),h=Ma
 function fmtClock(s){s=Math.ceil(Math.max(0,s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),r=s%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(r).padStart(2,'0')}
 let chestState=null,meAsked=false;
 function renderRewards(){const el=$('rewards');if(!el)return;
- if(!ME||!SERVER_URL){el.hidden=true;return}
+ if(!ME||(!SERVER_URL&&!DEMO)){el.hidden=true;return}
  el.hidden=false;meAsked=false;
  $('coinBox').innerHTML=`<span class="cb-row">${PIGGY}<span class="ol">${coinAnim?coinAnim.cur:ME.coins}</span></span><small>SHOP</small>`;
  const c=ME.chest,b=$('chestBtn');chestState=c.n>0?'ready':'wait';
@@ -793,8 +793,35 @@ function renderQuests(){if(!ME)return;
  const row=x=>{const done=x.have>=x.need;return `<div class="q${done&&!x.claimed?' done':''}${x.claimed?' got':''}"><b>${esc(x.text)}</b><div class="bar"><i style="width:${Math.min(100,x.have/x.need*100)}%"></i><b class="ols">${x.have} / ${x.need}</b></div>
   <div class="qr"><span class="coinchip">${COIN}${x.coins}</span>${x.claimed?'<span class="rtag w">Done</span>':done?`<button class="gb green sm" data-claim="${esc(x.slot)}" type="button">Claim</button>`:''}</div></div>`};
  $('questBody').innerHTML=`<div class="qs"><div class="qh">Today<span>New quests in ${fmtSpan(left(ME.dailyIn))}</span></div>${ME.daily.map(row).join('')}
-  <div class="qh">This week<span>New quests in ${fmtSpan(left(ME.weeklyIn))}</span></div>${ME.weekly.map(row).join('')}
+  ${ME.weekly.length?`<div class="qh">This week<span>New quests in ${fmtSpan(left(ME.weeklyIn))}</span></div>${ME.weekly.map(row).join('')}`:''}
   <p class="note">Online, friend and computer battles count. Quitting early does not.</p></div>`}
+
+/* ================= Preview wallet =================
+   Only when the page carries <meta name="five-trails-demo"> (the shareable preview, which has no
+   game server). Coins, the free chest, a few quests and shop purchases then work in this browser
+   alone, so the economy can be tried out. Real accounts never see any of this. */
+const DEMO=!!document.querySelector('meta[name="five-trails-demo"]');
+const DEMO_CHEST_EVERY=10*60;
+const DEMO_Q=[{text:'Beat the computer',need:1,coins:30},{text:'Finish 2 battles',need:2,coins:20},{text:'Play 3 wager cards',need:3,coins:25}];
+function demoState(){const now=Date.now()/1000,day=Math.floor((now+19800)/86400);let d=ST.get('ft-demo',null);
+ if(!d||typeof d!=='object'||!d.chest)d={coins:0,owned:[],chest:{n:1,next:0},day,q:[0,0,0],qc:[false,false,false]};
+ if(d.day!==day){d.day=day;d.q=[0,0,0];d.qc=[false,false,false]}
+ if(d.chest.n<2){if(!d.chest.next)d.chest.next=now+DEMO_CHEST_EVERY;while(d.chest.n<2&&now>=d.chest.next){d.chest.n++;d.chest.next=d.chest.n<2?d.chest.next+DEMO_CHEST_EVERY:0}}else d.chest.next=0;
+ return d}
+function demoMe(){const d=demoState();ST.set('ft-demo',d);const now=Date.now()/1000,t=Math.max(REC.best,REC.tr),mid=86400-((now+19800)%86400);
+ return{coins:d.coins,chest:{n:d.chest.n,max:2,nextIn:d.chest.n<2?Math.max(0,d.chest.next-now):null,every:DEMO_CHEST_EVERY,coins:40},
+  daily:DEMO_Q.map((q,i)=>({slot:'d'+i,text:q.text,need:q.need,have:Math.min(q.need,d.q[i]),coins:q.coins,claimed:!!d.qc[i]})),weekly:[],
+  dailyIn:mid,weeklyIn:mid,season:{name:'',endsIn:0},reward:null,
+  shop:{items:SHOP0.map(i=>({...i,have:i.cup?false:i.tr?t>=i.tr:i.price===0||d.owned.includes(i.id)})),table:EQ.table,back:EQ.back},at:Date.now(),demo:true}}
+function demoRefresh(){ME=demoMe();renderRewards();if(!$('questSheet').hidden)renderQuests();if(!$('shopSheet').hidden)renderShop()}
+function demoClaimChest(){const d=demoState();if(d.chest.n<1){toast(`Your next free chest arrives in ${fmtSpan(Math.max(0,d.chest.next-Date.now()/1000))}.`);return}
+ if(d.chest.n===2)d.chest.next=Date.now()/1000+DEMO_CHEST_EVERY;d.chest.n--;d.coins+=40;ST.set('ft-demo',d);onClaimed({what:'chest',coins:40});ME=demoMe();renderRewards()}
+function demoClaimQuest(slot){const i=+String(slot).slice(1),q=DEMO_Q[i],d=demoState();if(!q||d.qc[i]||d.q[i]<q.need)return;
+ d.qc[i]=true;d.coins+=q.coins;ST.set('ft-demo',d);onClaimed({what:'quest',coins:q.coins});ME=demoMe();renderQuests();renderRewards()}
+function demoBuy(id){const it=SHOP0.find(i=>i.id===id),d=demoState();if(!it||!it.price||d.owned.includes(id))return;
+ if(d.coins<it.price){sfx('bad');toast(`You need ${it.price-d.coins} more coins.`);return}
+ d.coins-=it.price;d.owned.push(id);ST.set('ft-demo',d);ME=demoMe();onBought({item:id});renderShop();renderRewards()}
+function demoBattle(r,wagers){const d=demoState(),coins=r==='w'?15:r==='d'?8:5;d.q[0]+=r==='w'?1:0;d.q[1]+=1;d.q[2]+=wagers;d.coins+=coins;ST.set('ft-demo',d);ME=demoMe();return coins}
 function onClaimed(m){const coins=numOf(m.coins);sfx('coin');
  const el=m.what==='chest'?$('chestBtn'):document.querySelector('#questSheet:not([hidden]) .q.done')||$('questBtn');
  if(el&&el.getBoundingClientRect().width){const[x,y]=centerOf(el);burst(x,y,['#ffd23a','#fff','#ffaa00'],22,{sp:7})}
@@ -1058,7 +1085,7 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
   <div class="rscore"><div class="rs-p ${r==='w'?'win':''}">${avatarHTML(nick(),lvlInfo(REC.xp).lv)}<b class="ol">${me}</b><span>You</span></div><div class="rs-vs">vs</div><div class="rs-p ${r==='l'?'win':''}">${avatarHTML(o.name,o.lv,o.cpu)}<b class="ol">${them}</b><span>${esc(o.name)}</span></div></div>
   <div class="rcols" aria-label="Trail scores, yours on top">${lanes}</div>
   <div class="rrow">${TROPHY}<div class="bar"><i id="rTrBar"></i><b class="ols" id="rTrTxt"></b></div><span class="dchip ${info&&info.dT<0?'neg':info&&info.dT===0?'zero':''}" id="rTrD">${info?(info.dT>0?'+':'')+info.dT:'0'}</span></div>
-  <div class="rrow coinrow" id="rCoinRow">${PIGGY}<div class="bar coin"><b class="ols" id="rCoinTxt">${M.kind==='cup'&&M.mode==='online'?'Cup match · prizes when the cup ends':M.mode==='online'?'Counting coins…':'Play online to earn coins'}</b></div><span class="dchip coin" id="rCoinD" ${M.mode==='online'&&M.kind!=='cup'?'':'hidden'}>+0</span></div>
+  <div class="rrow coinrow" id="rCoinRow">${PIGGY}<div class="bar coin"><b class="ols" id="rCoinTxt">${M.kind==='cup'&&M.mode==='online'?'Cup match · prizes when the cup ends':M.mode==='online'||DEMO?'Counting coins…':'Play online to earn coins'}</b></div><span class="dchip coin" id="rCoinD" ${(M.mode==='online'&&M.kind!=='cup')||DEMO?'':'hidden'}>+0</span></div>
   <div class="rrow"><div class="lvbox ol" id="rLv">${L0.lv}</div><div class="bar xp"><i id="rXpBar"></i><b class="ols" id="rXpTxt"></b></div><span class="dchip xp">+${info?info.dX:0} XP</span></div>
   ${h?`<p class="note" style="text-align:center">Head to head with ${esc(o.name)}: ${wld(h)}</p>`:''}
   <div class="rbtns"><button class="gb green" id="oAgain">${M.mode==='ai'?'Battle again':M.kind==='cup'?'Back to cup':'Rematch'}</button><button class="gb blue" id="oHome">Lobby</button></div>
@@ -1067,6 +1094,7 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
  $('oAgain').onclick=()=>{sfx('ui');again()};$('oHome').onclick=()=>{sfx('ui');goHome()};$('oView').onclick=()=>{$('over').hidden=true};
  updateRmNote();
  if(info)animateGains(info,first);
+ if(DEMO&&M.mode==='ai'){if(first&&info){M.earned={coins:demoBattle(r,V.ex[0].flat().filter(id=>cV(id)===0).length),counted:true};renderRewards()}if(M.earned)setTimeout(()=>showEarned(first),first?2600:0)}
  if(M.mode==='online'&&M.earned)setTimeout(()=>showEarned(first),first?2600:0)}
 /* Icons that fly from one place on screen into a counter, landing one after another. */
 function flyIcons(html,fromEl,toEl,n,onHit,done){const a=fromEl&&fromEl.getBoundingClientRect(),b=toEl&&toEl.getBoundingClientRect();
@@ -1174,7 +1202,7 @@ setInterval(tickClock,100);
 /* ================= Events ================= */
 document.addEventListener('click',e=>{
  const t=e.target;
- const cl=t.closest&&t.closest('[data-claim]');if(cl){sfx('ui');NET.send({t:'claim_quest',slot:cl.dataset.claim});return}
+ const cl=t.closest&&t.closest('[data-claim]');if(cl){sfx('ui');if(DEMO)demoClaimQuest(cl.dataset.claim);else NET.send({t:'claim_quest',slot:cl.dataset.claim});return}
  if(t.closest('[data-close]')){sfx('ui');closeSheets();return}
  if(t.classList&&t.classList.contains('sheet')&&t.id!=='intro'&&t.id!=='leaveSheet'){closeSheets();return}
  const em=t.closest('[data-emo]');if(em){sendEmote(+em.dataset.emo);return}
@@ -1224,7 +1252,7 @@ $('cardPick').addEventListener('click',e=>{const b=e.target.closest('[data-cs]')
  sfx('select');cardSel=i;ST.set('ft-cards',i);applyCards();renderCardPick()});
 $('replayIntro').onclick=()=>{sfx('ui');openIntro()};
 /* ---- Rewards, quests, computer offer ---- */
-$('chestBtn').onclick=()=>{sfx('ui');if(ME&&ME.chest.n>0)NET.send({t:'claim_chest'});else if(ME&&ME.chest.nextIn!=null)toast(`Your next free chest arrives in ${fmtSpan(left(ME.chest.nextIn))}.`)};
+$('chestBtn').onclick=()=>{sfx('ui');if(DEMO){demoClaimChest();return}if(ME&&ME.chest.n>0)NET.send({t:'claim_chest'});else if(ME&&ME.chest.nextIn!=null)toast(`Your next free chest arrives in ${fmtSpan(left(ME.chest.nextIn))}.`)};
 document.querySelectorAll('#cupFmt [data-fmt]').forEach(b=>b.onclick=()=>{sfx('select');cupFmtSel=b.dataset.fmt;paintCupNew()});
 document.querySelectorAll('#cupClk [data-cclk]').forEach(b=>b.onclick=()=>{sfx('select');cupClkSel=+b.dataset.cclk;paintCupNew()});
 $('cupMake').onclick=()=>{const name=$('cupName').value.trim();if(!name){sfx('bad');toast('Give the cup a name.');return}
@@ -1276,7 +1304,7 @@ $('musTog').onclick=()=>{musicOn=!musicOn;ST.set('ft-music',musicOn);paintSound(
 $('navBattle').innerHTML=IC.swords+'Battle';$('navLeaders').innerHTML=IC.crown+'Ranks';$('navCups').innerHTML=CUPIC+'Cups';$('navRecords').innerHTML=IC.cup+'Records';$('navGuide').innerHTML=IC.book+'Guide';
 $('gearBtn').innerHTML=IC.gear;$('leave').innerHTML=IC.x;$('emoBtn').innerHTML=IC.chat;$('clkLbl').innerHTML=IC.clock+'Clock each';
 document.querySelectorAll('.xbtn').forEach(b=>b.innerHTML=IC.x);
-paintSound();paintPicker();applyCards();applyTheme();renderGuide();paintKey();paintRem();renderHome();
+paintSound();paintPicker();applyCards();applyTheme();if(DEMO){ME=demoMe();setInterval(()=>{if(ME&&ME.chest.nextIn!=null&&left(ME.chest.nextIn)<=0)demoRefresh()},1000)}renderGuide();paintKey();paintRem();renderHome();
 const hc0=(location.hash||'').slice(1).toUpperCase();if(/^[A-Z]{5}$/.test(hc0)){$('joinCode').value=hc0}
 const hcup=/^CUP-([A-Z]{6})$/.exec(hc0);if(hcup){setTab('cups');$('cupCode').value=hcup[1];setTimeout(()=>{if($('intro').hidden)openSheet('cupJoinSheet')},600)}
 if(!ST.get('ft-intro',false))openIntro();else if(/^[A-Z]{5}$/.test(hc0))openSheet('friendSheet');
