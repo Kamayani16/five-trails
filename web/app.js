@@ -284,18 +284,55 @@ function applyTheme(){const b=document.body;[...b.classList].filter(c=>c.startsW
 function setBk(el,id){if(!el)return;[...el.classList].filter(c=>c.startsWith('bk-')).forEach(c=>el.classList.remove(c));if(id&&id!=='stripes')el.classList.add('bk-'+id)}
 function oppBack(){if(M&&M.mode==='ai')return AI_BACKS[Math.min(AI_BACKS.length-1,M.tier||0)];return M&&M.opp&&okItem(M.opp.back,'back')?M.opp.back:'stripes'}
 function equipLocal(kind,id){EQ[kind]=id;ST.set('ft-'+kind,id);applyTheme()}
-function renderShop(){const body=$('shopBody');if(!body)return;const items=shopItems().filter(i=>i.kind===shopTab),coins=ME?ME.coins:null;
+function renderShop(){const body=$('shopBody');if(!body)return;if(shopTab==='coins'&&!iapReady())shopTab='table';const items=shopItems().filter(i=>i.kind===shopTab),coins=ME?ME.coins:null;
  const sw=id=>shopTab==='table'?`<div class="tsw tb-${id}">${[0,1,2,3,4].map(c=>`<i style="left:${20+c*13}%;background:${COL[c].cc}"></i>`).join('')}</div>`:`<div class="back bkp bk-${id}"></div>`;
  const chip=i=>{if(EQ[i.kind]===i.id)return'<span class="pr own">In use</span>';if(i.have)return'<span class="pr use">Use</span>';
   if(i.cup)return`<span class="pr lock">Win a cup</span>`;
   if(i.tr)return`<span class="pr lock">${IC.cup}${i.tr}</span>`;if(shopArmed===i.id)return`<span class="pr buy">Buy? ${COIN}${i.price}</span>`;
   return`<span class="pr buy ${coins!=null&&coins<i.price?'poor':''}">${COIN}${i.price}</span>`};
- body.innerHTML=`<div class="shoptabs" role="tablist"><button type="button" data-st="table" class="${shopTab==='table'?'on':''}">Tables</button><button type="button" data-st="back" class="${shopTab==='back'?'on':''}">Card backs</button></div>
+ body.innerHTML=`<div class="shoptabs" role="tablist"><button type="button" data-st="table" class="${shopTab==='table'?'on':''}">Tables</button><button type="button" data-st="back" class="${shopTab==='back'?'on':''}">Card backs</button>${iapReady()?`<button type="button" data-st="coins" class="${shopTab==='coins'?'on':''}">Get coins</button>`:''}</div>
   ${coins!=null?`<div class="shopbal">${COIN}<span>${coins}</span></div>`:''}
-  <div class="shopgrid">${items.map(i=>`<button type="button" class="si ${EQ[i.kind]===i.id?'eq':''} ${shopArmed===i.id?'armed':''}" data-id="${i.id}" aria-label="${SHOPN[i.id]||i.id}">${sw(i.id)}<span class="nm">${SHOPN[i.id]||i.id}</span>${chip(i)}</button>`).join('')}</div>
-  <p class="shopnote">${shopTab==='table'?'Your table theme changes how the game looks for you.':'Your rival sees your card back during battles.'}${ME?'':' Go online to buy with coins.'}</p>`;
+  ${shopTab==='coins'?iapGridHTML():`<div class="shopgrid">${items.map(i=>`<button type="button" class="si ${EQ[i.kind]===i.id?'eq':''} ${shopArmed===i.id?'armed':''}" data-id="${i.id}" aria-label="${SHOPN[i.id]||i.id}">${sw(i.id)}<span class="nm">${SHOPN[i.id]||i.id}</span>${chip(i)}</button>`).join('')}</div>`}
+  <p class="shopnote">${shopTab==='coins'?'Paid securely through the App Store. Coins land in your piggy bank as soon as Apple confirms.':shopTab==='table'?'Your table theme changes how the game looks for you.':'Your rival sees your card back during battles.'}${ME?'':' Go online to buy with coins.'}</p>`;
  body.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{sfx('ui');shopTab=b.dataset.st;shopArmed=null;renderShop()});
- body.querySelectorAll('.si').forEach(b=>b.onclick=()=>shopTap(b.dataset.id))}
+ body.querySelectorAll('.si').forEach(b=>b.onclick=()=>shopTap(b.dataset.id));
+ body.querySelectorAll('[data-pack]').forEach(b=>b.onclick=()=>iapBuy(b.dataset.pack,b))}
+/* ================= Coin packs: App Store purchases inside the iPhone app =================
+   Uses the free cordova-plugin-purchase (window.CdvPurchase), which only exists in the iPhone
+   app. The server checks every purchase with Apple before adding coins, and replays of a
+   purchase it already paid are answered at once so the app can close them. */
+let IAP_PACKS=null,iapStarted=false;const IAP_PENDING={};
+const IAP_EXTRA={coins_1000:'+11% bonus',coins_1800:'+20% bonus',coins_4000:'+33% · best value'};
+const iapStore=()=>window.CdvPurchase&&window.CdvPurchase.store||null;
+function iapReady(){return !!(IAP_PACKS&&IAP_PACKS.length&&iapStore())}
+function iapStart(){const st=iapStore();if(iapStarted||!st||!IAP_PACKS)return;iapStarted=true;const C=window.CdvPurchase;
+ try{st.register(IAP_PACKS.map(p=>({id:p.id,type:C.ProductType.CONSUMABLE,platform:C.Platform.APPLE_APPSTORE})));
+  st.when().productUpdated(()=>{if(!$('shopSheet').hidden&&shopTab==='coins')renderShop()})
+   .approved(tx=>{if(!tx||!tx.transactionId)return;IAP_PENDING[tx.transactionId]=tx;iapSend(tx.transactionId)});
+  st.error(e=>{if(e&&e.code!==C.ErrorCode.PAYMENT_CANCELLED)console.warn('store',e&&e.message)});
+  st.initialize([C.Platform.APPLE_APPSTORE]).catch(()=>{})}catch(e){console.warn('purchases unavailable',e)}}
+function iapSend(tx){if(NET.ready)NET.send({t:'iap_verify',tx});}
+function iapResend(){Object.keys(IAP_PENDING).forEach(iapSend)}
+function iapPrice(id){try{const C=window.CdvPurchase,p=iapStore().get(id,C.Platform.APPLE_APPSTORE),pr=p&&p.pricing;return pr&&pr.price?esc(pr.price):'…'}catch(e){return'…'}}
+function iapGridHTML(){return`<div class="shopgrid packs">${IAP_PACKS.map((p,i)=>`<button type="button" class="si pack" data-pack="${p.id}" aria-label="${p.coins} coins">
+  <div class="packart" style="--n:${i}">${Array.from({length:Math.min(5,i+2)},(_,k)=>`<span style="--k:${k}">${COIN}</span>`).join('')}</div>
+  <span class="nm"><b>${p.coins.toLocaleString()}</b> coins</span>${IAP_EXTRA[p.id]?`<small class="bonus">${IAP_EXTRA[p.id]}</small>`:''}<span class="pr buy">${iapPrice(p.id)}</span></button>`).join('')}</div>`}
+async function iapBuy(id,el){const C=window.CdvPurchase,st=iapStore();if(!st)return;
+ if(!NET.ready){sfx('bad');toast('Connect to the game server first, so your coins can be added.');return}
+ const p=st.get(id,C.Platform.APPLE_APPSTORE),offer=p&&p.getOffer();
+ if(!offer){sfx('bad');toast('That pack is not available from the App Store right now.');return}
+ sfx('ui');iapFrom=el;
+ try{const err=await offer.order();if(err&&err.code!==C.ErrorCode.PAYMENT_CANCELLED){sfx('bad');toast(err.message||'The purchase did not go through.')}}catch(e){sfx('bad');toast('The purchase did not go through.')}}
+let iapFrom=null;
+function onIapOk(m){const tx=String(m.tx||''),t=IAP_PENDING[tx];if(t){try{t.finish()}catch(e){}delete IAP_PENDING[tx]}
+ const added=numOf(m.added);if(added>0){sfx('levelup');callout(`+${added.toLocaleString()} coins`,'#ffd23a','Thank you!');depositCoins(added,iapFrom,Math.max(0,numOf(m.coins)-added));iapFrom=null}}
+const IAP_TRIES={};
+function onIapFail(m){const tx=String(m.tx||''),code=String(m.code||'');
+ // Apple may need a moment to know a brand-new purchase: keep it open and ask again a few times.
+ if(code==='iap_not_found'&&IAP_PENDING[tx]&&(IAP_TRIES[tx]=(IAP_TRIES[tx]||0)+1)<=5){toast('Apple has not confirmed the purchase yet. Your coins will be added shortly.');setTimeout(()=>{if(IAP_PENDING[tx])iapSend(tx)},20000*IAP_TRIES[tx]);return}
+ if(code==='iap_retry'){toast('Apple has not confirmed the purchase yet. Your coins will be added shortly.');setTimeout(()=>{if(IAP_PENDING[tx])iapSend(tx)},30000);return}
+ const t=IAP_PENDING[tx];if(t&&code!=='iap_off'){try{t.finish()}catch(e){}delete IAP_PENDING[tx]}
+ sfx('bad');toast(code==='iap_other_account'?'That purchase belongs to another account.':code==='iap_revoked'?'That purchase was refunded.':code==='iap_off'?'Purchases are not set up on this server yet.':'That purchase could not be confirmed. Contact support if you were charged.')}
 function shopTap(id){const i=shopItems().find(x=>x.id===id);if(!i)return;
  if(EQ[i.kind]===id){sfx('ui');return}
  if(i.have){sfx('select');shopArmed=null;equipLocal(i.kind,id);if(ME&&NET.ready)NET.send({t:'equip',kind:i.kind,item:id});renderShop();return}
@@ -412,6 +449,8 @@ function onServer(m){switch(m.t){
  case 'me':ME=cleanMe(m);if(ME.shop){EQ.table=ME.shop.table;EQ.back=ME.shop.back;ST.set('ft-table',EQ.table);ST.set('ft-back',EQ.back);applyTheme()}if(!$('shopSheet').hidden)renderShop();renderRewards();if(!$('questSheet').hidden)renderQuests();scheduleReminders();maybeShowReward();break;
  case 'claimed':onClaimed(m);break;
  case 'bought':onBought(m);break;
+ case 'iap_ok':onIapOk(m);break;
+ case 'iap_fail':onIapFail(m);break;
  case 'cup':onCup(m.cup);break;
  case 'cups':if(Array.isArray(m.cups)){const keep={};m.cups.forEach(v=>{const c=cleanCup(v);if(c)keep[c.code]=c});CUPS=keep;if(curTab==='cups')renderCups();paintCupDot();if(cupOpen&&!$('cupSheet').hidden)renderCupSheet()}break;
  case 'cup_gone':{const code=String(m.code||'');delete CUPS[code];if(cupOpen===code&&!$('cupSheet').hidden){closeSheets();toast('That cup was closed.')}if(curTab==='cups')renderCups();paintCupDot();break}
@@ -451,7 +490,7 @@ function onServer(m){switch(m.t){
   pending=false;if(V&&M.mode==='online')renderActs();if(m.code!=='stale'&&m.code!=='rate_limited')toast(ERRS[m.code]||'That move was not allowed.');
   if(m.code==='code_taken'||m.code==='bad_code'){openSheet('friendSheet');$('customCode').focus()}break;
 }}
-function onWelcome(m){NET.ready=true;setTimeout(()=>NET.raw({t:'cup_list'}),50);NET.stats=m.stats||null;NET.roomTtl=Math.max(10,Number(m.roomTtl)||120);
+function onWelcome(m){NET.ready=true;IAP_PACKS=Array.isArray(m.iap)?m.iap.filter(p=>p&&/^[a-z0-9_.]{1,64}$/.test(String(p.id))&&numOf(p.coins)>0).slice(0,8).map(p=>({id:String(p.id),coins:numOf(p.coins)})):null;setTimeout(()=>{iapStart();iapResend()},100);setTimeout(()=>NET.raw({t:'cup_list'}),50);NET.stats=m.stats||null;NET.roomTtl=Math.max(10,Number(m.roomTtl)||120);
  if(typeof m.pid==='string'&&/^[A-Za-z0-9-]{8,64}$/.test(m.pid)&&m.pid!==PID){PID=m.pid;ST.set('pid',PID)}
  const name=typeof m.name==='string'?m.name:'';
  if(RESTORE.prev){ // the player typed a recovery code: this device becomes that account

@@ -84,6 +84,13 @@ pub enum HubCmd {
     CupPlay { id: ConnId, code: String, m: usize },
     Watch { id: ConnId, code: String, m: usize },
     Unwatch { id: ConnId },
+    IapVerify { id: ConnId, tx: String },
+    /// Apple's answer about a purchase (from a background lookup).
+    IapChecked { id: ConnId, pid: String, tx: String, result: Result<(String, u32), crate::iap::IapError> },
+    /// An App Store Server Notification named this transaction (maybe a refund).
+    IapNotice { tx: String },
+    /// Apple says this transaction was revoked.
+    IapRevoked { tx: String },
     /// Write player data to disk now and confirm (used on shutdown).
     Flush { done: oneshot::Sender<()> },
     LeftMatch { id: ConnId },
@@ -154,6 +161,11 @@ pub struct Hub {
     cup_live: HashMap<(String, usize), (MatchId, MatchTx)>,
     /// Spectators: connection -> the match they watch.
     watching: HashMap<ConnId, (MatchId, MatchTx)>,
+    /// App Store purchases (None when not configured).
+    apple: Option<Arc<crate::iap::AppleConfig>>,
+    http: reqwest::Client,
+    /// Purchase lookups in flight per connection (a few at most).
+    iap_busy: HashMap<ConnId, u8>,
 }
 
 fn random_token() -> String {
@@ -213,8 +225,88 @@ impl Hub {
             last_cup_check: Instant::now(),
             cup_live: HashMap::new(),
             watching: HashMap::new(),
+            apple: None,
+            http: reqwest::Client::new(),
+            iap_busy: HashMap::new(),
         };
         (hub, tx)
+    }
+
+    /// Turn on App Store purchases.
+    pub fn with_apple(mut self, apple: Option<crate::iap::AppleConfig>) -> Self {
+        self.apple = apple.map(Arc::new);
+        self
+    }
+
+    fn iap_packs(&self) -> Value {
+        if self.apple.is_none() {
+            return Value::Null;
+        }
+        json!(crate::iap::PACKS.iter().map(|(id, coins)| json!({ "id": id, "coins": coins })).collect::<Vec<_>>())
+    }
+
+    fn iap_verify(&mut self, id: ConnId, tx: String) {
+        let Some(pid) = self.pid_of(id) else { return };
+        let Some(apple) = self.apple.clone() else { return self.send(id, protocol::msg(json!({ "t": "iap_fail", "tx": tx, "code": "iap_off" }))) };
+        // Replays of a purchase already paid are answered at once, so the app can finish it.
+        match self.store.iap_owner(&tx) {
+            Some(owner) if owner == pid => {
+                let coins = self.store.coins_of(&pid);
+                return self.send(id, protocol::msg(json!({ "t": "iap_ok", "tx": tx, "added": 0, "coins": coins, "again": true })));
+            }
+            Some(_) => return self.send(id, protocol::msg(json!({ "t": "iap_fail", "tx": tx, "code": "iap_other_account" }))),
+            None => {}
+        }
+        let busy = self.iap_busy.entry(id).or_insert(0);
+        if *busy >= 3 {
+            return self.send(id, protocol::msg(json!({ "t": "iap_fail", "tx": tx, "code": "iap_retry" })));
+        }
+        *busy += 1;
+        let (http, hub) = (self.http.clone(), self.tx.clone());
+        tokio::spawn(async move {
+            let result = match crate::iap::fetch(&apple, &http, &tx).await {
+                Ok(t) => crate::iap::worth(&apple, &t),
+                Err(e) => Err(e),
+            };
+            let _ = hub.send(HubCmd::IapChecked { id, pid, tx, result }).await;
+        });
+    }
+
+    fn iap_checked(&mut self, id: ConnId, pid: &str, tx: &str, result: Result<(String, u32), crate::iap::IapError>) {
+        if let Some(b) = self.iap_busy.get_mut(&id) {
+            *b = b.saturating_sub(1);
+        }
+        let reply = match result {
+            Ok((product, coins)) => match self.store.iap_credit(pid, tx, &product, coins, store::now_secs()) {
+                store::Credit::Paid(bal) => {
+                    tracing::info!(tx, product, coins, "App Store purchase paid");
+                    json!({ "t": "iap_ok", "tx": tx, "product": product, "added": coins, "coins": bal })
+                }
+                store::Credit::Already(bal) => json!({ "t": "iap_ok", "tx": tx, "product": product, "added": 0, "coins": bal, "again": true }),
+                store::Credit::OtherAccount => json!({ "t": "iap_fail", "tx": tx, "code": "iap_other_account" }),
+                store::Credit::Unknown => return,
+            },
+            Err(e) => json!({ "t": "iap_fail", "tx": tx, "code": e.code() }),
+        };
+        // Answer every connection of this player (the app may have reconnected meanwhile).
+        let text = protocol::msg(reply);
+        self.send_to_pid(pid, &text);
+        self.send_me_to_pid(pid);
+    }
+
+    fn iap_notice(&mut self, tx: String) {
+        let Some(apple) = self.apple.clone() else { return };
+        if self.store.iap_owner(&tx).is_none() {
+            return;
+        }
+        let (http, hub) = (self.http.clone(), self.tx.clone());
+        tokio::spawn(async move {
+            if let Ok(t) = crate::iap::fetch(&apple, &http, &tx).await {
+                if t.revocation_date.is_some() {
+                    let _ = hub.send(HubCmd::IapRevoked { tx }).await;
+                }
+            }
+        });
     }
 
     /// Change how long a queued player waits before the computer is offered.
@@ -529,6 +621,15 @@ impl Hub {
     fn handle(&mut self, cmd: HubCmd) {
         match cmd {
             c @ (HubCmd::CupCreate { .. } | HubCmd::CupJoin { .. } | HubCmd::CupLeave { .. } | HubCmd::CupStart { .. } | HubCmd::CupList { .. } | HubCmd::CupGet { .. } | HubCmd::CupPlay { .. } | HubCmd::Watch { .. } | HubCmd::Unwatch { .. }) => self.handle_cup(c),
+            HubCmd::IapVerify { id, tx } => self.iap_verify(id, tx),
+            HubCmd::IapChecked { id, pid, tx, result } => self.iap_checked(id, &pid, &tx, result),
+            HubCmd::IapNotice { tx } => self.iap_notice(tx),
+            HubCmd::IapRevoked { tx } => {
+                if let Some(pid) = self.store.iap_revoke(&tx) {
+                    tracing::info!(tx, "App Store purchase refunded: coins taken back");
+                    self.send_me_to_pid(&pid);
+                }
+            }
             HubCmd::Connect { id, tx } => {
                 self.conns.insert(id, ConnInfo { tx, profile: None, activity: Activity::Idle, join_fails: 0, join_blocked_until: None });
             }
@@ -565,7 +666,7 @@ impl Hub {
                 c.profile = Some(profile);
                 let welcome = protocol::msg(json!({
                     "t": "welcome", "stats": self.stats_json(), "name": login.name, "pid": login.pid,
-                    "created": login.created, "roomTtl": self.room_ttl.as_secs(), "prog": prog,
+                    "created": login.created, "roomTtl": self.room_ttl.as_secs(), "prog": prog, "iap": self.iap_packs(),
                 }));
                 self.send(id, welcome);
                 if let Some(me) = self.store.me_json(&login.pid, store::now_secs()) {
@@ -779,6 +880,7 @@ impl Hub {
             }
             HubCmd::Disconnect { id } => {
                 self.unwatch(id);
+                self.iap_busy.remove(&id);
                 self.leave_queue(id);
                 self.close_room_of(id);
                 self.conns.remove(&id);
@@ -1319,6 +1421,31 @@ mod tests {
         hub.handle(HubCmd::CupList { id: 2 });
         let l = last_msg(&mut rx[1]);
         assert_eq!(l["cups"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_verified_purchase_pays_once_and_replays_are_answered_at_once() {
+        let (mut hub, mut rx) = hub_with_players(2, Duration::from_secs(120));
+        for r in &mut rx {
+            all_msgs(r);
+        }
+        hub.handle(HubCmd::IapVerify { id: 1, tx: "2000001".into() });
+        assert_eq!((last_msg(&mut rx[0])["code"].as_str()), Some("iap_off"), "off until configured");
+        let pid = hub.pid_of(1).unwrap();
+        hub.handle(HubCmd::IapChecked { id: 1, pid: pid.clone(), tx: "2000001".into(), result: Ok(("coins_1000".into(), 1000)) });
+        let m = all_msgs(&mut rx[0]);
+        let ok = find(&m, "iap_ok").unwrap();
+        assert_eq!((ok["added"].as_u64(), ok["coins"].as_u64()), (Some(1000), Some(1000)));
+        assert_eq!(find(&m, "me").unwrap()["coins"], 1000);
+        hub.handle(HubCmd::IapChecked { id: 1, pid: pid.clone(), tx: "2000001".into(), result: Ok(("coins_1000".into(), 1000)) });
+        assert_eq!(find(&all_msgs(&mut rx[0]), "iap_ok").unwrap()["added"], 0, "never twice");
+        let other = hub.pid_of(2).unwrap();
+        hub.handle(HubCmd::IapChecked { id: 2, pid: other, tx: "2000001".into(), result: Ok(("coins_1000".into(), 1000)) });
+        assert_eq!(find(&all_msgs(&mut rx[1]), "iap_fail").unwrap()["code"], "iap_other_account");
+        hub.handle(HubCmd::IapChecked { id: 1, pid: pid.clone(), tx: "2000002".into(), result: Err(crate::iap::IapError::Retry) });
+        assert_eq!(find(&all_msgs(&mut rx[0]), "iap_fail").unwrap()["code"], "iap_retry");
+        hub.handle(HubCmd::IapRevoked { tx: "2000001".into() });
+        assert_eq!(find(&all_msgs(&mut rx[0]), "me").unwrap()["coins"], 0, "a refund takes the coins back");
     }
 
     #[test]

@@ -240,6 +240,32 @@ struct FileData {
     players: Vec<PlayerRec>,
     #[serde(default)]
     cups: Vec<Cup>,
+    #[serde(default)]
+    iap: Vec<IapRec>,
+}
+
+/// One App Store purchase that paid coins. Kept so a transaction can never pay twice and a
+/// refund can take the coins back.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IapRec {
+    pub tx: String,
+    pub pid: String,
+    pub product: String,
+    pub coins: u32,
+    pub at: u64,
+    #[serde(default)]
+    pub revoked: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Credit {
+    /// Coins added; the new balance.
+    Paid(u32),
+    /// This account already got the coins for this transaction; the balance.
+    Already(u32),
+    /// Another account already used this transaction.
+    OtherAccount,
+    Unknown,
 }
 
 /// Name comparison key: names are unique ignoring case.
@@ -258,6 +284,7 @@ pub struct Store {
     tuning: Tuning,
     dirty: bool,
     cups: HashMap<String, Cup>,
+    iap: HashMap<String, IapRec>,
 }
 
 /// One line of a leaderboard.
@@ -568,6 +595,45 @@ impl Store {
         }
     }
 
+    // ------------------------------------------------------------ in-app purchases
+
+    pub fn coins_of(&self, pid: &str) -> u32 {
+        self.players.get(pid).map_or(0, |p| p.coins)
+    }
+
+    /// Was this App Store transaction already used, and by whom?
+    pub fn iap_owner(&self, tx: &str) -> Option<&str> {
+        self.iap.get(tx).map(|r| r.pid.as_str())
+    }
+
+    /// Add the coins of a verified App Store transaction, once.
+    pub fn iap_credit(&mut self, pid: &str, tx: &str, product: &str, coins: u32, now: u64) -> Credit {
+        if let Some(r) = self.iap.get(tx) {
+            if r.pid != pid {
+                return Credit::OtherAccount;
+            }
+            return self.players.get(pid).map_or(Credit::Unknown, |p| Credit::Already(p.coins));
+        }
+        let Some(p) = self.players.get_mut(pid) else { return Credit::Unknown };
+        p.coins = p.coins.saturating_add(coins);
+        let bal = p.coins;
+        self.iap.insert(tx.to_owned(), IapRec { tx: tx.to_owned(), pid: pid.to_owned(), product: product.to_owned(), coins, at: now, revoked: false });
+        self.dirty = true;
+        Credit::Paid(bal)
+    }
+
+    /// A purchase was refunded: take its coins back (as many as are left). Returns the pid.
+    pub fn iap_revoke(&mut self, tx: &str) -> Option<String> {
+        let r = self.iap.get_mut(tx).filter(|r| !r.revoked)?;
+        r.revoked = true;
+        let (pid, coins) = (r.pid.clone(), r.coins);
+        if let Some(p) = self.players.get_mut(&pid) {
+            p.coins = p.coins.saturating_sub(coins);
+        }
+        self.dirty = true;
+        Some(pid)
+    }
+
     // ------------------------------------------------------------ cups
 
     pub fn cup(&self, code: &str) -> Option<&Cup> {
@@ -845,7 +911,9 @@ impl Store {
         players.sort_by(|a, b| a.pid.cmp(&b.pid));
         let mut cups: Vec<Cup> = self.cups.values().cloned().collect();
         cups.sort_by(|a, b| a.code.cmp(&b.code));
-        serde_json::to_string(&FileData { version: FILE_VERSION, season_id: self.season_id, players, cups }).unwrap_or_default()
+        let mut iap: Vec<IapRec> = self.iap.values().cloned().collect();
+        iap.sort_by(|a, b| a.tx.cmp(&b.tx));
+        serde_json::to_string(&FileData { version: FILE_VERSION, season_id: self.season_id, players, cups, iap }).unwrap_or_default()
     }
 
     pub fn from_json(text: &str) -> Result<Self, String> {
@@ -855,6 +923,7 @@ impl Store {
         }
         let mut s = Self::from_records(data.players, data.season_id);
         s.cups = data.cups.into_iter().map(|c| (c.code.clone(), c)).collect();
+        s.iap = data.iap.into_iter().map(|r| (r.tx.clone(), r)).collect();
         Ok(s)
     }
 
@@ -1145,6 +1214,23 @@ mod tests {
         let mut old = Store::from_json(r#"{"version":2,"players":[]}"#).unwrap();
         assert!(old.cups_of("x").is_empty(), "files from before cups still load");
         old.prune(10);
+    }
+
+    #[test]
+    fn a_purchase_pays_once_to_one_account_and_a_refund_takes_it_back() {
+        let mut s = store();
+        s.register("pid-aaaaaaaa", "Ann", 1);
+        s.register("pid-bbbbbbbb", "Bob", 1);
+        assert_eq!(s.iap_credit("pid-aaaaaaaa", "2000001", "coins_1000", 1000, 5), Credit::Paid(1000));
+        assert_eq!(s.iap_credit("pid-aaaaaaaa", "2000001", "coins_1000", 1000, 6), Credit::Already(1000), "replaying it pays nothing");
+        assert_eq!(s.iap_credit("pid-bbbbbbbb", "2000001", "coins_1000", 1000, 6), Credit::OtherAccount);
+        assert_eq!(s.iap_owner("2000001"), Some("pid-aaaaaaaa"));
+        let back = Store::from_json(&s.to_json()).unwrap();
+        assert_eq!(back.iap_owner("2000001"), Some("pid-aaaaaaaa"), "the ledger survives a restart");
+        s.get_mut("pid-aaaaaaaa").unwrap().coins = 400; // spent some
+        assert_eq!(s.iap_revoke("2000001").as_deref(), Some("pid-aaaaaaaa"));
+        assert_eq!(s.get("pid-aaaaaaaa").unwrap().coins, 0, "never below zero");
+        assert_eq!(s.iap_revoke("2000001"), None, "a refund counts once");
     }
 
     #[test]

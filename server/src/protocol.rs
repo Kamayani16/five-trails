@@ -96,6 +96,10 @@ pub enum ClientMsg {
         m: usize,
     },
     Unwatch,
+    /// The iPhone app reports an App Store purchase; the server checks it with Apple.
+    IapVerify {
+        tx: String,
+    },
     /// While waiting in the quick-match queue: play the computer instead.
     Bot,
     /// Rename and update the trophy count shown to opponents. The server answers a name

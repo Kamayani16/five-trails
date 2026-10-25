@@ -18,6 +18,10 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 sha2 = "0.10"
+# Apple in-app purchase checks (App Store Server API): HTTPS client and ES256 JWTs.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "http2"] }
+jsonwebtoken = "9"
+base64 = "0.22"
 
 [profile.release]
 lto = true

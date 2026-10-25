@@ -44,6 +44,32 @@ five-trails/
 
 Each arena unlocks a fancier card style (Classic, Sandstone, Pearl, Jade, Ember, Frost, Legend at 0, 100, 250, 450, 700, 1000 and 1400 trophies). Reaching a new arena equips its style; you can switch among unlocked styles in Settings. This is purely cosmetic and lives in the browser.
 
+
+## In-app purchases (coin packs, iPhone app only)
+
+Coin packs are sold through Apple in the iPhone app (repository `five-trails-ios`), using the free
+[cordova-plugin-purchase](https://github.com/j3k0/cordova-plugin-purchase) (MIT). The web version never shows them.
+
+| Product id (App Store Connect, type Consumable) | Coins | Suggested price |
+|---|---|---|
+| `coins_300` | 300 | ₹99 / $0.99 |
+| `coins_1000` | 1,000 (+11%) | ₹299 / $2.99 |
+| `coins_1800` | 1,800 (+20%) | ₹499 / $4.99 |
+| `coins_4000` | 4,000 (+33%) | ₹999 / $9.99 |
+
+The app sends the server only a transaction id. The server looks it up with Apple's App Store Server API,
+checks bundle id, product and that it was not refunded, pays each transaction once (to one account), and
+takes coins back when Apple sends a refund notification. To turn it on, set:
+
+- `FT_APPLE_ISSUER_ID`, `FT_APPLE_KEY_ID`: from App Store Connect → Users and Access → Integrations → In-App Purchase keys
+- `FT_APPLE_KEY_FILE`: path to that `.p8` key (keep it secret; mount it into the container)
+- `FT_APPLE_BUNDLE_ID`: the app's bundle id, e.g. `com.fivetrails.app`
+- `FT_APPLE_SANDBOX=0` to refuse sandbox purchases (default: accepted, as App Review and TestFlight use them)
+- `FT_ALLOWED_ORIGINS`: must include `capacitor://localhost` (the iPhone app) as well as your site's own origin
+
+In App Store Connect → App Information, set the **App Store Server Notifications** URL (Version 2) to
+`https://YOUR-SERVER/apple/notifications`.
+
 ## Security measures
 
 | Area | What the server does |

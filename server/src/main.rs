@@ -15,13 +15,14 @@ mod cup;
 mod economy;
 mod game;
 mod hub;
+mod iap;
 mod limits;
 mod matchroom;
 mod protocol;
 mod store;
 
 use axum::http::{header, HeaderName, HeaderValue};
-use axum::{routing::get, Router};
+use axum::{extract::State, routing::get, Router};
 use config::Config;
 use hub::{Hub, HubCmd, HubTx};
 use limits::ConnLimiter;
@@ -53,6 +54,9 @@ fn app(state: AppState) -> Router {
     let mut router = Router::new()
         .route("/ws", get(conn::ws_handler))
         .route("/healthz", get(move || async move { format!("ok {}", limiter.active()) }))
+        // App Store Server Notifications V2 (refunds). The body only names a transaction; the
+        // server then asks Apple about it, so a forged notice cannot change anything.
+        .route("/apple/notifications", axum::routing::post(apple_notice))
         .with_state(state);
     if let Some(dir) = &cfg.web_dir {
         router = router.fallback_service(ServeDir::new(dir));
@@ -80,6 +84,15 @@ fn app(state: AppState) -> Router {
         router = router.layer(set(header::STRICT_TRANSPORT_SECURITY, "max-age=31536000; includeSubDomains"));
     }
     router
+}
+
+async fn apple_notice(State(state): State<AppState>, body: String) -> axum::http::StatusCode {
+    if body.len() <= 64 * 1024 {
+        if let Some(tx) = iap::notification_tx(&body) {
+            let _ = state.hub.send(HubCmd::IapNotice { tx }).await;
+        }
+    }
+    axum::http::StatusCode::OK
 }
 
 async fn shutdown_signal() {
@@ -117,6 +130,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(data = ?data_path, players = store.len(), "player data loaded");
     let (hub, hub_tx) = Hub::new(store, data_path, std::time::Duration::from_secs(cfg.room_ttl_secs));
     let hub = hub.with_bot_wait(std::time::Duration::from_secs(cfg.bot_after_secs));
+    let apple = iap::AppleConfig::from_env()?;
+    match &apple {
+        Some(a) => tracing::info!(bundle = %a.bundle, sandbox = a.allow_sandbox, "App Store purchases on"),
+        None => tracing::info!("App Store purchases off (FT_APPLE_* not set)"),
+    }
+    let hub = hub.with_apple(apple);
     tokio::spawn(hub.run());
     let state = AppState {
         cfg: Arc::clone(&cfg),
