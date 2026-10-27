@@ -246,8 +246,19 @@ function musicStart(){if(MUS||!ac())return;const bus=AC.createGain(),t=AC.curren
  const m={bus,bar:0,next:t+.15};const pump=()=>{while(m.next<AC.currentTime+.7){scheduleBar(m.bar,m.next,bus);m.bar++;m.next+=BEAT*4}};pump();m.iv=setInterval(pump,120);MUS=m}
 function musicStop(){if(!MUS)return;const m=MUS;MUS=null;clearInterval(m.iv);const t=AC.currentTime;m.bus.gain.cancelScheduledValues(t);m.bus.gain.setValueAtTime(m.bus.gain.value,t);m.bus.gain.linearRampToValueAtTime(0,t+.5);setTimeout(()=>{try{m.bus.disconnect()}catch(e){}},3000)}
 function musicSync(){const lobby=$('game').hidden;if(musicOn&&unlocked&&lobby&&!document.hidden)musicStart();else musicStop()}
-function unlockAudio(){if(unlocked)return;unlocked=true;ac();musicSync()}
-document.addEventListener('pointerdown',unlockAudio);document.addEventListener('keydown',unlockAudio);
+function unlockAudio(){if(unlocked)return;unlocked=true;ac();musicSync();paintSoundHint()}
+/* Sound starts as soon as the page opens wherever the browser allows it (the iPhone app always
+   does; desktop browsers often do for sites people come back to). Where a browser insists on a
+   first tap, any touch, click or key starts it, and a small hint says so until then. */
+['pointerdown','touchend','click','keydown'].forEach(t=>document.addEventListener(t,unlockAudio,{capture:true,passive:true}));
+function tryAutoplay(){const a=ac();if(!a)return;
+ a.onstatechange=()=>{if(a.state==='running'&&!unlocked)unlockAudio()};
+ if(a.state==='running'){unlockAudio();return}
+ a.resume().then(()=>{if(a.state==='running')unlockAudio()}).catch(()=>{});
+ setTimeout(paintSoundHint,700)}
+function paintSoundHint(){let h=$('soundHint');const want=!unlocked&&(musicOn||sfxOn)&&!$('home').hidden;
+ if(!want){if(h)h.remove();return}
+ if(!h){h=document.createElement('button');h.id='soundHint';h.type='button';h.className='soundhint';h.innerHTML=`${IC.sndOn}<span>Tap for sound</span>`;h.onclick=unlockAudio;document.body.appendChild(h)}}
 document.addEventListener('visibilitychange',musicSync);
 
 /* ================= FX: particles, callouts, popups ================= */
@@ -658,7 +669,7 @@ function cupMatchRow(c,x){const o=cupOpp(c,x),side=cupSide(c,x),opp=o!=null?esc(
 /* ================= App state ================= */
 let M={mode:'home'};          // mode: home | ai | queue | room | online
 let V=null, prevGid=null, prevSeq=0, aiT=null, sel=null, pending=false, PS=null;
-function show(id){for(const s of ['home','wait','game'])$(s).hidden=s!==id;$('over').hidden=true;closeSheets();closeEmo();musicSync()}
+function show(id){for(const s of ['home','wait','game'])$(s).hidden=s!==id;$('over').hidden=true;closeSheets();closeEmo();musicSync();paintSoundHint()}
 
 /* ================= Lobby ================= */
 let clkSet=ST.get('ft-clock',300);
@@ -1329,7 +1340,7 @@ $('musTog').onclick=()=>{musicOn=!musicOn;ST.set('ft-music',musicOn);paintSound(
 $('navBattle').innerHTML=IC.swords+'Battle';$('navLeaders').innerHTML=IC.crown+'Ranks';$('navCups').innerHTML=CUPIC+'Cups';$('navRecords').innerHTML=IC.cup+'Records';$('navGuide').innerHTML=IC.book+'Guide';
 $('gearBtn').innerHTML=IC.gear;$('leave').innerHTML=IC.x;$('emoBtn').innerHTML=IC.chat;$('clkLbl').innerHTML=IC.clock+'Clock each';
 document.querySelectorAll('.xbtn').forEach(b=>b.innerHTML=IC.x);
-paintSound();paintPicker();applyCards();applyTheme();if(DEMO){ME=demoMe();setInterval(()=>{if(ME&&ME.chest.nextIn!=null&&left(ME.chest.nextIn)<=0)demoRefresh()},1000)}renderGuide();paintKey();paintRem();renderHome();
+paintSound();paintPicker();applyCards();applyTheme();tryAutoplay();if(DEMO){ME=demoMe();setInterval(()=>{if(ME&&ME.chest.nextIn!=null&&left(ME.chest.nextIn)<=0)demoRefresh()},1000)}renderGuide();paintKey();paintRem();renderHome();
 const hc0=(location.hash||'').slice(1).toUpperCase();if(/^[A-Z]{5}$/.test(hc0)){$('joinCode').value=hc0}
 const hcup=/^CUP-([A-Z]{6})$/.exec(hc0);if(hcup){setTab('cups');$('cupCode').value=hcup[1];setTimeout(()=>{if($('intro').hidden)openSheet('cupJoinSheet')},600)}
 if(!ST.get('ft-intro',false))openIntro();else if(/^[A-Z]{5}$/.test(hc0))openSheet('friendSheet');

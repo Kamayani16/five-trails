@@ -822,3 +822,9 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 #needPay{display:flex;justify-content:space-between;align-items:center;font-size:18px}
 #needPay small{font-family:var(--display);font-size:16px;background:rgba(255,255,255,.25);border-radius:999px;padding:1px 10px}
 .need-opt .gb.sm{width:100%}
+
+/* ================= Tap for sound (only where the browser blocks sound until a tap) ================= */
+.soundhint{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:7px;
+ font-family:var(--display);font-size:15px;color:#fff;background:rgba(8,22,80,.82);border:2.5px solid var(--ol);border-radius:999px;padding:7px 15px 8px 11px;box-shadow:0 4px 0 var(--ol);animation:pgIn .4s var(--spring) both,shPulse 1.6s ease-in-out .6s infinite}
+.soundhint svg{width:20px;height:20px}
+@keyframes shPulse{50%{box-shadow:0 4px 0 var(--ol),0 0 0 6px rgba(255,210,58,.25)}}
