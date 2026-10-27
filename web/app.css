@@ -638,7 +638,7 @@ body.tb-volcano .board{box-shadow:0 4px 0 var(--ol),inset 0 0 0 2px rgba(255,122
 .eye.oracle .ey-crack{display:none}
 .eye.oracle .ey-top{font-size:clamp(26px,8vw,38px);letter-spacing:.24em;padding-left:.24em;color:transparent;
   background:linear-gradient(180deg,#fffbe9 10%,#f6d27c 55%,#c08a2a 95%);-webkit-background-clip:text;background-clip:text;
-  filter:drop-shadow(0 2px 0 rgba(40,24,100,.55)) drop-shadow(0 0 14px rgba(255,236,180,.45));animation:orTitle 6s both}
+  filter:drop-shadow(0 2px 0 rgba(40,24,100,.55)) drop-shadow(0 0 14px rgba(255,236,180,.45));animation:orTitle 4.5s both}
 @keyframes orTitle{0%{opacity:0;letter-spacing:.6em;filter:blur(6px)}12%,100%{opacity:1;letter-spacing:.24em}}
 .or-rule{position:absolute;left:50%;top:calc(max(7%,calc(env(safe-area-inset-top,0px) + 28px)) + clamp(36px,10vw,50px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;animation:orFade 4.5s both}
 .or-rule i{width:min(22vw,92px);height:1.5px;background:linear-gradient(90deg,transparent,#f6d27c)}
@@ -669,7 +669,7 @@ body.tb-volcano .board{box-shadow:0 4px 0 var(--ol),inset 0 0 0 2px rgba(255,122
 @keyframes orPick{0%,60%{opacity:0;transform:scale(.8)}70%,100%{opacity:1;transform:scale(1)}}
 .eye.oracle .ey-beam{background:linear-gradient(90deg,transparent,rgba(255,244,210,.85),transparent);mix-blend-mode:normal;filter:blur(6px)}
 .eye.oracle .ey-cap{color:#fff8e6;left:50%;right:auto;transform:translateX(-50%);width:min(88%,340px);padding:10px 14px 12px;border-radius:16px;border:1.5px solid rgba(246,210,124,.8);
-  background:rgba(255,255,255,.14);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(30,18,90,.35);animation:orCap 6s both;font-size:14px;letter-spacing:.02em}
+  background:rgba(255,255,255,.14);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 10px 30px rgba(30,18,90,.35);animation:orCap 4.5s both;font-size:14px;letter-spacing:.02em}
 @keyframes orCap{0%,76%{opacity:0;transform:translate(-50%,14px) scale(.94)}84%,100%{opacity:1;transform:translate(-50%,0)}}
 .eye.oracle .ey-cap b{color:#ffe7a0;font-size:28px}
 .eye.oracle .ey-flash{background:radial-gradient(circle at 50% 60%,#fffdf2 0,rgba(255,236,180,.85) 26%,rgba(214,190,255,.4) 48%,transparent 70%)}
@@ -828,3 +828,29 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
  font-family:var(--display);font-size:15px;color:#fff;background:rgba(8,22,80,.82);border:2.5px solid var(--ol);border-radius:999px;padding:7px 15px 8px 11px;box-shadow:0 4px 0 var(--ol);animation:pgIn .4s var(--spring) both,shPulse 1.6s ease-in-out .6s infinite}
 .soundhint svg{width:20px;height:20px}
 @keyframes shPulse{50%{box-shadow:0 4px 0 var(--ol),0 0 0 6px rgba(255,210,58,.25)}}
+
+/* ================= Cup page layout ================= */
+#cupBody{display:flex;flex-direction:column;gap:12px}
+#cupBody .sharerow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#cupBody .sharerow .gb{width:100%;text-align:center}
+#cupStart{width:100%}
+#cupStart:disabled{filter:none;opacity:1;--c1:#dfe5f3;--c2:#c3cce3;--cd:#9aa6c4;color:#7d89aa;text-shadow:none;-webkit-text-stroke:0;box-shadow:inset 0 -4px 0 var(--cd),0 3px 0 rgba(11,22,64,.35)}
+#cupBody .cupstart-note{margin-top:-6px;text-align:center}
+#cupBody .linkbtn{align-self:center}
+
+/* Evil Eye layout, stacked from the top so nothing overlaps on short screens:
+   title, eye (S tall), the line of text, the fanned cards, and the caption pinned to the bottom. */
+.eye.oracle{--top:max(4%,calc(env(safe-area-inset-top,0px) + 18px));--S:min(64vw,30vh,280px)}
+.eye.oracle .ey-top{top:var(--top)}
+.eye.oracle .or-rule{top:calc(var(--top) + clamp(34px,9vw,46px))}
+.eye.oracle .or-stage{top:calc(var(--top) + 64px);width:var(--S)}
+.eye.oracle .ey-sub{top:calc(var(--top) + 72px + var(--S))}
+.eye.oracle .ey-fan{top:calc(var(--top) + 72px + var(--S) + 104px)}
+.eye.oracle .ey-cap{top:auto;bottom:max(3%,calc(env(safe-area-inset-bottom,0px) + 14px))}
+/* Sabotage: the same top-down stacking (title, bolt, text, cards; caption at the bottom). */
+.eye.sab{--top:max(4%,calc(env(safe-area-inset-top,0px) + 18px));--S:min(40vw,22vh,170px)}
+.eye.sab .ey-top{top:var(--top)}
+.eye.sab .ey-eyew.sb-bolt{top:calc(var(--top) + 58px);width:var(--S)}
+.eye.sab .ey-sub{top:calc(var(--top) + 72px + var(--S) * 1.2)}
+.eye.sab .ey-fan{top:calc(var(--top) + 72px + var(--S) * 1.2 + 104px)}
+.eye.sab .ey-cap{top:auto;bottom:max(3%,calc(env(safe-area-inset-bottom,0px) + 14px))}
