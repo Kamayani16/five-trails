@@ -35,6 +35,13 @@
           <button role="radio" data-clk="0">Off</button><button role="radio" data-clk="180">3m</button><button role="radio" data-clk="300">5m</button><button role="radio" data-clk="600">10m</button>
         </div>
       </div>
+      <div class="pn pad seg aiseg">
+        <div class="seg-l" id="aiLbl">Computer</div>
+        <div class="seg-b" role="radiogroup" aria-label="How strong the computer plays" id="aipick">
+          <button role="radio" data-ai="auto">Auto</button><button role="radio" data-ai="0">Easy</button><button role="radio" data-ai="2">Normal</button><button role="radio" data-ai="4">Hard</button><button role="radio" data-ai="6">Master</button>
+        </div>
+        <p class="note ainote" id="aiNote"></p>
+      </div>
       <div class="rew" id="rewards" hidden>
         <button class="coinbox" id="coinBox" type="button" aria-label="Coins and shop"></button>
         <button class="gb green chestbtn" id="chestBtn" type="button"></button>

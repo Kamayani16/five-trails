@@ -683,7 +683,7 @@ function renderHome(){
  const ac_=$('arenaCard');ac_.style.setProperty('--ag1',A.g[0]);ac_.style.setProperty('--ag2',A.g[1]);
  ac_.innerHTML=`<div class="rays"></div><div class="emb">${emblem(ai,118)}</div><div class="an ol">${A.n}</div><div class="asub ols">Arena ${ai+1} of ${ARENAS.length}</div>
   <div class="tprog">${TROPHY}<div class="bar"><i style="width:${pct}%"></i><b class="ols">${N?`${REC.tr} / ${N.at}`:`${REC.tr} · Top arena`}</b></div></div>`;
- $('aiTier').textContent=`vs Computer · ${AI_TIER[ai]}`;
+ $('aiTier').textContent=aiLvl==='auto'?`vs Computer · ${AI_TIER[ai]}`:`vs Computer · ${AI_LVLS[aiLvl]} · practice`;paintAiPick();
  netChanged();
  renderRecords();renderRewards();maybeShowReward();
 }
@@ -718,6 +718,7 @@ $('tab-guide').innerHTML=`
  <div class="pn gsec"><div class="pn-h ol">Trophies</div>
   <p>Computer: +12 / −8. Players: +30 / −20. You never drop below an arena you reached.</p>
   <p>Each arena sharpens the computer and unlocks a card style (Settings). Battles earn XP.</p>
+  <p>Pick the computer's level in the lobby. <b>Auto</b> matches your arena and moves trophies; Easy, Normal, Hard and Master are practice: XP only, trophies stay put.</p>
   <p>With a clock, only your own turns count down.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Cups</div>
   <p>A private tournament for 3 to 6 friends. Create one in the Cups tab and share the code.</p>
@@ -881,7 +882,14 @@ async function scheduleReminders(){const ln=localNotes();if(!ln)return;
 async function toggleReminders(){const ln=localNotes();if(!ln)return;
  if(!remOn){try{const p=await ln.requestPermissions();if(!p||p.display!=='granted'){toast('Allow notifications for Five Trails in your phone settings to get reminders.');return}}catch(e){return}}
  remOn=!remOn;ST.set('ft-remind',remOn);paintRem();scheduleReminders();sfx('ui')}
-function paintPicker(){document.querySelectorAll('#clkpick button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.clk===clkSet)))}
+/* Computer level: Auto follows your arena and moves trophies; a fixed level is practice
+   (XP and, in the preview, coins, but no trophies), so nobody can farm trophies on Easy. */
+const AI_LVLS={auto:'Auto','0':'Easy','2':'Normal','4':'Hard','6':'Master'};
+let aiLvl=String(ST.get('ft-ailvl','auto'));if(!AI_LVLS[aiLvl])aiLvl='auto';
+const aiTierNow=()=>aiLvl==='auto'?arenaIdx(REC.tr):+aiLvl;
+function paintAiPick(){document.querySelectorAll('#aipick button').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.ai===aiLvl)));
+ const n=$('aiNote');if(n)n.textContent=aiLvl==='auto'?`Matches your arena (${AI_TIER[arenaIdx(REC.tr)]}). Wins and losses move trophies.`:`Always ${AI_LVLS[aiLvl]}. Practice: earns XP, never changes trophies.`}
+function paintPicker(){paintAiPick();document.querySelectorAll('#clkpick button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.clk===clkSet)))}
 
 /* Sheets */
 function openSheet(id){closeSheets();$(id).hidden=false;sfx('swoosh');const f=$(id).querySelector('input,button.gb:not(.xbtn)');if(f&&id!=='leaveSheet')setTimeout(()=>{try{f.focus({preventScroll:true})}catch(e){}},50)}
@@ -925,7 +933,7 @@ const vsCpu=()=>M.mode==='ai'||(M.mode==='online'&&M.kind==='bot');
 function oppInfo(){const ai=arenaIdx(REC.tr);
  if(M.mode==='watch'){const p=M.players[1];return{name:p.n,lv:p.lv,tr:p.tr,cpu:false,sub:''}}
  if(M.mode==='online'&&M.kind==='bot')return{name:'Computer',lv:null,tr:null,cpu:true,sub:`${AI_TIER[(M.opp&&M.opp.tier)||0]} bot`};
- if(M.mode==='ai')return{name:'Computer',lv:null,tr:null,cpu:true,sub:`${AI_TIER[M.tier??ai]} bot`};
+ if(M.mode==='ai')return{name:'Computer',lv:null,tr:null,cpu:true,sub:M.fixed?`${AI_LVLS[String(M.tier)]} · practice`:`${AI_TIER[M.tier??ai]} bot`};
  const o=M.opp||{};const h=M.oppKey&&REC.opp[M.oppKey];return{name:o.nick||'Opponent',lv:o.lv||null,tr:o.tr??null,cpu:false,sub:`${o.tr!=null?TROPHY+(Number(o.tr)||0):''}${h?` · You ${h.w}–${h.l}`:''}`}}
 const meInfo=()=>M.mode==='watch'?{name:M.players[0].n,lv:M.players[0].lv}:({name:nick(),lv:lvlInfo(REC.xp).lv});
 function setScore(id,v){const el=$(id);if(el.textContent!==String(v)){el.textContent=v;el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump')}}
@@ -1036,7 +1044,7 @@ function dealAnim(){const deckR=rectOf($('deck'));let i=0;document.querySelector
  document.querySelectorAll('#oppHand .back').forEach((el,j)=>animateFrom(el,deckR,j*70));sfx('deal');
  setTimeout(()=>{if(!V||V.ov)return;callout(V.mt?'Your turn!':(M.mode==='ai'?'Computer starts':`${oppInfo().name} starts`),V.mt?'#7dffa0':'#ffd23a');if(V.mt)sfx('go');aiSay(0,.5)},650)}
 function vsSplash(cb){const o=$('vs'),opp=oppInfo(),me_=meInfo(),ai=arenaIdx(REC.tr);
- const tag=M.mode==='ai'?`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`:M.kind==='cup'?`${esc(CUPS[M.code]?CUPS[M.code].name:'Cup')} · Cup match`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:M.kind==='bot'?'Computer battle · Unranked':'Quick match · Ranked';
+ const tag=M.mode==='ai'?(M.fixed?`${AI_LVLS[String(M.tier)]||AI_TIER[M.tier]} computer · Practice`:`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`):M.kind==='cup'?`${esc(CUPS[M.code]?CUPS[M.code].name:'Cup')} · Cup match`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:M.kind==='bot'?'Computer battle · Unranked':'Quick match · Ranked';
  o.innerHTML=`<div class="vs-in">
   <div class="vs-band top"><div class="vs-pl">${avatarHTML(opp.name,opp.lv,opp.cpu)}<div><div class="vs-n ol">${esc(opp.name)}</div><div class="vs-t ol">${opp.cpu?esc(opp.sub):TROPHY+(Number(opp.tr)||0)}</div></div></div></div>
   <div class="vs-mid ol">VS</div>
@@ -1107,7 +1115,7 @@ function oppEmote(e){if(!e||typeof e.k!=='number'||!EMOTES[e.k])return;if(M.oppE
 let shownFor=null;
 function outcome(){const me=total(V.ex[0]),them=total(V.ex[1]);return{me,them,r:V.fl?(V.fl==='me'?'l':'w'):me>them?'w':me<them?'l':'d'}}
 function finalize(){if(!V||!V.ov)return null;const{me,them,r}=outcome(),o=oppInfo();
- return recordGame(vsCpu()?'ai':'pvp',o.name,vsCpu()?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,r,M.kind==='cup')}
+ return recordGame(vsCpu()?'ai':'pvp',o.name,vsCpu()?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,r,M.kind==='cup'||(M.mode==='ai'&&M.fixed))}
 function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&!$('over').hidden)return;
  const first=shownFor!==V.gid;shownFor=V.gid;const info=finalize();const{me,them,r}=outcome(),o=oppInfo();
  if(first){sfx(r==='l'?'lose':'win');if(r==='w')confetti();if(M.mode==='ai')setTimeout(()=>aiSay(5,.75,true),900)}
@@ -1117,7 +1125,7 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
  const h=!vsCpu()&&M.oppKey&&REC.opp[M.oppKey];
  const L0=lvlInfo(info?info.x0:REC.xp);
  $('over').innerHTML=`<div class="res ${r}">
-  <div class="rib ol">${title}</div><div class="rsub">${esc(reason)}</div>
+  <div class="rib ol">${title}</div><div class="rsub">${esc(reason)}${M.mode==='ai'&&M.fixed?' · practice, no trophies':''}</div>
   <div class="rscore"><div class="rs-p ${r==='w'?'win':''}">${avatarHTML(nick(),lvlInfo(REC.xp).lv)}<b class="ol">${me}</b><span>You</span></div><div class="rs-vs">vs</div><div class="rs-p ${r==='l'?'win':''}">${avatarHTML(o.name,o.lv,o.cpu)}<b class="ol">${them}</b><span>${esc(o.name)}</span></div></div>
   <div class="rcols" aria-label="Trail scores, yours on top">${lanes}</div>
   <div class="rrow">${TROPHY}<div class="bar"><i id="rTrBar"></i><b class="ols" id="rTrTxt"></b></div><span class="dchip ${info&&info.dT<0?'neg':info&&info.dT===0?'zero':''}" id="rTrD">${info?(info.dT>0?'+':'')+info.dT:'0'}</span></div>
@@ -1214,7 +1222,7 @@ function forfeit(){closeSheets();if(!V||V.ov){goHome();return}
 
 /* ================= Mode: vs computer ================= */
 function leaveRoom(){clearTimeout(aiT)}
-function startAi(){leaveRoom();const tier=arenaIdx(REC.tr);M={mode:'ai',tier,S:deal(Math.random()<.5?0:1,clockMs())};freshView(M.S);$('roomTag').textContent=ARENAS[tier].n;show('game');renderGame();scheduleAi()}
+function startAi(){leaveRoom();const tier=aiTierNow(),fixed=aiLvl!=='auto';M={mode:'ai',tier,fixed,S:deal(Math.random()<.5?0:1,clockMs())};freshView(M.S);$('roomTag').textContent=fixed?`${AI_LVLS[aiLvl]} computer`:ARENAS[tier].n;show('game');renderGame();scheduleAi()}
 
 /* ================= Clock ticker ================= */
 const fmt=ms=>{if(ms<10000)return (Math.max(0,ms)/1000).toFixed(1);const t=Math.ceil(ms/1000);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
@@ -1323,6 +1331,7 @@ $('keyRestore').onclick=()=>{
  restoreArmed=null;clearTimeout(restoreT);$('keyRestore').textContent='Restore';
  RESTORE.prev=KEY;ST.set('ft-restore',KEY);KEY=k;ST.set('ft-key',k);paintKey();keyNote('Restoring…');NET.reconnect()};
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{if(b.getAttribute('aria-selected')!=='true')sfx('ui');setTab(b.dataset.tab)});
+$('aipick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;aiLvl=b.dataset.ai;ST.set('ft-ailvl',aiLvl);paintAiPick();renderHome();sfx('select')});
 $('clkpick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;clkSet=+b.dataset.clk;ST.set('ft-clock',clkSet);paintPicker();sfx('select')});
 const goHome=(quiet)=>{leaveRoom();if(!quiet){if(M.mode==='online')NET.raw({t:'leave_match'});else if(M.mode==='queue')NET.raw({t:'unqueue'});else if(M.mode==='room')NET.raw({t:'cancel_room'});else if(M.mode==='cupwait')NET.raw({t:'unqueue'});else if(M.mode==='watch')NET.raw({t:'unwatch'})}
  if(M.mode==='online')SS.set('ft-resume',null);M={mode:'home'};V=null;prevGid=null;sel=null;pending=false;show('home');renderHome()};

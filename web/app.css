@@ -854,3 +854,8 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .eye.sab .ey-sub{top:calc(var(--top) + 72px + var(--S) * 1.2)}
 .eye.sab .ey-fan{top:calc(var(--top) + 72px + var(--S) * 1.2 + 104px)}
 .eye.sab .ey-cap{top:auto;bottom:max(3%,calc(env(safe-area-inset-bottom,0px) + 14px))}
+.aiseg{margin-top:-4px}
+.aiseg .seg-b button{padding-inline:9px}
+.ainote{flex-basis:100%;font-size:12px;margin-top:-2px}
+.aiseg .seg-b{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;gap:5px}
+.aiseg .seg-b button{font-size:14px;padding:5px 2px 7px}
