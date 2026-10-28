@@ -886,3 +886,155 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .ln-t{font-family:var(--display);font-size:clamp(40px,12vw,58px);line-height:1;margin-top:8px}
 .ln-s{font-size:15px;color:#dbe6ff;font-weight:800}
 .ln-go{margin-top:28px;font-family:var(--display);font-size:22px;color:var(--ink);background:linear-gradient(180deg,#ffe680,var(--gold2));border:3px solid var(--ol);border-radius:999px;padding:10px 26px 12px;box-shadow:0 5px 0 var(--ol);animation:throb .7s ease-in-out infinite alternate}
+
+/* ================= Redesign (lobby, nav, shop, profile, battle, result) ================= */
+/* Top bar: profile · trophies · coins (+ opens the shop) */
+.topbar{gap:6px}
+.topbar .prof{padding:4px 8px 4px 4px}
+.topbar .prof .av{width:40px;height:40px}
+.topbar .trp{font-size:19px;padding:6px 10px 6px 7px}
+.coinbox{display:flex;flex-direction:row;flex-wrap:nowrap;flex-shrink:0;align-items:center;gap:4px;padding:4px 4px 4px 8px;border-radius:999px;font-size:19px;white-space:nowrap}
+.coinbox .cb-row{display:flex;align-items:center;gap:5px}
+.coinbox .pg{width:30px;height:24px}
+.coinbox .cb-plus{width:26px;height:26px;border-radius:50%;border:2.5px solid var(--ol);background:linear-gradient(180deg,var(--go),var(--go2));box-shadow:inset 0 -3px 0 var(--god);display:grid;place-items:center;color:#fff}
+.coinbox .cb-plus svg{width:13px;height:13px}
+/* Rewards rail */
+.rew{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.rew.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rtile{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:7px;align-items:center;text-align:left;padding:7px 8px;border-radius:15px;border:3px solid var(--ol);background:var(--paper);color:var(--ink);box-shadow:0 3px 0 var(--ol);min-width:0}
+.rtile .rt-ic{grid-row:1/3;width:32px;height:32px;border-radius:10px;border:2.5px solid var(--ol);display:grid;place-items:center;color:#fff;background:linear-gradient(180deg,#b8c5e6,#8496c4)}
+.rtile .rt-ic svg{width:18px;height:18px}
+.rtile .rt-t{font-family:var(--display);font-size:15px;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtile small{font-size:11px;font-weight:900;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.rtile.ready .rt-ic{background:linear-gradient(180deg,var(--go),var(--go2))}
+.chestbtn.ready{animation:none;box-shadow:0 0 0 3px var(--mint),0 3px 0 var(--ol)}
+.chestbtn.ready .rt-ic{animation:throb .6s ease-in-out infinite alternate}
+.questbtn .rt-ic{background:linear-gradient(180deg,var(--blu),var(--blu2))}
+.questbtn.ready{box-shadow:0 0 0 3px var(--gold),0 3px 0 var(--ol)}
+.seasonbtn .rt-ic{background:linear-gradient(180deg,var(--pur),var(--pur2))}
+.rtile .dot{position:absolute;right:-6px;top:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);border:3px solid var(--ol)}
+/* Arena: a slim strip, not a hero card */
+.arena{flex-direction:row;align-items:center;gap:12px;text-align:left;padding:8px 14px 10px 10px;border-radius:18px;box-shadow:0 4px 0 var(--ol),inset 0 0 0 3px rgba(255,255,255,.25);color:#fff;width:100%}
+.arena .emb{flex-shrink:0;animation:none;filter:drop-shadow(0 4px 0 rgba(11,22,64,.35))}
+.arena .emb svg{width:56px;height:56px}
+.ar-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ar-n{font-family:var(--display);font-size:20px;line-height:1.05}
+.ar-s{font-size:12px;font-weight:900;opacity:.95;text-shadow:0 1px 0 rgba(11,22,64,.5)}
+.arena .tprog{max-width:none;margin-top:3px}
+.arena .tprog .bar{flex:1}
+/* Cup: your match is waiting */
+.cn-b,.rn-b{width:100%;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:16px;border:3px solid var(--ol);background:var(--paper);color:var(--ink);text-align:left;box-shadow:0 0 0 3px var(--gold),0 3px 0 var(--ol)}
+.cn-ic,.rn-ic{width:36px;height:36px;flex-shrink:0;border-radius:11px;border:2.5px solid var(--ol);display:grid;place-items:center;color:#fff;background:linear-gradient(180deg,var(--gold),var(--gold2))}
+.cn-ic svg,.rn-ic svg{width:20px;height:20px}
+.cn-t,.rn-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.cn-t b,.rn-t b{font-size:14px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cn-t small,.rn-t small{font-size:12px;color:var(--ink2);font-weight:800}
+.cn-go,.rn-go{font-family:var(--display);font-size:16px;padding:6px 12px 8px;border-radius:12px;border:2.5px solid var(--ol);background:linear-gradient(180deg,var(--go),var(--go2));color:#fff;box-shadow:inset 0 -3px 0 var(--god);text-shadow:0 2px 0 var(--ol)}
+/* Play panel: who, level, clock, then one big Play */
+.playpn{display:flex;flex-direction:column;gap:10px;padding:10px;border-radius:20px;border:3px solid var(--ol);background:rgba(8,22,80,.62);box-shadow:0 4px 0 var(--ol)}
+.modepick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;border-radius:14px;border:3px solid var(--ol);background:rgba(4,12,48,.55)}
+.modepick.sub{grid-template-columns:1fr 1fr}
+.modepick button{font-family:var(--display);font-size:16px;padding:7px 2px 9px;border-radius:10px;border:2.5px solid transparent;background:transparent;color:#c9d7f5}
+.modepick button[aria-selected="true"]{background:linear-gradient(180deg,#ffe680,var(--gold2));border-color:var(--ol);color:var(--ink);box-shadow:inset 0 -3px 0 var(--goldd)}
+.pp-row{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:6px}
+.pp-row[hidden]{display:none}
+.pp-l{font-family:var(--display);font-size:15px;color:#c9d7f5}
+.playpn .aitray{margin:0;padding:0;border:0;background:none;box-shadow:none;border-radius:0}
+.playpn .aitray button{border:2px solid rgba(201,215,245,.25);padding:5px 1px 6px}
+.playpn .aitray button[aria-checked="true"]{border-color:var(--ol)}
+.seg-b.clk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.seg-b.clk button{padding:6px 0 8px;font-size:15px;box-shadow:0 2px 0 var(--ol)}
+.playpn .ainote{margin:-2px 0 0;min-height:16px}
+.playpn .gb.battle{font-size:34px;padding:12px 18px 18px}
+.playpn .onl{margin:-4px 0 0;text-align:center;font-size:12px;color:#c9d7f5}
+.playpn .onl[hidden]{display:none}
+/* Bottom nav: Play · Cups · Shop · Ranks · Profile */
+.nav button{font-size:14px}
+/* Shop tab */
+.shoppn{padding-bottom:12px}
+.shoptabs,.shoptabs:has(button:nth-child(3)){grid-template-columns:repeat(var(--n,3),minmax(0,1fr));margin:0 0 10px}
+.sfeat{display:grid;grid-template-columns:110px minmax(0,1fr);gap:12px;align-items:center;padding:10px;margin-bottom:10px;border-radius:16px;border:3px solid var(--ol);background:linear-gradient(180deg,#fff,var(--paper2));box-shadow:0 3px 0 var(--ol)}
+.sfeat .tsw.big{width:110px;border-width:2.5px}
+.sfeat.k-back{grid-template-columns:auto minmax(0,1fr)}
+.sfeat .bkp.big{width:66px;height:92px;margin:0 22px;border:2.5px solid var(--ol);border-radius:9px;box-shadow:0 4px 0 var(--ol)}
+.sf-b{display:flex;flex-direction:column;gap:8px;min-width:0}
+.sf-t b{display:block;font-family:var(--display);font-weight:400;font-size:20px;line-height:1.05}
+.sf-t span{font-size:12px;color:var(--ink2)}
+.sf-b .gb{font-size:18px;padding:7px 12px 11px;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:inset 0 -4px 0 var(--cd),inset 0 2px 0 rgba(255,255,255,.55),0 3px 0 var(--ol)}
+.sf-b .gb svg{width:18px;height:18px}
+.sf-b .gb.poor{filter:saturate(.6)}
+.sf-b .gb:disabled{filter:none;opacity:.85}
+.si.foc{outline:3px solid var(--blu2);outline-offset:1px}
+.shopgrid{max-height:none;overflow:visible}
+.cardpick .csu{font-size:10px;font-weight:900;color:#fff;background:var(--go2);border-radius:999px;padding:1px 7px}
+/* Profile tab */
+.profcard{padding:14px;display:flex;flex-direction:column;gap:10px}
+.pc-top{display:flex;align-items:center;gap:10px}
+.pc-top .av{width:54px;height:54px;font-size:28px}
+.pc-n{flex:1;min-width:0;display:flex;flex-direction:column}
+.pc-n b{font-family:var(--display);font-weight:400;font-size:24px;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-n span{font-size:13px;color:var(--ink2)}
+.pc-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.pc-stats div{display:flex;flex-direction:column;align-items:center;padding:6px 2px;border-radius:12px;background:var(--paper2);border:2px solid rgba(11,22,64,.15)}
+.pc-stats b{font-family:var(--display);font-weight:400;font-size:20px;line-height:1.1}
+.pc-stats span{font-size:11px;color:var(--ink2)}
+.pc-btns{display:flex;gap:8px}
+.pc-btns .gb{flex:1;display:flex;align-items:center;justify-content:center;gap:6px}
+.pc-btns .gb svg{width:18px;height:18px;filter:drop-shadow(0 2px 0 var(--ol))}
+.pc-n span{display:flex;align-items:center;gap:3px}.pc-n .tri{width:16px;height:16px}
+#tab-profile>.tab{animation:none}
+/* Battle: turn pill, rival power icons, power tray, Play shows the points */
+.msg{transition:background .2s,border-color .2s}
+.msg.mine{background:linear-gradient(180deg,#1fa84a,#14762a);border-color:var(--ol);box-shadow:0 0 0 3px rgba(125,255,160,.45)}
+.msg.mine b{color:#fff;font-family:var(--display);font-weight:400;font-size:16px}
+.msg.pulse{animation:pillPulse .9s var(--spring) 2}
+@keyframes pillPulse{40%{transform:scale(1.05)}}
+.pwi{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;border:2px solid var(--ol);color:#fff}
+.pwi svg{width:13px;height:13px}
+.pwi.pk-sab{background:linear-gradient(180deg,var(--pur),var(--pur2))}
+.pwi.pk-eye{background:linear-gradient(180deg,#ffd27a,#e08a1a)}
+.pwi.used{background:#c8d0e8;border-color:#9aa6c4;color:#7b88ad;opacity:.75}
+.pws{gap:4px;align-items:center}
+.pwtray{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}
+.pwtray[hidden]{display:none}
+.pw{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:4px;min-width:0;overflow:hidden;padding:4px 4px 4px 4px;border-radius:16px;border:3px solid var(--ol);background:var(--paper);color:var(--ink);box-shadow:0 3px 0 var(--ol);text-align:left;transition:transform .12s var(--spring)}
+.pw-ic{width:29px;height:29px;flex-shrink:0;border-radius:50%;border:2.5px solid var(--ol);display:grid;place-items:center;color:#fff;box-shadow:inset 0 -3px 0 rgba(0,0,0,.2)}
+.pw-ic svg{width:17px;height:17px}
+.pw.pk-sab .pw-ic{background:linear-gradient(180deg,var(--pur),var(--pur2))}
+.pw.pk-eye .pw-ic{background:linear-gradient(180deg,#ffd27a,#e08a1a)}
+.pw.pk-rush .pw-ic{background:linear-gradient(180deg,#ff9ac0,var(--pink))}
+.pw-t{flex:1;display:flex;flex-direction:column;min-width:0}
+.pw-t b{font-family:var(--display);font-weight:400;font-size:14px;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pw-t small{font-size:10.5px;font-weight:900;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pw.ready{box-shadow:0 0 0 3px var(--gold),0 3px 0 var(--ol)}
+.pw.ready small{color:var(--god)}
+.pw.ready:active{transform:translateY(2px)}
+.pw.armed{background:#ffe3ef;box-shadow:0 0 0 3px var(--pink),0 3px 0 var(--ol);animation:throb .5s ease-in-out infinite alternate}
+.pw.armed small{color:#c0124f}
+.pw.wait{opacity:.8;cursor:default}
+.pw.used{opacity:.55;cursor:default;filter:grayscale(.9)}
+.pw.used b{text-decoration:line-through}
+.acts .gb .pts{display:inline-block;margin-left:4px;font-size:.85em;padding:0 7px 2px;border-radius:9px;background:rgba(11,22,64,.35)}
+.acts .gb.dim{filter:grayscale(.5);opacity:.85}
+.acts .gb.ghost{opacity:.45;filter:grayscale(.6)}
+.acts{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.acts:has(#aAgain),.acts:has(.watchnote),.acts:empty{display:flex;justify-content:center}
+.acts .gb{font-size:18px;padding:10px 8px 14px;white-space:nowrap}
+.hand{padding-top:16px}
+/* Result: next step and buttons */
+.rnudge[hidden]{display:none}
+.rn-b{box-shadow:0 0 0 3px var(--mint),0 3px 0 var(--ol)}
+.rn-ic{background:linear-gradient(180deg,var(--go),var(--go2))}
+@media (max-width:370px){.pw-ic{width:28px;height:28px}.pw-ic svg{width:16px;height:16px}.pw-t b{font-size:13px}.rtile .rt-ic{display:none}.rtile{grid-template-columns:minmax(0,1fr)}.topbar .trp{font-size:17px}}
+@media (prefers-reduced-motion:reduce){.msg.pulse,.pw.armed,.chestbtn.ready .rt-ic{animation:none}}
+/* Short phones (iPhone SE and similar): keep the whole battle on one screen */
+@media (max-height:760px){
+ .game{gap:6px}
+ .gtop .gb.sq{height:38px;width:42px}
+ .pbar{padding-top:4px;padding-bottom:4px}.pbar .av{width:34px;height:34px;font-size:18px}.pscore{font-size:26px}
+ .stack{min-height:54px}.pile{height:56px}.stack .card{height:32px}
+ .deck{width:44px;height:58px}.deck span{font-size:19px}.msg{padding:7px 10px;font-size:13px}
+ .pwtray{gap:6px}.pw{padding:3px}.pw-ic{width:26px;height:26px}.pw-ic svg{width:15px;height:15px}.pw-t small{display:none}
+ .hand{padding-top:10px;min-height:60px}.actrow{min-height:48px}.acts .gb{font-size:17px;padding:8px 8px 12px}
+ .home{gap:10px}.playpn{gap:8px;padding:8px}.playpn .gb.battle{font-size:30px;padding:10px 18px 15px}.arena .emb svg{width:46px;height:46px}
+}

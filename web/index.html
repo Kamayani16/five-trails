@@ -20,49 +20,66 @@
   <!-- ================= LOBBY ================= -->
   <section class="home" id="home">
     <div class="topbar">
-      <button class="prof" id="topProf" aria-label="Profile and settings"></button>
+      <button class="prof" id="topProf" aria-label="Your profile"></button>
       <div class="trp" id="topTr" aria-label="Trophies"></div>
-      <button class="gb blue sq" id="gearBtn" aria-label="Settings"></button>
+      <button class="coinbox" id="coinBox" type="button" aria-label="Coins: open the shop" hidden></button>
     </div>
 
     <div class="tab" id="tab-battle">
-      <div class="arena" id="arenaCard"></div>
-      <div class="battlebox">
-        <button class="gb battle" id="playAi">Battle<small id="aiTier">vs Computer</small></button>
-        <div class="aitray" role="radiogroup" aria-label="Computer level" id="aipick">
-          <button role="radio" data-ai="auto" type="button"><i class="lv lv-a"></i><span>Auto</span></button>
-          <button role="radio" data-ai="0" type="button"><i class="lv" style="--n:1"></i><span>Easy</span></button>
-          <button role="radio" data-ai="2" type="button"><i class="lv" style="--n:2"></i><span>Normal</span></button>
-          <button role="radio" data-ai="4" type="button"><i class="lv" style="--n:3"></i><span>Hard</span></button>
-          <button role="radio" data-ai="6" type="button"><i class="lv" style="--n:4"></i><span>Master</span></button>
+      <div class="rew" id="rewards" hidden>
+        <button class="rtile chestbtn" id="chestBtn" type="button"></button>
+        <button class="rtile questbtn" id="questBtn" type="button"></button>
+        <button class="rtile seasonbtn" id="seasonBtn" type="button" hidden></button>
+      </div>
+      <button class="arena" id="arenaCard" type="button" aria-label="Arena road"></button>
+      <div class="cupnudge" id="cupNudge" hidden></div>
+      <div class="playpn">
+        <div class="modepick" role="tablist" aria-label="Who to play" id="modepick">
+          <button role="tab" data-mode="ai" type="button">Computer</button>
+          <button role="tab" data-mode="online" type="button">Online</button>
+          <button role="tab" data-mode="friend" type="button">Friend</button>
+        </div>
+        <div class="pp-row" id="lvRow">
+          <span class="pp-l">Level</span>
+          <div class="aitray" role="radiogroup" aria-label="Computer level" id="aipick">
+            <button role="radio" data-ai="auto" type="button"><i class="lv lv-a"></i><span>Auto</span></button>
+            <button role="radio" data-ai="0" type="button"><i class="lv" style="--n:1"></i><span>Easy</span></button>
+            <button role="radio" data-ai="2" type="button"><i class="lv" style="--n:2"></i><span>Normal</span></button>
+            <button role="radio" data-ai="4" type="button"><i class="lv" style="--n:3"></i><span>Hard</span></button>
+            <button role="radio" data-ai="6" type="button"><i class="lv" style="--n:4"></i><span>Master</span></button>
+          </div>
+        </div>
+        <div class="pp-row">
+          <span class="pp-l" id="clkLbl">Clock</span>
+          <div class="seg-b clk" role="radiogroup" aria-label="Clock for each player" id="clkpick">
+            <button role="radio" data-clk="0">Off</button><button role="radio" data-clk="180">3m</button><button role="radio" data-clk="300">5m</button><button role="radio" data-clk="600">10m</button>
+          </div>
         </div>
         <p class="ainote" id="aiNote"></p>
-      </div>
-      <button class="gb blue friendbtn" id="openFriend">Play online<small id="onlineLine"><span class="netdot wait"></span>Connecting…</small></button>
-      <div class="pn pad seg">
-        <div class="seg-l" id="clkLbl">Clock each</div>
-        <div class="seg-b" role="radiogroup" aria-label="Clock for each player" id="clkpick">
-          <button role="radio" data-clk="0">Off</button><button role="radio" data-clk="180">3m</button><button role="radio" data-clk="300">5m</button><button role="radio" data-clk="600">10m</button>
-        </div>
-      </div>
-      <div class="rew" id="rewards" hidden>
-        <button class="coinbox" id="coinBox" type="button" aria-label="Coins and shop"></button>
-        <button class="gb green chestbtn" id="chestBtn" type="button"></button>
-        <button class="gb blue questbtn" id="questBtn" type="button"></button>
+        <button class="gb battle" id="playAi">Play<small id="aiTier">vs Computer</small></button>
+        <p class="onl" id="onlineLine"><span class="netdot wait"></span>Connecting…</p>
       </div>
     </div>
     <div class="tab" id="tab-leaders" hidden></div>
     <div class="tab" id="tab-cups" hidden></div>
-    <div class="tab" id="tab-records" hidden></div>
-    <div class="tab" id="tab-guide" hidden></div>
+    <div class="tab" id="tab-shop" hidden><div class="pn shoppn"><div class="pn-h ol">Shop</div><div id="shopBody"></div></div></div>
+    <div class="tab" id="tab-profile" hidden>
+      <div class="pn profcard" id="profCard"></div>
+      <div class="modepick sub" role="tablist" aria-label="Profile" id="profSeg">
+        <button role="tab" data-ps="records" type="button" aria-selected="true">Stats</button>
+        <button role="tab" data-ps="guide" type="button" aria-selected="false">How to play</button>
+      </div>
+      <div class="tab" id="tab-records"></div>
+      <div class="tab" id="tab-guide" hidden></div>
+    </div>
 
     <nav class="nav" aria-label="Lobby">
       <div class="nav-in" role="tablist">
         <button role="tab" data-tab="battle" aria-selected="true" id="navBattle"></button>
-        <button role="tab" data-tab="leaders" aria-selected="false" id="navLeaders"></button>
         <button role="tab" data-tab="cups" aria-selected="false" id="navCups"></button>
-        <button role="tab" data-tab="records" aria-selected="false" id="navRecords"></button>
-        <button role="tab" data-tab="guide" aria-selected="false" id="navGuide"></button>
+        <button role="tab" data-tab="shop" aria-selected="false" id="navShop"></button>
+        <button role="tab" data-tab="leaders" aria-selected="false" id="navLeaders"></button>
+        <button role="tab" data-tab="profile" aria-selected="false" id="navProfile"></button>
       </div>
     </nav>
   </section>
@@ -115,6 +132,7 @@
       <div class="pscore ol" id="meScore">0</div>
       <div class="bubble" id="meBub" hidden></div>
     </div>
+    <div class="pwtray" id="pwTray" role="group" aria-label="Powers, one of each per battle"></div>
     <div class="hand" id="hand"></div>
     <div class="actrow">
       <div class="acts" id="acts"></div>
@@ -127,10 +145,9 @@
 <!-- Sheets -->
 <div class="sheet" id="friendSheet" hidden>
   <div class="pn">
-    <div class="pn-h ol">Play online</div>
+    <div class="pn-h ol">Play a friend</div>
     <button class="gb red sq xbtn" data-close aria-label="Close"></button>
-    <button class="gb quick" id="quickBtn">Quick match<small>Ranked · win +30, lose −20</small></button>
-    <div class="or">or play a friend</div>
+    <button class="gb quick" id="quickBtn" hidden>Quick match<small>Ranked · win +30, lose −20</small></button>
     <input id="customCode" class="codein" maxlength="5" placeholder="Your own code (optional)" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Your own room code, 5 letters, optional">
     <button class="gb green" id="create">Create room<small>5 letters, or leave empty for a random code</small></button>
     <p class="note" id="roomTtlNote">Anyone with the code can join, so share it only with your friend.</p>
@@ -146,9 +163,7 @@
     <label class="note" for="nick">Name</label>
     <div class="row2"><input id="nick" maxlength="16" placeholder="Explorer" autocomplete="nickname"><button class="gb green sm" id="nickSave" type="button">Save</button></div>
     <p class="note" id="nickNote" aria-live="polite"></p>
-    <span class="note">Card style · one unlocks per arena</span>
-    <div class="cardpick" id="cardPick"></div>
-    <button class="gb blue sm" id="shopOpen" type="button" style="align-self:flex-start;margin-top:6px">Table & card back</button>
+    <button class="gb blue sm" id="shopOpen" type="button" style="align-self:flex-start;margin-top:6px">Tables, card backs and card styles</button>
     <div class="acct">
       <span class="note">Your account</span>
       <p class="note">Saved on the server. Keep this code to restore on a new phone. Never share it.</p>
@@ -191,13 +206,6 @@
     <div class="pn-h ol" id="cupTitle">Cup</div>
     <button class="gb red sq xbtn" data-close aria-label="Close"></button>
     <div id="cupBody"></div>
-  </div>
-</div>
-<div class="sheet" id="shopSheet" hidden>
-  <div class="pn">
-    <div class="pn-h ol">Shop</div>
-    <button class="gb red sq xbtn" data-close aria-label="Close"></button>
-    <div id="shopBody"></div>
   </div>
 </div>
 <div class="sheet" id="questSheet" hidden>

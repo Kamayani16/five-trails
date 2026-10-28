@@ -66,6 +66,15 @@ const IC={
  sndOn:SV('<path d="M4 9h4l5-4v14l-5-4H4Z" fill="#fff"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>'),
  sndOff:SV('<path d="M4 9h4l5-4v14l-5-4H4Z" fill="#fff"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/>'),
  clock:`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8.5" fill="#fff" stroke="${OLC}" stroke-width="2.2"/><path d="M12 8.5V13l3 2" fill="none" stroke="${OLC}" stroke-width="2.2" stroke-linecap="round"/><path d="M9.5 2.5h5" stroke="${OLC}" stroke-width="2.4" stroke-linecap="round"/></svg>`,
+ bag:SV('<path d="M4.5 8h15l-1.3 12.5H5.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>'),
+ user:SV('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+ play:SV('<path d="M7 4.5v15l12-7.5Z"/>','currentColor',2.2),
+ plus:SV('<path d="M12 5v14M5 12h14"/>','none',4.2),
+ bolt:SV('<path d="M13 2 4 14h6l-1 8 9-12h-6z"/>','currentColor',1.4),
+ eye:SV('<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8" fill="currentColor"/>','none',2.4),
+ rush:SV('<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/>','none',2.6),
+ chest:SV('<path d="M3.5 10.5h17v9h-17Z"/><path d="M3.5 10.5a8.5 5 0 0 1 17 0"/><path d="M10.5 12.5h3v3h-3Z"/>','none',2.4),
+ list:SV('<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1.2 1.2L7 4.8M3.5 12l1.2 1.2L7 10.8M3.5 18l1.2 1.2L7 16.8"/>','none',2.2),
  bot:`<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="4.5" width="11" height="9" rx="2.8" fill="#fff" stroke="${OLC}" stroke-width="1.3"/><circle cx="6" cy="9" r="1.3" fill="${OLC}"/><circle cx="10" cy="9" r="1.3" fill="${OLC}"/><path d="M8 4.5V2.2" stroke="${OLC}" stroke-width="1.3"/><circle cx="8" cy="1.8" r="1.1" fill="#ffd23a" stroke="${OLC}" stroke-width=".8"/></svg>`
 };
 const AVC=[['#ff9a6c','#e6452a'],['#68cdff','#1f7be0'],['#7cf08a','#22a83e'],['#c79aff','#7a3ae6'],['#ffd65c','#e69a00'],['#ff86bf','#d6286f']];
@@ -299,6 +308,7 @@ const SHOP0=[['classic','table',0],['peach','table',0],['slate','table',0],['can
 const SHOPN={classic:'Classic Blue',peach:'Peach Sorbet',slate:'Slate Night',candy:'Candy Pop',bubble:'Bubble Tea',ocean:'Ocean Breeze',blossom:'Cherry Blossom',camo:'Jungle Camo',neon:'Neon Arcade',steel:'Midnight Steel',volcano:'Volcanic',
  stripes:'Classic Stripes',dots:'Polka Dots',chevron:'Chevron',paws:'Paw Prints',stars:'Stars & Moon',flames:'Flames',bolt:'Lightning Bolt',circuit:'Circuit Board',crest:'Golden Crest',summit:'Summit Crown',laurel:'Champion\u2019s Laurel'};
 const AI_BACKS=['stripes','dots','chevron','paws','flames','circuit','crest'];
+const shopVisible=()=>curTab==='shop'&&!$('home').hidden;
 const okItem=(id,kind)=>SHOP0.some(i=>i.id===id&&i.kind===kind);
 let EQ={table:'classic',back:'stripes'},shopTab='table',shopArmed=null,shopNeed=null,needPaidFor=null;
 function shopItems(){if(ME&&ME.shop)return ME.shop.items;const t=Math.max(REC.best,REC.tr);return SHOP0.map(i=>({...i,have:i.cup?false:i.tr?t>=i.tr:i.price===0}))}
@@ -306,19 +316,43 @@ function applyTheme(){const b=document.body;[...b.classList].filter(c=>c.startsW
 function setBk(el,id){if(!el)return;[...el.classList].filter(c=>c.startsWith('bk-')).forEach(c=>el.classList.remove(c));if(id&&id!=='stripes')el.classList.add('bk-'+id)}
 function oppBack(){if(M&&M.mode==='ai')return AI_BACKS[Math.min(AI_BACKS.length-1,M.tier||0)];return M&&M.opp&&okItem(M.opp.back,'back')?M.opp.back:'stripes'}
 function equipLocal(kind,id){EQ[kind]=id;ST.set('ft-'+kind,id);applyTheme()}
-function renderShop(){const body=$('shopBody');if(!body)return;if(shopNeed){renderNeed(body);return}if(shopTab==='coins'&&!iapReady())shopTab='table';const items=shopItems().filter(i=>i.kind===shopTab),coins=ME?ME.coins:null;
- const sw=id=>shopTab==='table'?`<div class="tsw tb-${id}">${[0,1,2,3,4].map(c=>`<i style="left:${20+c*13}%;background:${COL[c].cc}"></i>`).join('')}</div>`:`<div class="back bkp bk-${id}"></div>`;
+let shopFocus=null;
+function shopPrev(kind,id,cls=''){return kind==='table'?`<div class="tsw tb-${id} ${cls}">${[0,1,2,3,4].map(c=>`<i style="left:${20+c*13}%;background:${COL[c].cc}"></i>`).join('')}</div>`:`<div class="back bkp bk-${id} ${cls}"></div>`}
+const CS_SAMPLE=[5,7,8,9,10,6,10];
+function cardPickHTML(){const max=cardsOpen();
+ return `<div class="cardpick" id="cardPick">${CARDSETS.map((s,i)=>{const lock=i>max;
+  return `<button type="button" class="cs cs-${s.k}${i===cardSel?' on':''}${lock?' lock':''}" data-cs="${i}" aria-pressed="${i===cardSel}" aria-label="${s.n} cards${lock?`, locked until ${ARENAS[i].at} trophies`:''}">${mini(cid(i%5,CS_SAMPLE[i]),40)}<span class="csn">${s.n}</span>${lock?`<span class="csl">${IC.lock}${ARENAS[i].at}</span>`:i===cardSel?'<span class="csu">In use</span>':''}</button>`}).join('')}</div>`}
+function pickCards(i){if(i>cardsOpen()){sfx('bad');toast(`Reach ${ARENAS[i].n} (${ARENAS[i].at} trophies) to unlock ${CARDSETS[i].n} cards.`);return}
+ sfx('select');cardSel=i;ST.set('ft-cards',i);applyCards();renderShop()}
+/* One tap on an item shows it big at the top with a single clear action (Use / Buy / how to unlock). */
+function shopFeat(items,coins){const id=items.some(i=>i.id===shopFocus)?shopFocus:EQ[shopTab],i=items.find(x=>x.id===id)||items[0];if(!i)return'';
+ let btn,sub;
+ if(EQ[i.kind]===i.id){btn=`<button class="gb gray" id="shopAct" type="button" disabled>In use</button>`;sub=i.kind==='table'?'Your table right now':'Your rivals see this back'}
+ else if(i.have){btn=`<button class="gb green" id="shopAct" type="button" data-id="${i.id}">Use</button>`;sub='Yours · tap Use to switch'}
+ else if(i.cup){btn=`<button class="gb gray lockb" id="shopAct" type="button" data-id="${i.id}">${IC.lock}Cup prize</button>`;sub='Win a cup to unlock it'}
+ else if(i.tr){btn=`<button class="gb gray lockb" id="shopAct" type="button" data-id="${i.id}">${IC.lock}${i.tr}</button>`;sub=`Unlocks at ${i.tr} trophies`}
+ else{btn=`<button class="gb green buyb ${coins!=null&&coins<i.price?'poor':''}" id="shopAct" type="button" data-id="${i.id}">${COIN}${i.price}</button>`;sub=i.kind==='table'?'Table theme · changes your screen':'Card back · your rivals see it'}
+ return `<div class="sfeat k-${i.kind}">${shopPrev(i.kind,i.id,'big')}<div class="sf-b"><div class="sf-t"><b>${esc(SHOPN[i.id]||i.id)}</b><span>${sub}</span></div>${btn}</div></div>`}
+function renderShop(){const body=$('shopBody');if(!body)return;if(shopNeed){renderNeed(body);return}if(shopTab==='coins'&&!iapReady())shopTab='table';const coins=ME?ME.coins:null;
+ const tabs=[['table','Tables'],['back','Backs'],['cards','Cards']].concat(iapReady()?[['coins','Get coins']]:[]);
+ const head=`<div class="shoptabs" role="tablist" style="--n:${tabs.length}">${tabs.map(([k,n])=>`<button type="button" role="tab" data-st="${k}" aria-selected="${shopTab===k}" class="${shopTab===k?'on':''}">${n}</button>`).join('')}</div>`;
  const chip=i=>{if(EQ[i.kind]===i.id)return'<span class="pr own">In use</span>';if(i.have)return'<span class="pr use">Use</span>';
   if(i.cup)return`<span class="pr lock">Win a cup</span>`;
   if(i.tr)return`<span class="pr lock">${IC.cup}${i.tr}</span>`;if(shopArmed===i.id)return`<span class="pr buy">Buy? ${COIN}${i.price}</span>`;
   return`<span class="pr buy ${coins!=null&&coins<i.price?'poor':''}">${COIN}${i.price}</span>`};
- body.innerHTML=`<div class="shoptabs" role="tablist"><button type="button" data-st="table" class="${shopTab==='table'?'on':''}">Tables</button><button type="button" data-st="back" class="${shopTab==='back'?'on':''}">Card backs</button>${iapReady()?`<button type="button" data-st="coins" class="${shopTab==='coins'?'on':''}">Get coins</button>`:''}</div>
-  ${coins!=null?`<div class="shopbal">${COIN}<span>${coins}</span></div>`:''}
-  ${shopTab==='coins'?iapGridHTML():`<div class="shopgrid">${items.map(i=>`<button type="button" class="si ${EQ[i.kind]===i.id?'eq':''} ${shopArmed===i.id?'armed':''}" data-id="${i.id}" aria-label="${SHOPN[i.id]||i.id}">${sw(i.id)}<span class="nm">${SHOPN[i.id]||i.id}</span>${chip(i)}</button>`).join('')}</div>`}
-  <p class="shopnote">${shopTab==='coins'?'Paid securely through the App Store. Coins land in your piggy bank as soon as Apple confirms.':shopTab==='table'?'Your table theme changes how the game looks for you.':'Your rival sees your card back during battles.'}${DEMO?' Preview: these coins stay in this browser only.':ME?'':' Go online to buy with coins.'}</p>`;
- body.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{sfx('ui');shopTab=b.dataset.st;shopArmed=null;renderShop()});
- body.querySelectorAll('.si').forEach(b=>b.onclick=()=>shopTap(b.dataset.id));
+ let main,note;
+ if(shopTab==='coins'){main=iapGridHTML();note='Paid securely through the App Store. Coins land in your piggy bank as soon as Apple confirms.'}
+ else if(shopTab==='cards'){main=cardPickHTML();note='A new card style unlocks with each arena you reach. Only you see your style.'}
+ else{const items=shopItems().filter(i=>i.kind===shopTab),foc=items.some(x=>x.id===shopFocus)?shopFocus:EQ[shopTab];
+  main=shopFeat(items,coins)+`<div class="shopgrid">${items.map(i=>`<button type="button" class="si ${EQ[i.kind]===i.id?'eq':''} ${shopArmed===i.id?'armed':''} ${foc===i.id?'foc':''}" data-id="${i.id}" aria-label="${SHOPN[i.id]||i.id}">${shopPrev(i.kind,i.id)}<span class="nm">${SHOPN[i.id]||i.id}</span>${chip(i)}</button>`).join('')}</div>`;
+  note=shopTab==='table'?'Your table theme changes how the game looks for you.':'Your rival sees your card back during battles.'}
+ body.innerHTML=head+main+`<p class="shopnote">${note}${shopTab==='cards'||shopTab==='coins'?'':DEMO?' Preview: these coins stay in this browser only.':ME?'':' Go online to buy with coins.'}</p>`;
+ body.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{sfx('ui');shopTab=b.dataset.st;shopArmed=null;shopFocus=null;renderShop()});
+ body.querySelectorAll('.si[data-id]').forEach(b=>b.onclick=()=>shopTap(b.dataset.id));
+ body.querySelectorAll('[data-cs]').forEach(b=>b.onclick=()=>pickCards(+b.dataset.cs));
+ const sa=$('shopAct');if(sa&&sa.dataset.id)sa.onclick=()=>{const id=sa.dataset.id,i=shopItems().find(x=>x.id===id);if(i&&!i.have&&!i.cup&&!i.tr&&ME&&ME.coins>=i.price)shopArmed=id;shopTap(id)};
  body.querySelectorAll('[data-pack]').forEach(b=>b.onclick=()=>iapBuy(b.dataset.pack,b))}
+function openShop(tab){shopArmed=null;shopNeed=null;if(tab){shopTab=tab;shopFocus=null}if(M.mode!=='home')return;closeSheets();setTab('shop')}
 /* ================= Coin packs: App Store purchases inside the iPhone app =================
    Uses the free cordova-plugin-purchase (window.CdvPurchase), which only exists in the iPhone
    app. The server checks every purchase with Apple before adding coins, and replays of a
@@ -329,7 +363,7 @@ const iapStore=()=>window.CdvPurchase&&window.CdvPurchase.store||null;
 function iapReady(){return !!(IAP_PACKS&&IAP_PACKS.length&&iapStore())}
 function iapStart(){const st=iapStore();if(iapStarted||!st||!IAP_PACKS)return;iapStarted=true;const C=window.CdvPurchase;
  try{st.register(IAP_PACKS.map(p=>({id:p.id,type:C.ProductType.CONSUMABLE,platform:C.Platform.APPLE_APPSTORE})));
-  st.when().productUpdated(()=>{if(!$('shopSheet').hidden&&shopTab==='coins')renderShop()})
+  st.when().productUpdated(()=>{if(shopVisible()&&shopTab==='coins')renderShop()})
    .approved(tx=>{if(!tx||!tx.transactionId)return;IAP_PENDING[tx.transactionId]=tx;iapSend(tx.transactionId)});
   st.error(e=>{if(e&&e.code!==C.ErrorCode.PAYMENT_CANCELLED)console.warn('store',e&&e.message)});
   st.initialize([C.Platform.APPLE_APPSTORE]).catch(()=>{})}catch(e){console.warn('purchases unavailable',e)}}
@@ -348,7 +382,7 @@ async function iapBuy(id,el){const C=window.CdvPurchase,st=iapStore();if(!st)ret
 let iapFrom=null;
 function onIapOk(m){const tx=String(m.tx||''),t=IAP_PENDING[tx];if(t){try{t.finish()}catch(e){}delete IAP_PENDING[tx]}
  const added=numOf(m.added);if(added>0){sfx('levelup');callout(`+${added.toLocaleString()} coins`,'#ffd23a','Thank you!');depositCoins(added,iapFrom,Math.max(0,numOf(m.coins)-added));iapFrom=null;
-  if(needPaidFor){const id=needPaidFor,it=SHOP0.find(i=>i.id===id);needPaidFor=null;setTimeout(()=>{shopNeed=null;if(it)shopTab=it.kind;shopArmed=id;if(!$('shopSheet').hidden)renderShop();toast(`Tap ${SHOPN[id]} again to buy it.`)},1800)}}}
+  if(needPaidFor){const id=needPaidFor,it=SHOP0.find(i=>i.id===id);needPaidFor=null;setTimeout(()=>{shopNeed=null;if(it)shopTab=it.kind;shopArmed=id;if(shopVisible())renderShop();toast(`Tap ${SHOPN[id]} again to buy it.`)},1800)}}}
 const IAP_TRIES={};
 function onIapFail(m){const tx=String(m.tx||''),code=String(m.code||'');
  // Apple may need a moment to know a brand-new purchase: keep it open and ask again a few times.
@@ -380,11 +414,11 @@ function renderNeed(body){const it=SHOP0.find(i=>i.id===shopNeed);if(!it||!ME){s
  const ch=$('needChest');if(ch)ch.onclick=()=>{sfx('ui');if(DEMO)demoClaimChest();else NET.send({t:'claim_chest'});setTimeout(()=>{if(shopNeed)renderShop()},2600)};
  const qu=$('needQuest');if(qu)qu.onclick=()=>{sfx('ui');shopNeed=null;renderQuests();openSheet('questSheet')};
  $('needPlay').onclick=()=>{sfx('ui');shopNeed=null;closeSheets();if(DEMO)startAi();else if(online)$('quickBtn').click();else toast('Connect to the game server to play online.')}}
-function shopTap(id){const i=shopItems().find(x=>x.id===id);if(!i)return;
- if(EQ[i.kind]===id){sfx('ui');return}
+function shopTap(id){const i=shopItems().find(x=>x.id===id);if(!i)return;shopFocus=id;
+ if(EQ[i.kind]===id){sfx('ui');shopArmed=null;renderShop();return}
  if(i.have){sfx('select');shopArmed=null;equipLocal(i.kind,id);if(ME&&NET.ready)NET.send({t:'equip',kind:i.kind,item:id});renderShop();return}
- if(i.cup){sfx('bad');toast(`Win a cup to unlock ${SHOPN[id]}.`);return}
- if(i.tr){sfx('bad');toast(`Reach ${i.tr} trophies to unlock ${SHOPN[id]}.`);return}
+ if(i.cup){sfx('bad');renderShop();toast(`Win a cup to unlock ${SHOPN[id]}.`);return}
+ if(i.tr){sfx('bad');renderShop();toast(`Reach ${i.tr} trophies to unlock ${SHOPN[id]}.`);return}
  if(!DEMO&&(!ME||!NET.ready)){sfx('bad');toast('Go online to buy with coins.');return}
  if(ME.coins<i.price){sfx('select');shopNeed=id;shopArmed=null;renderShop();return}
  if(shopArmed!==id){sfx('select');shopArmed=id;renderShop();return}
@@ -493,7 +527,7 @@ const ERRS={room_not_found:'No open room has that code. Check it and try again.'
 function onServer(m){switch(m.t){
  case 'welcome':onWelcome(m);break;
  case 'name':if(typeof m.name==='string'&&m.name){commitName(m.name);ST.set('ft-nick-pending',false);nameReply(true)}break;
- case 'me':ME=cleanMe(m);if(ME.shop){EQ.table=ME.shop.table;EQ.back=ME.shop.back;ST.set('ft-table',EQ.table);ST.set('ft-back',EQ.back);applyTheme()}if(!$('shopSheet').hidden)renderShop();renderRewards();if(!$('questSheet').hidden)renderQuests();scheduleReminders();maybeShowReward();break;
+ case 'me':ME=cleanMe(m);if(ME.shop){EQ.table=ME.shop.table;EQ.back=ME.shop.back;ST.set('ft-table',EQ.table);ST.set('ft-back',EQ.back);applyTheme()}if(shopVisible())renderShop();renderRewards();if(!$('questSheet').hidden)renderQuests();scheduleReminders();maybeShowReward();break;
  case 'claimed':onClaimed(m);break;
  case 'bought':onBought(m);break;
  case 'iap_ok':onIapOk(m);break;
@@ -612,7 +646,7 @@ function onCup(v){const c=cleanCup(v);if(!c)return;const old=CUPS[c.code];CUPS[c
  if((cupAwaitNew&&!old&&c.host)||cupAwaitJoin===c.code){cupAwaitNew=false;cupAwaitJoin=null;sfx('join');closeSheets();openCup(c.code)}
  if(old&&old.state==='lobby'&&c.state==='live'){sfx('go');toast(`${c.name} has started! Play your matches.`)}
  renderCupBits(c.code)}
-function renderCupBits(code){if(curTab==='cups')renderCups();if(cupOpen===code&&!$('cupSheet').hidden)renderCupSheet();paintCupDot()}
+function renderCupBits(code){if(curTab==='cups')renderCups();paintCupNudge();if(cupOpen===code&&!$('cupSheet').hidden)renderCupSheet();paintCupDot()}
 function paintCupDot(){const b=$('navCups');if(!b)return;const any=Object.values(CUPS).some(cupNeedsMe);b.classList.toggle('hasdot',any)}
 function cupStatus(c){
  if(c.state==='lobby')return`Waiting to start · ${c.players.length} of 6 players`;
@@ -688,16 +722,43 @@ const clockMs=()=>clkSet*1000;
 function renderTop(){const L=lvlInfo(REC.xp);
  $('topProf').innerHTML=`${avatarHTML(nick(),L.lv)}<div class="pinfo"><div class="nm ol">${esc(nick())}</div><div class="bar xp thin"><i style="width:${L.into/L.need*100}%"></i><b class="ols">${L.into} / ${L.need} XP</b></div></div>`;
  $('topTr').innerHTML=`${TROPHY}<span class="ol">${REC.tr}</span>`}
+/* The lobby: rewards on top, a slim arena strip, then one play panel (who, level, clock, Play). */
+let playMode=ST.get('ft-mode','ai');if(!['ai','online','friend'].includes(playMode))playMode='ai';
+function paintMode(){const ai=arenaIdx(REC.tr);
+ document.querySelectorAll('#modepick [data-mode]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.mode===playMode)));
+ $('lvRow').hidden=playMode!=='ai';$('onlineLine').hidden=playMode==='ai';
+ const n=$('aiNote'),sm=$('aiTier');
+ if(playMode==='ai'){sm.textContent=aiLvl==='auto'?`vs Computer · ${AI_TIER[ai]}`:`vs ${AI_LVLS[aiLvl]} computer`;n.textContent=aiLvl==='auto'?'Auto matches your arena · wins and losses move trophies':'Practice · earns XP, trophies stay put'}
+ else if(playMode==='online'){sm.textContent='Quick match · ranked';n.textContent='Win +30 trophies, lose −20. Nobody around? Play the computer meanwhile.'}
+ else{sm.textContent='Create or join a room';n.textContent='Make a room and share the code, or type the code your friend sent.'}}
+function quickMatch(){if(NET.ready)sendProfile();if(NET.send({t:'queue',clock:clkSet}))closeSheets()}
+function playNow(){sfx('ui');if(playMode==='ai'){startAi();return}
+ if(!SERVER_URL){sfx('bad');toast('Online play needs the game server. Open the game from its server address.');return}
+ if(!NET.ready){sfx('bad');toast('Still connecting to the game server…');return}
+ if(playMode==='online')quickMatch();else{$('quickBtn').hidden=true;openSheet('friendSheet')}}
 function renderHome(){
  renderTop();
  const ai=arenaIdx(REC.tr),A=ARENAS[ai],N=ARENAS[ai+1];const pct=N?(REC.tr-A.at)/(N.at-A.at)*100:100;
  const ac_=$('arenaCard');ac_.style.setProperty('--ag1',A.g[0]);ac_.style.setProperty('--ag2',A.g[1]);
- ac_.innerHTML=`<div class="rays"></div><div class="emb">${emblem(ai,118)}</div><div class="an ol">${A.n}</div><div class="asub ols">Arena ${ai+1} of ${ARENAS.length}</div>
-  <div class="tprog">${TROPHY}<div class="bar"><i style="width:${pct}%"></i><b class="ols">${N?`${REC.tr} / ${N.at}`:`${REC.tr} · Top arena`}</b></div></div>`;
- $('aiTier').textContent=aiLvl==='auto'?`vs Computer · ${AI_TIER[ai]}`:`vs ${AI_LVLS[aiLvl]} computer`;paintAiPick();
+ ac_.innerHTML=`<span class="emb">${emblem(ai,56)}</span><span class="ar-t"><span class="ar-n ol">${A.n}</span><span class="ar-s">Arena ${ai+1} of ${ARENAS.length}${N?` · next ${esc(N.n)}`:' · top arena'}</span>
+  <span class="tprog">${TROPHY}<span class="bar"><i style="width:${pct}%"></i><b class="ols">${N?`${REC.tr} / ${N.at}`:`${REC.tr}`}</b></span></span></span>`;
+ paintAiPick();paintMode();
  netChanged();
- renderRecords();renderRewards();maybeShowReward();
+ renderRecords();renderRewards();paintCupNudge();renderProfile();maybeShowReward();
 }
+function paintCupNudge(){const el=$('cupNudge');if(!el)return;let pick=null;
+ for(const c of Object.values(CUPS)){if(c.state==='live'){const x=myCupMatches(c).find(cupOpenMatch);if(x){pick={c,x};break}}else if(!pick&&c.state==='lobby'&&cupNeedsMe(c))pick={c}}
+ el.hidden=!pick;if(!pick){el.innerHTML='';return}const{c,x}=pick,due=x?cupDue(c,x):null;
+ el.innerHTML=`<button class="cn-b" type="button"><span class="cn-ic">${CUPIC}</span><span class="cn-t"><b>${x?`Your match vs ${esc(c.players[cupOpp(c,x)].n)}`:'Your cup is ready to start'}</b><small>${esc(c.name)}${due!=null?` · ${fmtSpan(due)} left`:''}</small></span><span class="cn-go">${x?'Play':'Start'}</span></button>`;
+ el.querySelector('button').onclick=()=>{sfx('ui');openCup(c.code)}}
+let profSub='records';
+function openSettings(){sfx('ui');$('nick').value=NAME;nickNote('');openSheet('setSheet')}
+function renderProfile(){const L=lvlInfo(REC.xp),T=tot(),n=T.w+T.l+T.d,ai=arenaIdx(REC.tr);
+ $('profCard').innerHTML=`<div class="pc-top">${avatarHTML(nick(),L.lv)}<div class="pc-n"><b class="ol">${esc(nick())}</b><span>Level ${L.lv} · ${esc(ARENAS[ai].n)} · ${TROPHY}${REC.tr}</span></div></div>
+  <div class="bar xp"><i style="width:${L.into/L.need*100}%"></i><b class="ols">${L.into} / ${L.need} XP</b></div>
+  <div class="pc-btns"><button class="gb sm" id="editName" type="button">Change name</button><button class="gb blue sm" id="gearBtn" type="button">${IC.gear}Settings</button></div>`;
+ $('gearBtn').onclick=openSettings;$('editName').onclick=openSettings;paintProfSub()}
+function paintProfSub(){document.querySelectorAll('#profSeg [data-ps]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.ps===profSub)));$('tab-records').hidden=profSub!=='records';$('tab-guide').hidden=profSub!=='guide'}
 function renderRecords(){const T=tot(),n=T.w+T.l+T.d,ai=arenaIdx(REC.tr);
  const opps=Object.values(REC.opp).sort((a,b)=>(b.w+b.l+b.d)-(a.w+a.l+a.d)).slice(0,8);
  $('tab-records').innerHTML=`
@@ -728,8 +789,8 @@ $('tab-guide').innerHTML=`
   <p class="note">Tap a button twice to use it. Used tricks are struck out.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Trophies</div>
   <p>Computer: +12 / −8. Players: +30 / −20. You never drop below an arena you reached.</p>
-  <p>Each arena sharpens the computer and unlocks a card style (Settings). Battles earn XP.</p>
-  <p>Pick the computer's level in the lobby. <b>Auto</b> matches your arena and moves trophies; Easy, Normal, Hard and Master are practice: XP only, trophies stay put.</p>
+  <p>Each arena sharpens the computer and unlocks a card style (Shop, Cards). Battles earn XP.</p>
+  <p>Pick Computer in the lobby, then a level. <b>Auto</b> matches your arena and moves trophies; Easy, Normal, Hard and Master are practice: XP only, trophies stay put.</p>
   <p>With a clock, only your own turns count down.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Cups</div>
   <p>A private tournament for 3 to 6 friends. Create one in the Cups tab and share the code.</p>
@@ -741,14 +802,14 @@ $('tab-guide').innerHTML=`
   <p>A free chest every few hours (bank of 2), plus daily and weekly quests. Saved on the server.</p>
   <p>Quick matches feed a monthly season; top players win coins when it ends.</p>
   <p>No one around? Play the computer: unranked, still counts for quests.</p>
-  <p>Spend coins in the Shop (tap your coins): table themes for your screen, and card backs your rival sees. Three of each are free.</p>
+  <p>Spend coins in the Shop: table themes for your screen, and card backs your rival sees. Three of each are free.</p>
   <button class="gb blue sm" id="replayIntro2" style="align-self:flex-start">Replay intro</button></div>`;
  $('replayIntro2').onclick=()=>{sfx('ui');openIntro()}}
 let curTab='battle';
 let lbScope=ST.get('ft-lbscope','season')==='all'?'all':'season';
 const LBS={season:null,all:null};
-function setTab(t){curTab=t;document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
- for(const k of ['battle','leaders','cups','records','guide'])$('tab-'+k).hidden=k!==t;if(t==='leaders'){renderLeaders();requestLeaders()}if(t==='cups'){renderCups();if(NET.ready)NET.raw({t:'cup_list'})}try{scrollTo({top:0})}catch(e){}}
+function setTab(t){if(t==='records'||t==='guide'){profSub=t;t='profile'}curTab=t;document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
+ for(const k of ['battle','leaders','cups','shop','profile'])$('tab-'+k).hidden=k!==t;if(t==='shop')renderShop();if(t==='profile')renderProfile();if(t==='leaders'){renderLeaders();requestLeaders()}if(t==='cups'){renderCups();if(NET.ready)NET.raw({t:'cup_list'})}try{scrollTo({top:0})}catch(e){}}
 /* ---- Leaderboard (ranked online quick matches, kept by the server): this season, or all time ---- */
 function requestLeaders(){if(NET.ready)NET.raw({t:'leaderboard',season:lbScope==='season'})}
 function cleanLB(m){const n=v=>Math.max(0,Math.floor(Number(v))||0);
@@ -820,15 +881,17 @@ const left=secs=>Math.max(0,secs-(Date.now()-(ME?ME.at:Date.now()))/1000);
 function fmtSpan(s){s=Math.max(0,Math.floor(s));const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d>=2?`${d} days`:d===1?`1 day ${h} h`:h>=1?`${h} h ${m} min`:`${Math.max(1,m)} min`}
 function fmtClock(s){s=Math.ceil(Math.max(0,s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),r=s%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(r).padStart(2,'0')}
 let chestState=null,meAsked=false;
-function renderRewards(){const el=$('rewards');if(!el)return;
- if(!ME||(!SERVER_URL&&!DEMO)){el.hidden=true;return}
- el.hidden=false;meAsked=false;
- $('coinBox').innerHTML=`<span class="cb-row">${PIGGY}<span class="ol">${coinAnim?coinAnim.cur:ME.coins}</span></span><small>SHOP</small>`;
+function renderRewards(){const el=$('rewards');if(!el)return;paintResNudge();
+ if(!ME||(!SERVER_URL&&!DEMO)){el.hidden=true;$('coinBox').hidden=true;return}
+ el.hidden=false;meAsked=false;$('coinBox').hidden=false;
+ $('coinBox').innerHTML=`<span class="cb-row">${PIGGY}<span class="ol">${coinAnim?coinAnim.cur:ME.coins}</span></span><span class="cb-plus">${IC.plus}</span>`;
+ const sb=$('seasonBtn'),se=ME.season,son=!!(se&&se.name&&se.endsIn>0);sb.hidden=!son;el.classList.toggle('two',!son);
+ if(son)sb.innerHTML=`<span class="rt-ic">${IC.crown}</span><span class="rt-t">Season</span><small>${fmtSpan(left(se.endsIn))} left</small>`;
  const c=ME.chest,b=$('chestBtn');chestState=c.n>0?'ready':'wait';
- if(c.n>0){b.className='gb green chestbtn ready';b.innerHTML=`<span>Open chest${c.n>1?' ×'+c.n:''}</span><small>+${c.coins} coins</small>`}
- else{b.className='gb chestbtn wait';b.innerHTML=`<span>Free chest</span><small class="cb-s">${c.nextIn==null?'':'in '+fmtClock(left(c.nextIn))}</small>`}
+ if(c.n>0){b.className='rtile chestbtn ready';b.innerHTML=`<span class="rt-ic">${IC.chest}</span><span class="rt-t">Open chest${c.n>1?' ×'+c.n:''}</span><small>+${c.coins} coins</small>`}
+ else{b.className='rtile chestbtn wait';b.innerHTML=`<span class="rt-ic">${IC.chest}</span><span class="rt-t">Free chest</span><small class="cb-s">${c.nextIn==null?'':'in '+fmtClock(left(c.nextIn))}</small>`}
  const claimable=[...ME.daily,...ME.weekly].filter(x=>x.have>=x.need&&!x.claimed).length,dn=ME.daily.filter(x=>x.claimed).length;
- $('questBtn').innerHTML=`<span>Quests</span><small>${dn} of ${ME.daily.length} today</small>${claimable?'<i class="dot" aria-label="Rewards to collect"></i>':''}`}
+ $('questBtn').innerHTML=`<span class="rt-ic">${IC.list}</span><span class="rt-t">Quests</span><small>${claimable?claimable+' to collect':dn+' of '+ME.daily.length+' today'}</small>${claimable?'<i class="dot" aria-label="Rewards to collect"></i>':''}`;$('questBtn').classList.toggle('ready',!!claimable)}
 /* Once a second: only the countdown text changes, so the buttons are never rebuilt under a tapping finger. */
 let lastRewSec=0;
 function tickRewards(){if(!ME||$('home').hidden)return;const sec=Math.floor(Date.now()/1000);if(sec===lastRewSec)return;lastRewSec=sec;
@@ -861,7 +924,7 @@ function demoMe(){const d=demoState();ST.set('ft-demo',d);const now=Date.now()/1
   daily:DEMO_Q.map((q,i)=>({slot:'d'+i,text:q.text,need:q.need,have:Math.min(q.need,d.q[i]),coins:q.coins,claimed:!!d.qc[i]})),weekly:[],
   dailyIn:mid,weeklyIn:mid,season:{name:'',endsIn:0},reward:null,
   shop:{items:SHOP0.map(i=>({...i,have:i.cup?false:i.tr?t>=i.tr:i.price===0||d.owned.includes(i.id)})),table:EQ.table,back:EQ.back},at:Date.now(),demo:true}}
-function demoRefresh(){ME=demoMe();renderRewards();if(!$('questSheet').hidden)renderQuests();if(!$('shopSheet').hidden)renderShop()}
+function demoRefresh(){ME=demoMe();renderRewards();if(!$('questSheet').hidden)renderQuests();if(shopVisible())renderShop()}
 function demoClaimChest(){const d=demoState();if(d.chest.n<1){toast(`Your next free chest arrives in ${fmtSpan(Math.max(0,d.chest.next-Date.now()/1000))}.`);return}
  if(d.chest.n===2)d.chest.next=Date.now()/1000+DEMO_CHEST_EVERY;d.chest.n--;d.coins+=40;ST.set('ft-demo',d);onClaimed({what:'chest',coins:40});ME=demoMe();renderRewards()}
 function demoClaimQuest(slot){const i=+String(slot).slice(1),q=DEMO_Q[i],d=demoState();if(!q||d.qc[i]||d.q[i]<q.need)return;
@@ -900,7 +963,7 @@ let aiLvl=String(ST.get('ft-ailvl','auto'));if(!AI_LVLS[aiLvl])aiLvl='auto';
 const aiTierNow=()=>aiLvl==='auto'?arenaIdx(REC.tr):+aiLvl;
 function paintAiPick(){document.querySelectorAll('#aipick .lv:not(.lv-a)').forEach(i=>{if(!i.children.length)i.innerHTML='<b></b><b></b><b></b><b></b>'});const la=document.querySelector('#aipick .lv-a');if(la)la.textContent=AI_TIER[arenaIdx(REC.tr)];
  document.querySelectorAll('#aipick button').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.ai===aiLvl)));
- const n=$('aiNote');if(n)n.textContent=aiLvl==='auto'?'Auto matches your arena · wins and losses move trophies':'Practice · earns XP, trophies stay put'}
+ paintMode()}
 function paintPicker(){paintAiPick();document.querySelectorAll('#clkpick button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.clk===clkSet)))}
 
 /* Sheets */
@@ -965,7 +1028,8 @@ function renderGame(){
  $('meAv').innerHTML=avatarHTML(me_.name,me_.lv);$('meName').textContent=me_.name;$('meSub').innerHTML='';
  paintOppHand();paintWatchers();
  setScore('oppScore',total(V.ex[1]));setScore('meScore',total(V.ex[0]));
- const pwb=i=>{const p=V.pw||{sab:[0,0],rush:[0,0]};return `<span class="pwb ${p.sab[i]?'':'used'}" title="Sabotage">SABOTAGE</span>${p.eye?`<span class="pwb ${p.eye[i]?'':'used'}" title="Evil Eye">EVIL EYE</span>`:''}${i===0&&p.rush[0]&&M.mode!=='watch'?`<span class="pwb" title="Rush">RUSH</span>`:''}${V.rn===i?'<span class="pwb hit">RUSHED</span>':''}`};
+ const pwb=i=>{const p=V.pw||{sab:[0,0],rush:[0,0]},ic=(k,n,on,svg)=>`<span class="pwi ${k} ${on?'':'used'}" role="img" aria-label="${n} ${on?'not used yet':'used'}" title="${n}${on?'':' · used'}">${svg}</span>`;
+  const icons=i===1||M.mode==='watch';return `${icons?ic('pk-sab','Sabotage',p.sab[i],IC.bolt)+(p.eye?ic('pk-eye','Evil Eye',p.eye[i],IC.eye):''):''}${V.rn===i?'<span class="pwb hit">RUSHED</span>':''}`};
  $('mePw').innerHTML=pwb(0);$('oppPw').innerHTML=pwb(1);
  $('oppBar').classList.toggle('turn',!V.mt&&!V.ov);$('meBar').classList.toggle('turn',myT);
  $('deckN').textContent=V.dn;$('deck').classList.toggle('low',V.dn<=6);
@@ -994,10 +1058,10 @@ function renderGame(){
  else if(V.ov)m=V.fl==='me'?(V.why==='forfeit'?'<b>You left the battle.</b>':'<b>Your time ran out.</b>'):V.fl==='opp'?(V.why==='forfeit'?`<b>${esc(opp.name)} left the battle.</b>`:`<b>${esc(opp.name)} ran out of time.</b>`):'<b>Battle over!</b>';
  else if(M.mode==='online'&&M.reconnecting)m='Connection lost. Reconnecting…';
  else if(M.mode!=='ai'&&!M.oppHere)m=`${esc(opp.name)} disconnected. Waiting for them to return…`;
- else if(myT)m=V.ph==='play'?(lastText()?`<b>Your turn</b> · ${lastText()}`:'<b>Your turn</b> · play or discard'):'<b>Draw</b> · deck or a discard pile';
+ else if(myT)m=V.ph==='play'?(lastText()?`<b>Your turn</b> · ${lastText()}`:'<b>Your turn</b> · play or discard a card'):'<b>Now draw</b> · the deck or a discard pile';
  else m=M.mode==='ai'?'Computer is thinking…':`${esc(opp.name)}'s turn…`;
  if(!V.ov&&Date.now()>=eyeUntil)
- $('msg').className='msg';$('msg').innerHTML=m;
+ $('msg').className='msg'+(myT&&M.mode!=='watch'&&M.oppHere!==false&&!M.reconnecting?' mine':'');$('msg').innerHTML=m;
 
  const deckR=rectOf($('deck')),oppR=rectOf($('oppHand'));
  const now=new Set();
@@ -1054,7 +1118,7 @@ function fxEvent(ev,opp){const side=ev.by==='me'?0:1,D=reduced?0:430,who=side?op
   if(V.ov)callout('Final card!','#ffd23a')}}
 function dealAnim(){const deckR=rectOf($('deck'));let i=0;document.querySelectorAll('#hand .card').forEach(el=>animateFrom(el,deckR,i++*70));
  document.querySelectorAll('#oppHand .back').forEach((el,j)=>animateFrom(el,deckR,j*70));sfx('deal');
- setTimeout(()=>{if(!V||V.ov)return;callout(V.mt?'Your turn!':(M.mode==='ai'?'Computer starts':`${oppInfo().name} starts`),V.mt?'#7dffa0':'#ffd23a');if(V.mt)sfx('go');aiSay(0,.5)},650)}
+ setTimeout(()=>{if(!V||V.ov)return;const g=$('msg');g.classList.remove('pulse');void g.offsetWidth;g.classList.add('pulse');if(V.mt)sfx('go');aiSay(0,.5)},650)}
 function vsSplash(cb){const o=$('vs'),opp=oppInfo(),me_=meInfo(),ai=arenaIdx(REC.tr);
  const tag=M.mode==='ai'?(M.fixed?`${AI_LVLS[String(M.tier)]||AI_TIER[M.tier]} computer · Practice`:`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`):M.kind==='cup'?`${esc(CUPS[M.code]?CUPS[M.code].name:'Cup')} · Cup match`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:M.kind==='bot'?'Computer battle · Unranked':'Quick match · Ranked';
  o.innerHTML=`<div class="vs-in">
@@ -1095,15 +1159,22 @@ function powerScene(ev,opp){const o=$('eye');if(!o)return;const sab=ev.k==='sab'
  let closing=false;const close=()=>{if(closing)return;closing=true;clearTimeout(eyeT);o.onclick=null;o.classList.add('out');setTimeout(()=>{o.hidden=true;o.classList.remove('out');eyeUntil=0;if(V)renderGame()},600)};
  o.onclick=()=>{if(Date.now()-t0>=(reduced?800:3750))close()};
  eyeT=setTimeout(close,D-600)}
-function renderActs(){const myT=V&&V.mt&&!V.ov&&M.mode!=='watch';let h='';$('emoBtn').hidden=M.mode==='watch';
+function renderActs(){const myT=V&&V.mt&&!V.ov&&M.mode!=='watch';let h='';$('emoBtn').hidden=M.mode==='watch';renderPowers();
  if(M.mode==='watch'){$('acts').innerHTML=V&&V.ov?'':'<span class="watchnote">You are watching. Hands stay hidden.</span>';return}
- if(myT&&V.ph==='play'&&sel!=null&&!pending)h=`<button class="gb green" id="aPlay">Play to ${COL[cC(sel)].n}</button><button class="gb gray" id="aDisc">Discard</button>`;
- else if(V&&V.ov)h=`<button class="gb" id="aAgain">${M.mode==='ai'?'Battle again':'Rematch'}</button>`;
- else if(myT&&!pending){const p=V.pw||{sab:[0,0],rush:[0,0]};
-  if(V.ph==='play'&&p.sab[0]>0&&V.dn>=3)h+=`<button class="gb purple ${armed==='sab'?'armed':''}" id="aSab">${armed==='sab'?'Tap to confirm':'Sabotage'}</button>`;
-  if(V.ph==='play'&&p.eye&&p.eye[0]>0&&V.dn>=10&&!(V.ru&&V.ru.seat===0))h+=`<button class="gb purple eyebtn ${armed==='eye'?'armed':''}" id="aEye">${armed==='eye'?'Tap to confirm':'Evil Eye'}</button>`;
-  if(p.rush[0]>0&&V.rn==null)h+=`<button class="gb purple ${armed==='rush'?'armed':''}" id="aRush">${armed==='rush'?'Tap to confirm':'Rush'}</button>`}
+ if(myT&&V.ph==='play'&&sel!=null&&!pending){const c=cC(sel),e=V.ex[0][c],ok=canE(e,sel),d=expScore([...e,sel])-expScore(e),wg=cV(sel)===0;
+  h=`<button class="gb green ${ok?'':'dim'}" id="aPlay">Play to ${COL[c].n}${ok?` <span class="pts">${wg?'×'+(e.length+2):(d>=0?'+':'−')+Math.abs(d)}</span>`:''}</button><button class="gb gray" id="aDisc">Discard</button>`}
+ else if(myT&&V.ph==='play'&&!pending)h='<button class="gb gray ghost" type="button" disabled>Pick a card</button><button class="gb gray ghost" type="button" disabled>Discard</button>';
+ else if(V&&V.ov)h=`<button class="gb" id="aAgain">${M.mode==='ai'?'Play again':'Rematch'}</button>`;
  $('acts').innerHTML=h}
+/* The power tray: always on screen, so you can see what is left; each needs two taps. */
+function renderPowers(){const el=$('pwTray');if(!el)return;
+ if(!V||M.mode==='watch'||V.ov){el.hidden=true;return}el.hidden=false;
+ const p=V.pw||{sab:[0,0],rush:[0,0]},myT=V.mt&&!pending,ruOn=!!(V.ru&&V.ru.seat===0);
+ const P=[{k:'sab',id:'aSab',n:'Sabotage',ic:IC.bolt,left:p.sab[0]>0,ok:myT&&V.ph==='play'&&V.dn>=3,why:!V.mt?'Your turn':V.ph!=='play'?'Before you play':V.dn<3?'Locked':''},
+  p.eye?{k:'eye',id:'aEye',n:'Evil Eye',ic:IC.eye,left:p.eye[0]>0,ok:myT&&V.ph==='play'&&V.dn>=10&&!ruOn,why:!V.mt?'Your turn':V.ph!=='play'?'Before you play':V.dn<10?'Locked':ruOn?'Not when rushed':''}:null,
+  {k:'rush',id:'aRush',n:'Rush',ic:IC.rush,left:p.rush[0]>0,ok:myT&&V.rn==null,why:!V.mt?'Your turn':''}].filter(Boolean);
+ el.innerHTML=P.map(x=>{const st=!x.left?'used':armed===x.k?'armed':x.ok?'ready':'wait';
+  return `<button class="pw pk-${x.k} ${st}" id="${x.id}" type="button" ${st==='used'||st==='wait'?'disabled':''} aria-label="${x.n}: ${st==='used'?'used':st==='armed'?'tap again to use':st==='ready'?'ready':x.why||'not now'}"><span class="pw-ic">${x.ic}</span><span class="pw-t"><b>${x.n}</b><small>${st==='used'?'Used':st==='armed'?'Tap again':st==='ready'?'Ready':x.why||'Not now'}</small></span></button>`}).join('')}
 let armed=null,armT=null;
 function arm(k){armed=k;clearTimeout(armT);armT=setTimeout(()=>{armed=null;renderActs()},3000);sfx('select');renderActs()}
 function setSel(id){sel=sel===id?null:id;document.querySelectorAll('#hand .card').forEach(el=>el.classList.toggle('sel',+el.dataset.id===sel));renderActs();if(sel!=null)sfx('select')}
@@ -1144,13 +1215,14 @@ function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&
   <div class="rrow coinrow" id="rCoinRow">${PIGGY}<div class="bar coin"><b class="ols" id="rCoinTxt">${M.kind==='cup'&&M.mode==='online'?'Cup match · prizes when the cup ends':M.mode==='online'||DEMO?'Counting coins…':'Play online to earn coins'}</b></div><span class="dchip coin" id="rCoinD" ${(M.mode==='online'&&M.kind!=='cup')||DEMO?'':'hidden'}>+0</span></div>
   <div class="rrow"><div class="lvbox ol" id="rLv">${L0.lv}</div><div class="bar xp"><i id="rXpBar"></i><b class="ols" id="rXpTxt"></b></div><span class="dchip xp">+${info?info.dX:0} XP</span></div>
   ${h?`<p class="note" style="text-align:center">Head to head with ${esc(o.name)}: ${wld(h)}</p>`:''}
-  <div class="rbtns"><button class="gb green" id="oAgain">${M.mode==='ai'?'Battle again':M.kind==='cup'?'Back to cup':'Rematch'}</button><button class="gb blue" id="oHome">Lobby</button></div>
-  <button class="linkbtn" id="oView">See the table</button><p class="note" id="rmNote" style="text-align:center"></p></div>`;
+  <div class="rnudge" id="rNudge" hidden></div>
+  <div class="rbtns"><button class="gb blue" id="oHome">Lobby</button><button class="gb green" id="oAgain">${M.mode==='ai'?'Play again':M.kind==='cup'?'Back to cup':'Rematch'}</button></div>
+  <p class="note" id="rmNote" style="text-align:center"></p><button class="linkbtn" id="oView">See the table</button></div>`;
  $('over').hidden=false;
  $('oAgain').onclick=()=>{sfx('ui');again()};$('oHome').onclick=()=>{sfx('ui');goHome()};$('oView').onclick=()=>{$('over').hidden=true};
- updateRmNote();
+ updateRmNote();paintResNudge();
  if(info)animateGains(info,first);
- if(DEMO&&M.mode==='ai'){if(first&&info){M.earned={coins:demoBattle(r,V.ex[0].flat().filter(id=>cV(id)===0).length),counted:true};renderRewards()}if(M.earned)setTimeout(()=>showEarned(first),first?2600:0)}
+ if(DEMO&&M.mode==='ai'){if(first&&info){M.earned={coins:demoBattle(r,V.ex[0].flat().filter(id=>cV(id)===0).length),counted:true};renderRewards();paintResNudge()}if(M.earned)setTimeout(()=>showEarned(first),first?2600:0)}
  if(M.mode==='online'&&M.earned)setTimeout(()=>showEarned(first),first?2600:0)}
 /* Icons that fly from one place on screen into a counter, landing one after another. */
 function flyIcons(html,fromEl,toEl,n,onHit,done){const a=fromEl&&fromEl.getBoundingClientRect(),b=toEl&&toEl.getBoundingClientRect();
@@ -1179,6 +1251,11 @@ function animateGains(info,first){const set=(t,x)=>{const s=trState(Math.round(t
  setTimeout(()=>tween(900,k=>{const t=info.t0+(info.t1-info.t0)*k;if(Math.round(t)!==Math.round(lastT)&&Math.round(t)%3===0)sfx('coin');lastT=t;set(t,info.x0)},()=>{
   tween(1000,k=>set(info.t1,info.x0+(info.x1-info.x0)*k),()=>{
    if(info.a1>info.a0){sfx('arena');confetti();callout('New arena!',ARENAS[info.a1].g[0],ARENAS[info.a1].n);callout('New cards!','#ffd23a',`${CARDSETS[info.a1].n} style unlocked and equipped`)}})}),700)}
+/* What to do next, right on the result: a finished quest to cash in, or a ready chest. */
+function paintResNudge(){const el=$('rNudge');if(!el)return;const q=ME&&[...ME.daily,...ME.weekly].find(x=>x.have>=x.need&&!x.claimed),ch=ME&&ME.chest&&ME.chest.n>0;
+ if(q)el.innerHTML=`<button class="rn-b" type="button" data-claim="${esc(q.slot)}"><span class="rn-ic">${IC.list}</span><span class="rn-t"><b>Quest done: ${esc(q.text)}</b><small>Collect ${q.coins} coins</small></span><span class="rn-go">Claim</span></button>`;
+ else if(ch)el.innerHTML=`<button class="rn-b" type="button" id="rnChest"><span class="rn-ic">${IC.chest}</span><span class="rn-t"><b>Your free chest is ready</b><small>Open it for ${ME.chest.coins} coins</small></span><span class="rn-go">Open</span></button>`;
+ el.hidden=!(q||ch);const b=$('rnChest');if(b)b.onclick=()=>$('chestBtn').click()}
 function updateRmNote(){const n=$('rmNote');if(!n||!V)return;n.textContent=M.mode==='ai'?'':(M.closed||M.oppLeft)?'Your opponent has left the battle.':M.iWantRm===V.gid?(M.theyWantRm===V.gid?'Starting…':'Waiting for your opponent…'):(M.theyWantRm===V.gid?'Your opponent wants a rematch!':'')}
 
 /* ================= Actions ================= */
@@ -1278,15 +1355,18 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('#hand .card,.pile')){e.preventDefault();e.target.click()}
  if(e.key==='Escape'){closeEmo();if(!$('friendSheet').hidden||!$('setSheet').hidden||!$('leaveSheet').hidden)closeSheets()}});
 $('deck').onclick=()=>act('draw',-1,false,$('deck'));
-$('playAi').onclick=()=>{sfx('ui');startAi()};
-$('openFriend').onclick=()=>{sfx('ui');openSheet('friendSheet')};
+$('playAi').onclick=playNow;
+$('arenaCard').onclick=()=>{sfx('ui');profSub='records';setTab('profile');setTimeout(()=>{const rd=document.querySelector('#tab-records .rd.cur');if(rd)rd.scrollIntoView({block:'center',behavior:reduced?'auto':'smooth'})},60)};
+$('seasonBtn').onclick=()=>{sfx('ui');setTab('leaders')};
+document.querySelectorAll('#modepick [data-mode]').forEach(b=>b.onclick=()=>{if(playMode!==b.dataset.mode)sfx('select');playMode=b.dataset.mode;ST.set('ft-mode',playMode);paintMode()});
+document.querySelectorAll('#profSeg [data-ps]').forEach(b=>b.onclick=()=>{if(profSub!==b.dataset.ps)sfx('ui');profSub=b.dataset.ps;paintProfSub()});
 const shakeEl=el=>{el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');el.focus()};
 $('create').onclick=()=>{sfx('ui');const raw=$('customCode').value.trim();
  if(raw&&!/^[A-Za-z]{5}$/.test(raw)){sfx('bad');shakeEl($('customCode'));$('roomNote').textContent='Your own code must be exactly 5 letters, or leave it empty for a random one.';return}
  if(NET.ready)sendProfile();if(NET.send({t:'create',clock:clkSet,code:raw?raw.toUpperCase():undefined}))closeSheets()};
 $('customCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z]/g,'')});
 $('customCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('create').click()});
-$('quickBtn').onclick=()=>{sfx('ui');if(NET.ready)sendProfile();if(NET.send({t:'queue',clock:clkSet}))closeSheets()};
+$('quickBtn').onclick=()=>{sfx('ui');quickMatch()};
 $('join').onclick=()=>{const c=$('joinCode').value.trim().toUpperCase();if(!/^[A-Z]{5}$/.test(c)){sfx('bad');$('joinCode').classList.remove('shake');void $('joinCode').offsetWidth;$('joinCode').classList.add('shake');$('joinCode').focus();return}sfx('ui');if(NET.ready)sendProfile();if(NET.send({t:'join',code:c}))closeSheets()};
 $('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('join').click()});
 $('joinCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z]/g,'')});
@@ -1297,15 +1377,7 @@ function saveNick(){nickNote('');const was=NAME,b=$('nickSave');trySetName($('ni
    if(!same){toast(`Name saved: ${NAME}`);renderHome()}}
   else{nickNote(msg,true);sfx('bad');$('nick').focus()}})}
 $('nick').value=NAME;$('nickSave').onclick=saveNick;$('nick').addEventListener('keydown',e=>{if(e.key==='Enter')saveNick()});
-$('topProf').onclick=$('gearBtn').onclick=()=>{sfx('ui');$('nick').value=NAME;nickNote('');renderCardPick();openSheet('setSheet')};
-/* ---- Card style picker (Settings) ---- */
-const CS_SAMPLE=[5,7,8,9,10,6,10];
-function renderCardPick(){const max=cardsOpen();
- $('cardPick').innerHTML=CARDSETS.map((s,i)=>{const lock=i>max;
-  return `<button type="button" class="cs cs-${s.k}${i===cardSel?' on':''}${lock?' lock':''}" data-cs="${i}" aria-pressed="${i===cardSel}" aria-label="${s.n} cards${lock?`, locked until ${ARENAS[i].at} trophies`:''}">${mini(cid(i%5,CS_SAMPLE[i]),40)}<span class="csn">${s.n}</span>${lock?`<span class="csl">${IC.lock}${ARENAS[i].at}</span>`:''}</button>`}).join('')}
-$('cardPick').addEventListener('click',e=>{const b=e.target.closest('[data-cs]');if(!b)return;const i=+b.dataset.cs;
- if(i>cardsOpen()){sfx('bad');toast(`Reach ${ARENAS[i].n} (${ARENAS[i].at} trophies) to unlock ${CARDSETS[i].n} cards.`);return}
- sfx('select');cardSel=i;ST.set('ft-cards',i);applyCards();renderCardPick()});
+$('topProf').onclick=()=>{sfx('ui');setTab('profile')};
 $('replayIntro').onclick=()=>{sfx('ui');openIntro()};
 /* ---- Rewards, quests, computer offer ---- */
 $('chestBtn').onclick=()=>{sfx('ui');if(DEMO){demoClaimChest();return}if(ME&&ME.chest.n>0)NET.send({t:'claim_chest'});else if(ME&&ME.chest.nextIn!=null)toast(`Your next free chest arrives in ${fmtSpan(left(ME.chest.nextIn))}.`)};
@@ -1318,8 +1390,8 @@ const cupJoinGo=()=>{const code=$('cupCode').value.trim().toUpperCase();if(!/^[A
  if(!NET.ready){sfx('bad');$('cupJoinNote').textContent='Connect to the game server first.';return}
  sfx('ui');cupAwaitJoin=code;NET.send({t:'cup_join',code})};
 $('cupJoinGo').onclick=cupJoinGo;$('cupCode').addEventListener('keydown',e=>{if(e.key==='Enter')cupJoinGo()});
-$('coinBox').onclick=()=>{sfx('ui');shopArmed=null;shopNeed=null;renderShop();openSheet('shopSheet')};
-$('shopOpen').onclick=()=>{sfx('ui');shopArmed=null;shopNeed=null;renderShop();openSheet('shopSheet')};
+$('coinBox').onclick=e=>{sfx('ui');openShop(e.target.closest&&e.target.closest('.cb-plus')&&iapReady()?'coins':shopTab==='coins'?'table':null)};
+$('shopOpen').onclick=()=>{sfx('ui');openShop('table')};
 $('questBtn').onclick=()=>{sfx('ui');renderQuests();openSheet('questSheet')};
 $('botGo').onclick=()=>{sfx('ui');NET.send({t:'bot'})};
 $('botWait').onclick=()=>{sfx('ui');$('botOffer').hidden=true};
@@ -1358,8 +1430,8 @@ $('sfx').onclick=toggleSound;$('sndTog').onclick=toggleSound;
 $('musTog').onclick=()=>{musicOn=!musicOn;ST.set('ft-music',musicOn);paintSound();musicSync()};
 
 /* ================= Boot ================= */
-$('navBattle').innerHTML=IC.swords+'Battle';$('navLeaders').innerHTML=IC.crown+'Ranks';$('navCups').innerHTML=CUPIC+'Cups';$('navRecords').innerHTML=IC.cup+'Records';$('navGuide').innerHTML=IC.book+'Guide';
-$('gearBtn').innerHTML=IC.gear;$('leave').innerHTML=IC.x;$('emoBtn').innerHTML=IC.chat;$('clkLbl').innerHTML=IC.clock+'Clock each';
+$('navBattle').innerHTML=IC.play+'Play';$('navCups').innerHTML=CUPIC+'Cups';$('navShop').innerHTML=IC.bag+'Shop';$('navLeaders').innerHTML=IC.crown+'Ranks';$('navProfile').innerHTML=IC.user+'Profile';
+$('leave').innerHTML=IC.x;$('emoBtn').innerHTML=IC.chat;
 document.querySelectorAll('.xbtn').forEach(b=>b.innerHTML=IC.x);
 paintSound();paintPicker();applyCards();applyTheme();tryAutoplay();if(DEMO){ME=demoMe();setInterval(()=>{if(ME&&ME.chest.nextIn!=null&&left(ME.chest.nextIn)<=0)demoRefresh()},1000)}renderGuide();paintKey();paintRem();renderHome();
 const hc0=(location.hash||'').slice(1).toUpperCase();if(/^[A-Z]{5}$/.test(hc0)){$('joinCode').value=hc0}

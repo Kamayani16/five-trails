@@ -42,7 +42,7 @@ five-trails/
 
 ### Card styles
 
-Each arena unlocks a fancier card style (Classic, Sandstone, Pearl, Jade, Ember, Frost, Legend at 0, 100, 250, 450, 700, 1000 and 1400 trophies). Reaching a new arena equips its style; you can switch among unlocked styles in Settings. This is purely cosmetic and lives in the browser.
+Each arena unlocks a fancier card style (Classic, Sandstone, Pearl, Jade, Ember, Frost, Legend at 0, 100, 250, 450, 700, 1000 and 1400 trophies). Reaching a new arena equips its style; you can switch among unlocked styles in the Shop (Cards tab). This is purely cosmetic and lives in the browser.
 
 
 ## In-app purchases (coin packs, iPhone app only)
