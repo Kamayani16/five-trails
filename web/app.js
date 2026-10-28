@@ -251,10 +251,21 @@ function unlockAudio(){if(unlocked)return;unlocked=true;ac();musicSync();paintSo
    does; desktop browsers often do for sites people come back to). Where a browser insists on a
    first tap, any touch, click or key starts it, and a small hint says so until then. */
 ['pointerdown','touchend','click','keydown'].forEach(t=>document.addEventListener(t,unlockAudio,{capture:true,passive:true}));
+/* Title screen: when the browser holds sound back until a tap, the game opens on a title
+   screen whose "Tap to start" is that tap, so the music begins the moment you are in.
+   Never shown where sound can start on its own (the iPhone app, many desktop browsers). */
+function launchScreen(){if(unlocked||!(musicOn||sfxOn)||document.documentElement.classList.contains('native-ios')||$('launch'))return;
+ const d=document.createElement('div');d.id='launch';d.className='launch';d.setAttribute('role','button');d.setAttribute('aria-label','Tap to start');
+ d.innerHTML=`<div class="ln-logo">${LAUNCH_ICON}</div><div class="ln-t ol">Five Trails</div><div class="ln-s">Climb five trails. Outwit your rival.</div><div class="ln-go"><span>Tap to start</span></div>`;
+ const go=()=>{unlockAudio();sfx('go');d.classList.add('out');setTimeout(()=>d.remove(),450)};
+ d.addEventListener('pointerdown',go,{once:true});d.addEventListener('keydown',go,{once:true});
+ document.body.appendChild(d)}
+const LAUNCH_ICON=`<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="6" y="6" width="52" height="52" rx="14" fill="#2468e6" stroke="#0b1640" stroke-width="4"/><path d="M18 46 32 16l14 30Z" fill="#ffd23a" stroke="#0b1640" stroke-width="3" stroke-linejoin="round"/><path d="M27 46 32 34l5 12Z" fill="#f08a00"/></svg>`;
 function tryAutoplay(){const a=ac();if(!a)return;
  a.onstatechange=()=>{if(a.state==='running'&&!unlocked)unlockAudio()};
  if(a.state==='running'){unlockAudio();return}
- a.resume().then(()=>{if(a.state==='running')unlockAudio()}).catch(()=>{});
+ launchScreen();
+ a.resume().then(()=>{if(a.state==='running'){unlockAudio();const l=$('launch');if(l){l.classList.add('out');setTimeout(()=>l.remove(),450)}}}).catch(()=>{});
  setTimeout(paintSoundHint,700)}
 function paintSoundHint(){let h=$('soundHint');const want=!unlocked&&(musicOn||sfxOn)&&!$('home').hidden;
  if(!want){if(h)h.remove();return}
@@ -683,7 +694,7 @@ function renderHome(){
  const ac_=$('arenaCard');ac_.style.setProperty('--ag1',A.g[0]);ac_.style.setProperty('--ag2',A.g[1]);
  ac_.innerHTML=`<div class="rays"></div><div class="emb">${emblem(ai,118)}</div><div class="an ol">${A.n}</div><div class="asub ols">Arena ${ai+1} of ${ARENAS.length}</div>
   <div class="tprog">${TROPHY}<div class="bar"><i style="width:${pct}%"></i><b class="ols">${N?`${REC.tr} / ${N.at}`:`${REC.tr} · Top arena`}</b></div></div>`;
- $('aiTier').textContent=aiLvl==='auto'?`vs Computer · ${AI_TIER[ai]}`:`vs Computer · ${AI_LVLS[aiLvl]} · practice`;paintAiPick();
+ $('aiTier').textContent=aiLvl==='auto'?`vs Computer · ${AI_TIER[ai]}`:`vs ${AI_LVLS[aiLvl]} computer`;paintAiPick();
  netChanged();
  renderRecords();renderRewards();maybeShowReward();
 }
@@ -887,8 +898,9 @@ async function toggleReminders(){const ln=localNotes();if(!ln)return;
 const AI_LVLS={auto:'Auto','0':'Easy','2':'Normal','4':'Hard','6':'Master'};
 let aiLvl=String(ST.get('ft-ailvl','auto'));if(!AI_LVLS[aiLvl])aiLvl='auto';
 const aiTierNow=()=>aiLvl==='auto'?arenaIdx(REC.tr):+aiLvl;
-function paintAiPick(){document.querySelectorAll('#aipick button').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.ai===aiLvl)));
- const n=$('aiNote');if(n)n.textContent=aiLvl==='auto'?`Matches your arena (${AI_TIER[arenaIdx(REC.tr)]}). Wins and losses move trophies.`:`Always ${AI_LVLS[aiLvl]}. Practice: earns XP, never changes trophies.`}
+function paintAiPick(){document.querySelectorAll('#aipick .lv:not(.lv-a)').forEach(i=>{if(!i.children.length)i.innerHTML='<b></b><b></b><b></b><b></b>'});const la=document.querySelector('#aipick .lv-a');if(la)la.textContent=AI_TIER[arenaIdx(REC.tr)];
+ document.querySelectorAll('#aipick button').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.ai===aiLvl)));
+ const n=$('aiNote');if(n)n.textContent=aiLvl==='auto'?'Auto matches your arena · wins and losses move trophies':'Practice · earns XP, trophies stay put'}
 function paintPicker(){paintAiPick();document.querySelectorAll('#clkpick button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.clk===clkSet)))}
 
 /* Sheets */

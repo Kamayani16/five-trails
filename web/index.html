@@ -27,20 +27,23 @@
 
     <div class="tab" id="tab-battle">
       <div class="arena" id="arenaCard"></div>
-      <button class="gb battle" id="playAi">Battle<small id="aiTier">vs Computer</small></button>
+      <div class="battlebox">
+        <button class="gb battle" id="playAi">Battle<small id="aiTier">vs Computer</small></button>
+        <div class="aitray" role="radiogroup" aria-label="Computer level" id="aipick">
+          <button role="radio" data-ai="auto" type="button"><i class="lv lv-a"></i><span>Auto</span></button>
+          <button role="radio" data-ai="0" type="button"><i class="lv" style="--n:1"></i><span>Easy</span></button>
+          <button role="radio" data-ai="2" type="button"><i class="lv" style="--n:2"></i><span>Normal</span></button>
+          <button role="radio" data-ai="4" type="button"><i class="lv" style="--n:3"></i><span>Hard</span></button>
+          <button role="radio" data-ai="6" type="button"><i class="lv" style="--n:4"></i><span>Master</span></button>
+        </div>
+        <p class="ainote" id="aiNote"></p>
+      </div>
       <button class="gb blue friendbtn" id="openFriend">Play online<small id="onlineLine"><span class="netdot wait"></span>Connecting…</small></button>
       <div class="pn pad seg">
         <div class="seg-l" id="clkLbl">Clock each</div>
         <div class="seg-b" role="radiogroup" aria-label="Clock for each player" id="clkpick">
           <button role="radio" data-clk="0">Off</button><button role="radio" data-clk="180">3m</button><button role="radio" data-clk="300">5m</button><button role="radio" data-clk="600">10m</button>
         </div>
-      </div>
-      <div class="pn pad seg aiseg">
-        <div class="seg-l" id="aiLbl">Computer</div>
-        <div class="seg-b" role="radiogroup" aria-label="How strong the computer plays" id="aipick">
-          <button role="radio" data-ai="auto">Auto</button><button role="radio" data-ai="0">Easy</button><button role="radio" data-ai="2">Normal</button><button role="radio" data-ai="4">Hard</button><button role="radio" data-ai="6">Master</button>
-        </div>
-        <p class="note ainote" id="aiNote"></p>
       </div>
       <div class="rew" id="rewards" hidden>
         <button class="coinbox" id="coinBox" type="button" aria-label="Coins and shop"></button>
