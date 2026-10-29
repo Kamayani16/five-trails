@@ -135,6 +135,18 @@ pub struct PlayerRec {
     pub freq_in: Vec<String>,
     #[serde(default)]
     pub freq_out: Vec<String>,
+    /// "Come and play" invites from friends, waiting to be seen (newest last).
+    #[serde(default)]
+    pub invites: Vec<Invite>,
+}
+
+/// A friend asked this player to play; delivered at once, or when the player next comes online.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Invite {
+    pub from: String,
+    pub at: u64,
+    /// Clock for the battle, seconds per player (one of the allowed choices).
+    pub clock: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,6 +181,7 @@ impl PlayerRec {
             friends: Vec::new(),
             freq_in: Vec::new(),
             freq_out: Vec::new(),
+            invites: Vec::new(),
         }
     }
 
@@ -208,6 +221,26 @@ impl PlayerRec {
 /// At most this many friends, and this many requests waiting each way.
 pub const MAX_FRIENDS: usize = 100;
 pub const MAX_FRIEND_REQUESTS: usize = 30;
+
+/// Invites last half a day; the same friend can invite again after a short pause.
+pub const INVITE_TTL_SECS: u64 = 12 * 3600;
+pub const INVITE_COOLDOWN_SECS: u64 = 30;
+pub const MAX_INVITES: usize = 20;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum InviteError {
+    NotFriend,
+    TooSoon,
+}
+
+impl InviteError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            InviteError::NotFriend => "invite_not_friend",
+            InviteError::TooSoon => "invite_too_soon",
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum FriendReply {
@@ -989,11 +1022,50 @@ impl Store {
                 p.friends.retain(|f| f != y);
                 p.freq_in.retain(|f| f != y);
                 p.freq_out.retain(|f| f != y);
+                p.invites.retain(|i| i.from != y);
                 if n != p.friends.len() + p.freq_in.len() + p.freq_out.len() {
                     self.dirty = true;
                 }
             }
         }
+    }
+
+    /// `from` invites friend `to` to play. One invite per friend: a new one replaces the old.
+    pub fn invite(&mut self, from: &str, to: &str, clock: u32, now: u64) -> Result<(), InviteError> {
+        if !self.players.get(from).is_some_and(|p| p.friends.iter().any(|f| f == to)) {
+            return Err(InviteError::NotFriend);
+        }
+        let p = self.players.get_mut(to).ok_or(InviteError::NotFriend)?;
+        if p.invites.iter().any(|i| i.from == from && now.saturating_sub(i.at) < INVITE_COOLDOWN_SECS) {
+            return Err(InviteError::TooSoon);
+        }
+        p.invites.retain(|i| i.from != from && now.saturating_sub(i.at) < INVITE_TTL_SECS);
+        if p.invites.len() >= MAX_INVITES {
+            p.invites.remove(0);
+        }
+        p.invites.push(Invite { from: from.to_owned(), at: now, clock });
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// Invites `pid` still has (older ones expire).
+    pub fn invites_of(&mut self, pid: &str, now: u64) -> Vec<Invite> {
+        let Some(p) = self.players.get_mut(pid) else { return Vec::new() };
+        let n = p.invites.len();
+        p.invites.retain(|i| now.saturating_sub(i.at) < INVITE_TTL_SECS);
+        if p.invites.len() != n {
+            self.dirty = true;
+        }
+        p.invites.clone()
+    }
+
+    /// Remove and return the invite `from` sent `me`, if it is still there.
+    pub fn invite_take(&mut self, me: &str, from: &str, now: u64) -> Option<Invite> {
+        let p = self.players.get_mut(me)?;
+        let i = p.invites.iter().position(|i| i.from == from)?;
+        let inv = p.invites.remove(i);
+        self.dirty = true;
+        (now.saturating_sub(inv.at) < INVITE_TTL_SECS).then_some(inv)
     }
 
     pub fn prune(&mut self, now: u64) {
@@ -1029,6 +1101,7 @@ impl Store {
                 p.friends.retain(|f| !gone.contains(f));
                 p.freq_in.retain(|f| !gone.contains(f));
                 p.freq_out.retain(|f| !gone.contains(f));
+                p.invites.retain(|i| !gone.contains(&i.from));
             }
         }
     }
@@ -1567,5 +1640,28 @@ mod tests {
         s.touch("pid-aaaaaaaa", 500);
         s.touch("pid-aaaaaaaa", 300);
         assert_eq!(s.get("pid-aaaaaaaa").unwrap().seen, 500);
+    }
+
+    #[test]
+    fn invites_need_friends_wait_for_the_player_and_expire() {
+        let mut s = store();
+        s.register("pid-aaaaaaaa", "Asha", 100);
+        s.register("pid-bbbbbbbb", "Ben", 100);
+        let (a, b) = ("pid-aaaaaaaa", "pid-bbbbbbbb");
+        assert_eq!(s.invite(a, b, 300, 1000), Err(InviteError::NotFriend));
+        s.friend_request(a, b).unwrap();
+        s.friend_accept(b, a).unwrap();
+        assert_eq!(s.invite(a, b, 300, 1000), Ok(()));
+        assert_eq!(s.invite(a, b, 300, 1010), Err(InviteError::TooSoon), "no spamming");
+        assert_eq!(s.invite(a, b, 600, 1000 + INVITE_COOLDOWN_SECS), Ok(()));
+        let list = s.invites_of(b, 1100);
+        assert_eq!((list.len(), list[0].clock), (1, 600), "a new invite replaces the old one");
+        assert_eq!(s.invite_take(b, a, 1100).map(|i| i.clock), Some(600));
+        assert!(s.invite_take(b, a, 1100).is_none(), "taken once");
+        s.invite(a, b, 300, 2000).unwrap();
+        assert!(s.invites_of(b, 2000 + INVITE_TTL_SECS).is_empty(), "invites expire");
+        s.invite(a, b, 300, 3000 + INVITE_TTL_SECS).unwrap();
+        s.friend_drop(b, a);
+        assert!(s.invites_of(b, 3000 + INVITE_TTL_SECS).is_empty(), "removing a friend removes their invites");
     }
 }

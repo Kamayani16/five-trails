@@ -188,6 +188,9 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                     ClientMsg::FriendAccept { pid } => protocol::clean_pid(&pid).map(|pid| HubCmd::FriendAccept { id, pid }),
                     ClientMsg::FriendDrop { pid } => protocol::clean_pid(&pid).map(|pid| HubCmd::FriendDrop { id, pid }),
                     ClientMsg::Friends => Some(HubCmd::Friends { id }),
+                    ClientMsg::FriendInvite { pid, clock } => protocol::clean_pid(&pid).map(|pid| HubCmd::FriendInvite { id, pid, clock }),
+                    ClientMsg::InviteAccept { pid } => protocol::clean_pid(&pid).map(|pid| HubCmd::InviteAccept { id, pid }),
+                    ClientMsg::InviteDrop { pid } => protocol::clean_pid(&pid).map(|pid| HubCmd::InviteDrop { id, pid }),
                     ClientMsg::Profile { name, tr, lv } => match protocol::clean_name(&name) {
                         Some(name) => Some(HubCmd::UpdateProfile { id, name, trophies: tr, level: lv }),
                         None => { reply!(protocol::error("bad_hello")); None }

@@ -89,6 +89,9 @@ pub enum HubCmd {
     FriendAccept { id: ConnId, pid: String },
     FriendDrop { id: ConnId, pid: String },
     Friends { id: ConnId },
+    FriendInvite { id: ConnId, pid: String, clock: u32 },
+    InviteAccept { id: ConnId, pid: String },
+    InviteDrop { id: ConnId, pid: String },
     /// Apple's answer about a purchase (from a background lookup).
     IapChecked { id: ConnId, pid: String, tx: String, result: Result<(String, u32), crate::iap::IapError> },
     /// An App Store Server Notification named this transaction (maybe a refund).
@@ -435,6 +438,41 @@ impl Hub {
         Some(protocol::msg(json!({ "t": "friends", "list": list, "inc": names(&rec.freq_in), "out": names(&rec.freq_out) })))
     }
 
+    fn name_of(&self, pid: &str) -> String {
+        self.store.get(pid).map(|r| r.name.clone()).unwrap_or_default()
+    }
+
+    fn send_invites(&mut self, pid: &str) {
+        let ids = self.conns_of(pid);
+        if ids.is_empty() {
+            return;
+        }
+        let now = store::now_secs();
+        let list: Vec<Value> = self
+            .store
+            .invites_of(pid, now)
+            .iter()
+            .filter_map(|i| self.store.get(&i.from).map(|r| json!({ "pid": i.from, "n": r.name, "clock": i.clock, "age": now.saturating_sub(i.at) })))
+            .collect();
+        let text = protocol::msg(json!({ "t": "invites", "list": list }));
+        for id in ids {
+            self.send(id, text.clone());
+        }
+    }
+
+    /// `pid` just came online: show their waiting invites, and tell each inviter who is online.
+    fn deliver_invites(&mut self, pid: &str) {
+        let invites = self.store.invites_of(pid, store::now_secs());
+        if invites.is_empty() {
+            return;
+        }
+        self.send_invites(pid);
+        let text = protocol::msg(json!({ "t": "invite_seen", "n": self.name_of(pid) }));
+        for i in invites {
+            self.send_to_pid(&i.from, &text);
+        }
+    }
+
     fn send_friends(&self, pid: &str) {
         let ids = self.conns_of(pid);
         if ids.is_empty() {
@@ -501,6 +539,60 @@ impl Hub {
                 if let Some(text) = self.pid_of(id).and_then(|p| self.friends_json(&p)) {
                     self.send(id, text);
                 }
+            }
+            HubCmd::FriendInvite { id, pid, clock } => {
+                let Some(me) = self.pid_of(id) else { return };
+                if !CLOCK_CHOICES.contains(&clock) {
+                    return self.send(id, protocol::error("bad_clock"));
+                }
+                match self.store.invite(&me, &pid, clock, store::now_secs()) {
+                    Ok(()) => {
+                        let online = !self.conns_of(&pid).is_empty();
+                        let name = self.name_of(&pid);
+                        self.send(id, protocol::msg(json!({ "t": "invite_sent", "n": name, "online": online })));
+                        self.send_invites(&pid);
+                    }
+                    Err(e) => self.send(id, protocol::error(e.code())),
+                }
+            }
+            HubCmd::InviteAccept { id, pid } => {
+                let Some(me) = self.pid_of(id) else { return };
+                if self.conns.get(&id).is_none_or(|c| c.activity != Activity::Idle) {
+                    return self.send(id, protocol::error("busy"));
+                }
+                let now = store::now_secs();
+                let Some(inv) = self.store.invite_take(&me, &pid, now) else {
+                    self.send(id, protocol::error("invite_gone"));
+                    return self.send_invites(&me);
+                };
+                self.send_invites(&me);
+                let host = self.conns.iter().find(|(_, c)| c.activity == Activity::Idle && c.profile.as_ref().is_some_and(|p| p.pid == pid)).map(|(&cid, _)| cid);
+                match host {
+                    Some(host) => {
+                        let code = loop {
+                            let code = random_code();
+                            if !self.rooms.contains_key(&code) {
+                                break code;
+                            }
+                        };
+                        self.start_match(host, id, inv.clock, MatchKind::Room(code));
+                    }
+                    None => {
+                        // They are offline or busy: turn it around, so they see "<me> wants to play".
+                        let _ = self.store.invite(&me, &pid, inv.clock, now);
+                        let name = self.name_of(&pid);
+                        self.send(id, protocol::msg(json!({ "t": "invite_away", "n": name })));
+                        self.send_invites(&pid);
+                    }
+                }
+            }
+            HubCmd::InviteDrop { id, pid } => {
+                let Some(me) = self.pid_of(id) else { return };
+                if self.store.invite_take(&me, &pid, store::now_secs()).is_some() {
+                    let text = protocol::msg(json!({ "t": "invite_declined", "n": self.name_of(&me) }));
+                    self.send_to_pid(&pid, &text);
+                }
+                self.send_invites(&me);
             }
             _ => {}
         }
@@ -735,7 +827,7 @@ impl Hub {
         match cmd {
             c @ (HubCmd::CupCreate { .. } | HubCmd::CupJoin { .. } | HubCmd::CupLeave { .. } | HubCmd::CupStart { .. } | HubCmd::CupList { .. } | HubCmd::CupGet { .. } | HubCmd::CupPlay { .. } | HubCmd::Watch { .. } | HubCmd::Unwatch { .. }) => self.handle_cup(c),
             HubCmd::IapVerify { id, tx } => self.iap_verify(id, tx),
-            c @ (HubCmd::FriendAdd { .. } | HubCmd::FriendAccept { .. } | HubCmd::FriendDrop { .. } | HubCmd::Friends { .. }) => self.handle_friend(c),
+            c @ (HubCmd::FriendAdd { .. } | HubCmd::FriendAccept { .. } | HubCmd::FriendDrop { .. } | HubCmd::Friends { .. } | HubCmd::FriendInvite { .. } | HubCmd::InviteAccept { .. } | HubCmd::InviteDrop { .. }) => self.handle_friend(c),
             HubCmd::IapChecked { id, pid, tx, result } => self.iap_checked(id, &pid, &tx, result),
             HubCmd::IapNotice { tx } => self.iap_notice(tx),
             HubCmd::IapRevoked { tx } => {
@@ -790,6 +882,11 @@ impl Hub {
                     self.send(id, text);
                 }
                 self.notify_friends(&login.pid);
+                if self.conns_of(&login.pid).len() == 1 {
+                    self.deliver_invites(&login.pid);
+                } else {
+                    self.send_invites(&login.pid);
+                }
                 if let Some(token) = resume {
                     self.resume(id, &token);
                 }
@@ -1613,6 +1710,58 @@ mod tests {
         hub.handle(HubCmd::FriendDrop { id: 1, pid: "pid-00000002".into() });
         assert_eq!(find(&all_msgs(&mut rx[0]), "friends").unwrap()["list"].as_array().unwrap().len(), 0);
         assert!(hub.store.get("pid-00000002").unwrap().friends.is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_invite_waits_for_an_offline_friend_and_starts_a_battle() {
+        let (mut hub, mut rx) = hub_with_players(2, Duration::from_secs(120));
+        hub.handle(HubCmd::FriendAdd { id: 1, to: FriendTo::Name("P2".into()) });
+        hub.handle(HubCmd::FriendAccept { id: 2, pid: "pid-00000001".into() });
+        hub.handle(HubCmd::FriendInvite { id: 2, pid: "pid-00000003".into(), clock: 300 });
+        assert_eq!(last_msg(&mut rx[1])["code"], "invite_not_friend");
+        // P2 goes offline; P1 invites them.
+        hub.handle(HubCmd::Disconnect { id: 2 });
+        all_msgs(&mut rx[0]);
+        hub.handle(HubCmd::FriendInvite { id: 1, pid: "pid-00000002".into(), clock: 180 });
+        let m = all_msgs(&mut rx[0]);
+        assert_eq!((m[0]["t"].as_str(), m[0]["online"].as_bool()), (Some("invite_sent"), Some(false)));
+        // P2 comes back: the invite is waiting and P1 is told P2 saw it.
+        let (tx, mut rx2) = mpsc::channel(64);
+        hub.handle(HubCmd::Connect { id: 5, tx });
+        let profile = protocol::profile_from_hello("P2", "pid-00000002", 0, 1).unwrap();
+        hub.handle(HubCmd::Hello { id: 5, key_hash: store::test_auth("pid-00000002"), profile, create: true, resume: None });
+        let got = all_msgs(&mut rx2);
+        let inv = find(&got, "invites").expect("waiting invites are delivered on login");
+        assert_eq!((inv["list"][0]["n"].as_str(), inv["list"][0]["clock"].as_u64()), (Some("P1"), Some(180)));
+        assert!(find(&all_msgs(&mut rx[0]), "invite_seen").is_some());
+        // P2 says yes: both are put into a friendly battle.
+        hub.handle(HubCmd::InviteAccept { id: 5, pid: "pid-00000001".into() });
+        let joined = |rx: &mut mpsc::Receiver<ConnCtl>| {
+            let mut j = false;
+            while let Ok(c) = rx.try_recv() {
+                j |= matches!(c, ConnCtl::Joined { .. });
+            }
+            j
+        };
+        assert!(joined(&mut rx[0]) && joined(&mut rx2), "the battle starts for both");
+        assert!(hub.store.invites_of("pid-00000002", store::now_secs()).is_empty());
+    }
+
+    #[test]
+    fn saying_yes_to_a_friend_who_left_invites_them_back() {
+        let (mut hub, mut rx) = hub_with_players(2, Duration::from_secs(120));
+        hub.handle(HubCmd::FriendAdd { id: 1, to: FriendTo::Name("P2".into()) });
+        hub.handle(HubCmd::FriendAccept { id: 2, pid: "pid-00000001".into() });
+        hub.handle(HubCmd::FriendInvite { id: 1, pid: "pid-00000002".into(), clock: 300 });
+        hub.handle(HubCmd::Disconnect { id: 1 });
+        all_msgs(&mut rx[1]);
+        hub.handle(HubCmd::InviteAccept { id: 2, pid: "pid-00000001".into() });
+        let m = all_msgs(&mut rx[1]);
+        assert_eq!(find(&m, "invite_away").unwrap()["n"], "P1");
+        let back = hub.store.invites_of("pid-00000001", store::now_secs());
+        assert_eq!(back[0].from, "pid-00000002", "P1 will find P2's invite when they return");
+        hub.handle(HubCmd::InviteAccept { id: 2, pid: "pid-00000001".into() });
+        assert_eq!(find(&all_msgs(&mut rx[1]), "error").unwrap()["code"], "invite_gone");
     }
 
     #[test]

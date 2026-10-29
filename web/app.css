@@ -1063,3 +1063,17 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .segn{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;margin-left:2px;border-radius:999px;background:var(--red);color:#fff;border:2px solid var(--ol);font-style:normal;font-family:var(--body);font-weight:900;font-size:11px;vertical-align:1px}
 #rFriend{align-self:center}
 #rFriend[hidden]{display:none}
+/* Invite banner */
+.invbar{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;width:min(540px,calc(100% - 20px));box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 10px;border-radius:18px;border:3px solid var(--ol);background:var(--paper);color:var(--ink);box-shadow:0 0 0 3px var(--mint),0 6px 0 var(--ol),0 14px 30px rgba(0,0,0,.35);animation:ibIn .45s var(--spring) both}
+.invbar[hidden]{display:none}
+@keyframes ibIn{from{transform:translate(-50%,-140%)}}
+.invbar .av{width:40px;height:40px;font-size:20px;border-width:2.5px;border-radius:12px}
+.ib-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.ib-t b{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib-t small{font-size:12px;color:var(--ink2);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.invbar .gb.sm{font-size:17px;padding:6px 16px 9px}
+.ib-x{width:34px;height:34px;flex-shrink:0;border-radius:10px;border:2px solid rgba(11,22,64,.2);background:transparent;color:var(--ink2);display:grid;place-items:center;padding:0}
+.ib-x svg{width:14px;height:14px}
+.frinv{display:flex;flex-direction:column}
+.frinv[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){.invbar{animation:none}}

@@ -518,7 +518,7 @@ function trySetName(raw,done){
  if(NET.ready)sendName(n,done);
  else{commitName(n);ST.set('ft-nick-pending',true);done(true,SERVER_URL?'Saved. The server will check it when you go online.':'')}}
 function nameReply(ok,msg){if(!namePending)return false;const p=namePending;namePending=null;clearTimeout(p.t);p.done(ok,msg);return true}
-const ERRS={friend_not_found:'No player has that name. Check the spelling.',friend_self:"That's you!",friend_full:'A friend list holds up to 100 friends.',friend_too_many:'Too many friend requests are waiting. Try again later.',friend_no_request:'That request is no longer there.',room_not_found:'No open room has that code. Check it and try again.',too_many_attempts:'Too many wrong codes. Wait a minute and try again.',busy:'Finish what you are doing first.',
+const ERRS={invite_not_friend:'You can only invite friends.',invite_too_soon:'You just invited them. Give them a moment.',invite_gone:'That invite has expired.',bad_clock:'Pick a clock first.',friend_not_found:'No player has that name. Check the spelling.',friend_self:"That's you!",friend_full:'A friend list holds up to 100 friends.',friend_too_many:'Too many friend requests are waiting. Try again later.',friend_no_request:'That request is no longer there.',room_not_found:'No open room has that code. Check it and try again.',too_many_attempts:'Too many wrong codes. Wait a minute and try again.',busy:'Finish what you are doing first.',
  server_full:'The server is full right now. Try again soon.',bad_hello:'The server did not accept your name. Try a simpler one in Settings.',version:'This page is out of date. Reload to play online.',
  opponent_left:'Your opponent has left.',opponent_away:'Waiting for your opponent to reconnect.',rate_limited:'Slow down a little.',replaced:'This battle continued in another tab.',
  code_taken:'That room code is already in use. Pick another one.',bad_code:'A room code is exactly 5 letters.',name_taken:'That name is taken. Try another.',
@@ -535,6 +535,11 @@ function onServer(m){switch(m.t){
  case 'cup':onCup(m.cup);break;
  case 'friends':onFriends(m);break;
  case 'friend_ok':onFriendOk(m);break;
+ case 'invites':onInvites(m);break;
+ case 'invite_sent':onInviteSent(m);break;
+ case 'invite_seen':sfx('join');toast(`${String(m.n||'Your friend').slice(0,16)} is online now and saw your invite.`);break;
+ case 'invite_declined':toast(`${String(m.n||'Your friend').slice(0,16)} can't play right now.`);break;
+ case 'invite_away':toast(`${String(m.n||'Your friend').slice(0,16)} isn't free right now. We asked them to play you when they're back.`);break;
  case 'cups':if(Array.isArray(m.cups)){const keep={};m.cups.forEach(v=>{const c=cleanCup(v);if(c)keep[c.code]=c});CUPS=keep;if(curTab==='cups')renderCups();paintCupDot();if(cupOpen&&!$('cupSheet').hidden)renderCupSheet()}break;
  case 'cup_gone':{const code=String(m.code||'');delete CUPS[code];if(cupOpen===code&&!$('cupSheet').hidden){closeSheets();toast('That cup was closed.')}if(curTab==='cups')renderCups();paintCupDot();break}
  case 'cup_wait':M={mode:'cupwait',code:String(m.code||''),m:numOf(m.m,99)};closeSheets();showWait('Cup match','',`Waiting for ${String(m.opp||'your opponent').slice(0,16)} to tap Play. We have told them you are here.`);break;
@@ -716,7 +721,7 @@ function cupMatchRow(c,x){const o=cupOpp(c,x),side=cupSide(c,x),opp=o!=null?esc(
 /* ================= App state ================= */
 let M={mode:'home'};          // mode: home | ai | queue | room | online
 let V=null, prevGid=null, prevSeq=0, aiT=null, sel=null, pending=false, PS=null;
-function show(id){for(const s of ['home','wait','game'])$(s).hidden=s!==id;$('over').hidden=true;closeSheets();closeEmo();musicSync();paintSoundHint()}
+function show(id){for(const s of ['home','wait','game'])$(s).hidden=s!==id;$('over').hidden=true;closeSheets();closeEmo();musicSync();paintSoundHint();setTimeout(paintInvite,0)}
 
 /* ================= Lobby ================= */
 let clkSet=ST.get('ft-clock',300);
@@ -802,7 +807,8 @@ $('tab-guide').innerHTML=`
   <p>Tap Play when you are ready; your friend is told. Miss the deadline and whoever showed up wins. Champion: 100 coins and the Champion’s Laurel card back. Cup games never change trophies.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Friends</div>
   <p>Add friends in Profile, Friends: by player name, or from people you have played. They accept first.</p>
-  <p>Friends see each other as <b>Online now</b>, <b>In a battle</b>, or when last active (like “Active 3 h ago”). Nobody else does.</p></div>
+  <p>Friends see each other as <b>Online now</b>, <b>In a battle</b>, or when last active (like “Active 3 h ago”). Nobody else does.</p>
+  <p>Tap <b>Invite</b> on a friend to ask them to play. If they are offline they see it when they next open the game (invites last 12 hours), and you are told they are back. When they tap Play, the battle starts for you both.</p></div>
  <div class="pn gsec"><div class="pn-h ol">Rewards</div>
   <p>Every finished online battle pays coins: 15 for a win, 8 for a draw, 5 for a loss (half against the computer), up to 150 a day.</p>
   <p>A free chest every few hours (bank of 2), plus daily and weekly quests. Saved on the server.</p>
@@ -919,7 +925,7 @@ const frPid=v=>typeof v==='string'&&/^[A-Za-z0-9-]{8,64}$/.test(v)?v:null;
 function cleanFriends(m){const row=x=>{const pid=frPid(x&&x.pid);return pid?{pid,n:String(x.n||'Player').slice(0,16)}:null};
  const list=(Array.isArray(m.list)?m.list:[]).slice(0,100).map(x=>{const r=row(x);if(!r)return null;r.st=['online','battle'].includes(x.st)?x.st:'off';r.ago=x.ago==null?null:numOf(x.ago,1e10);return r}).filter(Boolean);
  return{list,inc:(Array.isArray(m.inc)?m.inc:[]).slice(0,30).map(row).filter(Boolean),out:(Array.isArray(m.out)?m.out:[]).slice(0,30).map(row).filter(Boolean)}}
-function onFriends(m){FR=cleanFriends(m);FR_AT=Date.now();paintFriendDots();if(friendsVisible())renderFriends();paintResFriend()}
+function onFriends(m){FR=cleanFriends(m);FR_AT=Date.now();paintFriendDots();if(friendsVisible())renderFriends();paintResFriend();if(!$('friendSheet').hidden)renderInvList()}
 const friendsVisible=()=>curTab==='profile'&&profSub==='friends'&&!$('home').hidden;
 function agoText(s){s=Math.max(0,s);if(s<90)return'Active just now';const m=Math.round(s/60);if(m<60)return`Active ${m} min ago`;const h=Math.round(s/3600);if(h<24)return`Active ${h} h ago`;
  const d=Math.round(s/86400);return d<30?`Active ${d} day${d===1?'':'s'} ago`:'Active over a month ago'}
@@ -936,6 +942,7 @@ function renderFriends(){const el=$('tab-friends');if(!el)return;
  const sorted=FR.list.slice().sort((a,b)=>frRank(a)-frRank(b)||(a.ago??0)-(b.ago??0)||a.n.localeCompare(b.n));
  const met=Object.entries(REC.opp).filter(([k])=>k.startsWith('p:')).map(([k,o])=>({pid:k.slice(2),n:o.name,g:o.w+o.l+o.d})).filter(o=>frPid(o.pid)&&o.pid!==PID&&!frKnown(o.pid)).sort((a,b)=>b.g-a.g).slice(0,5);
  const online=FR.list.filter(f=>f.st!=='off').length;
+ const old=$('frName'),typed=old?old.value:'',focused=!!old&&document.activeElement===old;
  el.innerHTML=`
  <div class="pn frpn"><div class="pn-h ol">Add a friend</div>
   <div class="row2"><input id="frName" maxlength="16" placeholder="Their player name" autocomplete="off" spellcheck="false" aria-label="Friend's player name"><button class="gb green sm" id="frAdd" type="button">Send</button></div>
@@ -943,15 +950,17 @@ function renderFriends(){const el=$('tab-friends');if(!el)return;
   ${met.length?`<div class="frsub">People you have played</div>${met.map(o=>`<div class="frrow">${av(o.n)}<span class="fr-t"><b>${esc(o.n)}</b><small>${o.g} battle${o.g===1?'':'s'} together</small></span><button class="gb blue sm" type="button" data-fradd="${o.pid}">Add</button></div>`).join('')}`:''}</div>
  ${FR.inc.length?`<div class="pn frpn"><div class="pn-h ol">Requests</div>${FR.inc.map(f=>`<div class="frrow">${av(f.n)}<span class="fr-t"><b>${esc(f.n)}</b><small>Wants to be friends</small></span><button class="gb green sm" type="button" data-fracc="${f.pid}">Accept</button><button class="gb gray sm" type="button" data-frdrop="${f.pid}" aria-label="Decline ${esc(f.n)}">${IC.x}</button></div>`).join('')}</div>`:''}
  <div class="pn frpn"><div class="pn-h ol">Friends${FR.list.length?` <span class="frcount">${online} of ${FR.list.length} online</span>`:''}</div>
-  ${sorted.length?sorted.map(f=>{const s=frStatus(f);return `<div class="frrow">${av(f.n)}<span class="fr-t"><b>${esc(f.n)}</b><small class="frs ${s.cls}"><i></i>${s.txt}</small></span><button class="frx ${frArmed===f.pid?'armed':''}" type="button" data-frdrop="${f.pid}" data-arm="1" aria-label="${frArmed===f.pid?'Tap again to remove':'Remove'} ${esc(f.n)}">${frArmed===f.pid?'Remove?':IC.x}</button></div>`}).join(''):'<p class="note">No friends yet. Add someone by name, or from the people you have played.</p>'}
+  ${sorted.length?sorted.map(f=>{const s=frStatus(f);return `<div class="frrow">${av(f.n)}<span class="fr-t"><b>${esc(f.n)}</b><small class="frs ${s.cls}"><i></i>${s.txt}</small></span><button class="gb blue sm" type="button" data-frinv="${f.pid}">Invite</button><button class="frx ${frArmed===f.pid?'armed':''}" type="button" data-frdrop="${f.pid}" data-arm="1" aria-label="${frArmed===f.pid?'Tap again to remove':'Remove'} ${esc(f.n)}">${frArmed===f.pid?'Remove?':IC.x}</button></div>`}).join(''):'<p class="note">No friends yet. Add someone by name, or from the people you have played.</p>'}
   ${FR.out.length?`<div class="frsub">Waiting for them to accept</div>${FR.out.map(f=>`<div class="frrow wait">${av(f.n)}<span class="fr-t"><b>${esc(f.n)}</b><small>Request sent</small></span><button class="linkbtn" type="button" data-frdrop="${f.pid}">Cancel</button></div>`).join('')}`:''}</div>`;
+ if(typed){$('frName').value=typed}if(focused){try{$('frName').focus({preventScroll:true})}catch(e){}}
  const add=()=>{const n=$('frName').value.trim();if(!n){sfx('bad');$('frName').focus();return}if(n.toLowerCase()===nick().toLowerCase()){sfx('bad');toast("That's you!");return}sfx('ui');NET.send({t:'friend_add',name:n})};
  $('frAdd').onclick=add;$('frName').addEventListener('keydown',e=>{if(e.key==='Enter')add()});
  el.querySelectorAll('[data-fradd]').forEach(b=>b.onclick=()=>{sfx('ui');b.disabled=true;NET.send({t:'friend_add',pid:b.dataset.fradd})});
  el.querySelectorAll('[data-fracc]').forEach(b=>b.onclick=()=>{sfx('ui');b.disabled=true;NET.send({t:'friend_accept',pid:b.dataset.fracc})});
  el.querySelectorAll('[data-frdrop]').forEach(b=>b.onclick=()=>{const pid=b.dataset.frdrop;
   if(b.dataset.arm&&frArmed!==pid){sfx('select');frArmed=pid;clearTimeout(frArmT);frArmT=setTimeout(()=>{frArmed=null;if(friendsVisible())renderFriends()},3000);renderFriends();return}
-  frArmed=null;sfx('ui');NET.send({t:'friend_drop',pid})})}
+  frArmed=null;sfx('ui');NET.send({t:'friend_drop',pid})});
+ el.querySelectorAll('[data-frinv]').forEach(b=>b.onclick=()=>sendInvite(b.dataset.frinv,b))}
 function onFriendOk(m){const n=String(m.n||'').slice(0,16);sfx(m.what==='sent'?'ui':'levelup');
  toast(m.what==='sent'?`Request sent to ${n}. You will see them here once they accept.`:m.what==='accepted'?`You and ${n} are now friends!`:`${n} is already your friend.`);
  const i=$('frName');if(i&&m.what!=='already')i.value=''}
@@ -959,6 +968,34 @@ function onFriendOk(m){const n=String(m.n||'').slice(0,16);sfx(m.what==='sent'?'
 function paintResFriend(){const el=$('rFriend');if(!el)return;const o=M&&M.opp,pid=o&&frPid(o.pid);
  const show=M.mode==='online'&&M.kind!=='bot'&&pid&&pid!==PID&&FR&&!frKnown(pid);el.hidden=!show;
  if(show){el.textContent=`Add ${o.nick} as a friend`;el.onclick=()=>{sfx('ui');el.hidden=true;NET.send({t:'friend_add',pid})}}}
+/* ---- Invites: "come and play" from a friend. Shown at once, or the next time you open the game. ---- */
+let INV=[],INV_AT=0,invSeen=new Set(),invNoteId=2000;
+function onInvites(m){const list=(Array.isArray(m.list)?m.list:[]).slice(0,20).map(x=>{const pid=frPid(x&&x.pid);return pid?{pid,n:String(x.n||'Friend').slice(0,16),clock:CLOCK_OK.includes(Number(x.clock))?Number(x.clock):300,age:numOf(x.age,1e8)}:null}).filter(Boolean);
+ INV=list.reverse();INV_AT=Date.now();let fresh=null;
+ for(const i of INV){const k=i.pid+':'+Math.round((Date.now()/1000-i.age)/10);if(!invSeen.has(k)){invSeen.add(k);fresh=fresh||i}}
+ if(fresh){sfx('join');invNotify(fresh)}paintInvite()}
+const CLOCK_OK=[0,180,300,600];
+/* In the iPhone app, a phone notification when the game is in the background. */
+function invNotify(i){const ln=localNotes();if(!ln||!document.hidden)return;
+ try{ln.schedule({notifications:[{id:invNoteId++,title:'Five Trails',body:`${i.n} wants to play! Tap to join.`,schedule:{at:new Date(Date.now()+500)}}]})}catch(e){}}
+function paintInvite(){let el=$('invBar');const i=INV[0];
+ const can=i&&!$('home').hidden&&$('intro').hidden&&!document.querySelector('.sheet:not([hidden])');
+ if(!can){if(el)el.hidden=true;return}
+ if(!el){el=document.createElement('div');el.id='invBar';el.className='invbar';el.setAttribute('role','alertdialog');el.setAttribute('aria-live','assertive');document.body.appendChild(el)}
+ const ago=i.age+(Date.now()-INV_AT)/1000,more=INV.length-1;
+ el.innerHTML=`${avatarHTML(i.n)}<div class="ib-t"><b>${esc(i.n)} wants to play!</b><small>${i.clock?i.clock/60+' min clock':'No clock'} · ${ago<90?'just now':agoText(ago).replace('Active ','')}${more?` · ${more} more invite${more===1?'':'s'}`:''}</small></div>
+  <button class="gb green sm" id="ibPlay" type="button">Play</button><button class="ib-x" id="ibLater" type="button" aria-label="Not now">${IC.x}</button>`;
+ el.hidden=false;
+ $('ibPlay').onclick=()=>{sfx('ui');if(NET.send({t:'invite_accept',pid:i.pid})){INV.shift();paintInvite()}};
+ $('ibLater').onclick=()=>{sfx('ui');NET.send({t:'invite_drop',pid:i.pid});INV.shift();paintInvite()}}
+function sendInvite(pid,btn){sfx('ui');if(btn)btn.disabled=true;NET.send({t:'friend_invite',pid,clock:clkSet})}
+function onInviteSent(m){const n=String(m.n||'').slice(0,16);toast(m.online?`${n} got your invite. The battle starts when they tap Play.`:`${n} is offline. They will see your invite when they open Five Trails.`)}
+/* Friends to invite, in the "Play a friend" sheet. */
+function renderInvList(){const el=$('frInvList');if(!el)return;const fl=FR?FR.list.slice().sort((a,b)=>frRank(a)-frRank(b)||(a.ago??0)-(b.ago??0)).slice(0,6):[];
+ el.hidden=!fl.length;if(!fl.length){el.innerHTML='';return}
+ el.innerHTML=`<div class="or">or invite a friend</div>${fl.map(f=>{const s=frStatus(f);return `<div class="frrow">${avatarHTML(f.n)}<span class="fr-t"><b>${esc(f.n)}</b><small class="frs ${s.cls}"><i></i>${s.txt}</small></span><button class="gb blue sm" type="button" data-frinv="${f.pid}">Invite</button></div>`}).join('')}`;
+ el.querySelectorAll('[data-frinv]').forEach(b=>b.onclick=()=>sendInvite(b.dataset.frinv,b))}
+setInterval(()=>{if(INV.length&&$('invBar')&&!$('invBar').hidden)paintInvite()},30000);
 setInterval(()=>{if(friendsVisible()&&NET.ready){NET.raw({t:'friends'})}else if(friendsVisible()&&FR)renderFriends()},30000);
 
 /* ================= Preview wallet =================
@@ -1021,8 +1058,8 @@ function paintAiPick(){document.querySelectorAll('#aipick .lv:not(.lv-a)').forEa
 function paintPicker(){paintAiPick();document.querySelectorAll('#clkpick button').forEach(b=>b.setAttribute('aria-checked',String(+b.dataset.clk===clkSet)))}
 
 /* Sheets */
-function openSheet(id){closeSheets();$(id).hidden=false;sfx('swoosh');const f=$(id).querySelector('input,button.gb:not(.xbtn)');if(f&&id!=='leaveSheet')setTimeout(()=>{try{f.focus({preventScroll:true})}catch(e){}},50)}
-function closeSheets(){document.querySelectorAll('.sheet').forEach(s=>{if(s.id!=='intro')s.hidden=true})}
+function openSheet(id){closeSheets();$(id).hidden=false;if(id==='friendSheet')renderInvList();paintInvite();sfx('swoosh');const f=$(id).querySelector('input,button.gb:not(.xbtn)');if(f&&id!=='leaveSheet')setTimeout(()=>{try{f.focus({preventScroll:true})}catch(e){}},50)}
+function closeSheets(){document.querySelectorAll('.sheet').forEach(s=>{if(s.id!=='intro')s.hidden=true});if(typeof paintInvite==='function')setTimeout(paintInvite,0)}
 
 /* Intro */
 let introI=0;

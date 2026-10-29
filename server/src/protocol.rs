@@ -117,6 +117,19 @@ pub enum ClientMsg {
     FriendDrop {
         pid: String,
     },
+    /// Ask a friend to come and play (they see it now, or when they next come online).
+    FriendInvite {
+        pid: String,
+        clock: u32,
+    },
+    /// Say yes to a friend's invite: the battle starts if they are free.
+    InviteAccept {
+        pid: String,
+    },
+    /// Say no (or not now) to a friend's invite.
+    InviteDrop {
+        pid: String,
+    },
     /// Ask for the friends list again (with who is online and when the others were last active).
     Friends,
     /// Rename and update the trophy count shown to opponents. The server answers a name
