@@ -102,6 +102,23 @@ pub enum ClientMsg {
     },
     /// While waiting in the quick-match queue: play the computer instead.
     Bot,
+    /// Ask someone to be friends: by name, or by the id of a player met in a battle.
+    FriendAdd {
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        pid: Option<String>,
+    },
+    /// Accept a friend request.
+    FriendAccept {
+        pid: String,
+    },
+    /// Decline a request, take back your own, or remove a friend.
+    FriendDrop {
+        pid: String,
+    },
+    /// Ask for the friends list again (with who is online and when the others were last active).
+    Friends,
     /// Rename and update the trophy count shown to opponents. The server answers a name
     /// change with `name` (accepted) or `error name_taken`.
     Profile {

@@ -127,6 +127,14 @@ pub struct PlayerRec {
     /// Cups this player won.
     #[serde(default)]
     pub cup_wins: Vec<CupWin>,
+    /// Friends (pids). Always mutual: both players list each other.
+    #[serde(default)]
+    pub friends: Vec<String>,
+    /// Friend requests waiting: received from (`freq_in`) and sent to (`freq_out`) these pids.
+    #[serde(default)]
+    pub freq_in: Vec<String>,
+    #[serde(default)]
+    pub freq_out: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -158,6 +166,9 @@ impl PlayerRec {
             back: String::new(),
             bcoins: (0, 0),
             cup_wins: Vec::new(),
+            friends: Vec::new(),
+            freq_in: Vec::new(),
+            freq_out: Vec::new(),
         }
     }
 
@@ -190,7 +201,42 @@ impl PlayerRec {
 
     /// Nothing worth keeping if the owner never comes back.
     fn pristine(&self) -> bool {
-        self.plays == 0 && self.games() == 0 && self.coins == 0 && self.prog.is_none() && self.owned.is_empty() && self.cup_wins.is_empty()
+        self.plays == 0 && self.games() == 0 && self.coins == 0 && self.prog.is_none() && self.owned.is_empty() && self.cup_wins.is_empty() && self.friends.is_empty()
+    }
+}
+
+/// At most this many friends, and this many requests waiting each way.
+pub const MAX_FRIENDS: usize = 100;
+pub const MAX_FRIEND_REQUESTS: usize = 30;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum FriendReply {
+    /// Request sent (or it already was); the other player has to accept.
+    Sent,
+    /// They had asked you too, so you are now friends.
+    Accepted,
+    /// You were friends already.
+    Already,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum FriendError {
+    NotFound,
+    Yourself,
+    NoRequest,
+    Full,
+    TooMany,
+}
+
+impl FriendError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            FriendError::NotFound => "friend_not_found",
+            FriendError::Yourself => "friend_self",
+            FriendError::NoRequest => "friend_no_request",
+            FriendError::Full => "friend_full",
+            FriendError::TooMany => "friend_too_many",
+        }
     }
 }
 
@@ -336,7 +382,6 @@ impl Store {
         self.players.len()
     }
 
-    #[cfg(test)]
     pub fn get(&self, pid: &str) -> Option<&PlayerRec> {
         self.players.get(pid)
     }
@@ -878,6 +923,79 @@ impl Store {
     }
 
     /// Forget accounts nobody uses any more.
+    /// The pid of the player with this name (ignoring case).
+    pub fn pid_by_name(&self, name: &str) -> Option<&str> {
+        self.names.get(&name_key(name)).map(String::as_str)
+    }
+
+    /// Mark a player as active now (used when they go offline, for "last active").
+    pub fn touch(&mut self, pid: &str, now: u64) {
+        if let Some(p) = self.players.get_mut(pid) {
+            if p.seen < now {
+                p.seen = now;
+                self.dirty = true;
+            }
+        }
+    }
+
+    /// Ask `to` to be friends. If `to` already asked `from`, they become friends at once.
+    pub fn friend_request(&mut self, from: &str, to: &str) -> Result<FriendReply, FriendError> {
+        if from == to {
+            return Err(FriendError::Yourself);
+        }
+        let (Some(a), Some(b)) = (self.players.get(from), self.players.get(to)) else { return Err(FriendError::NotFound) };
+        if a.friends.iter().any(|f| f == to) {
+            return Ok(FriendReply::Already);
+        }
+        if a.freq_in.iter().any(|f| f == to) {
+            return self.friend_accept(from, to).map(|_| FriendReply::Accepted);
+        }
+        if a.freq_out.iter().any(|f| f == to) {
+            return Ok(FriendReply::Sent);
+        }
+        if a.friends.len() >= MAX_FRIENDS || b.friends.len() >= MAX_FRIENDS {
+            return Err(FriendError::Full);
+        }
+        if a.freq_out.len() >= MAX_FRIEND_REQUESTS || b.freq_in.len() >= MAX_FRIEND_REQUESTS {
+            return Err(FriendError::TooMany);
+        }
+        self.players.get_mut(from).expect("checked").freq_out.push(to.to_owned());
+        self.players.get_mut(to).expect("checked").freq_in.push(from.to_owned());
+        self.dirty = true;
+        Ok(FriendReply::Sent)
+    }
+
+    /// `me` accepts the request `other` sent.
+    pub fn friend_accept(&mut self, me: &str, other: &str) -> Result<(), FriendError> {
+        let (Some(a), Some(b)) = (self.players.get(me), self.players.get(other)) else { return Err(FriendError::NotFound) };
+        if !a.freq_in.iter().any(|f| f == other) {
+            return Err(FriendError::NoRequest);
+        }
+        if a.friends.len() >= MAX_FRIENDS || b.friends.len() >= MAX_FRIENDS {
+            return Err(FriendError::Full);
+        }
+        self.friend_drop(me, other);
+        self.players.get_mut(me).expect("checked").friends.push(other.to_owned());
+        self.players.get_mut(other).expect("checked").friends.push(me.to_owned());
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// End whatever there is between two players: a friendship, or a request either way.
+    pub fn friend_drop(&mut self, me: &str, other: &str) {
+        for (x, y) in [(me, other), (other, me)] {
+            if let Some(p) = self.players.get_mut(x) {
+                let n = p.friends.len() + p.freq_in.len() + p.freq_out.len();
+                p.friends.retain(|f| f != y);
+                p.freq_in.retain(|f| f != y);
+                p.freq_out.retain(|f| f != y);
+                if n != p.friends.len() + p.freq_in.len() + p.freq_out.len() {
+                    self.dirty = true;
+                }
+            }
+        }
+    }
+
     pub fn prune(&mut self, now: u64) {
         let before = self.cups.len();
         self.cups.retain(|_, c| match c.state {
@@ -897,11 +1015,20 @@ impl Store {
             })
             .map(|p| p.pid.clone())
             .collect();
+        let mut gone = std::collections::HashSet::new();
         for pid in stale {
             if let Some(p) = self.players.remove(&pid) {
                 self.names.remove(&name_key(&p.name));
                 self.by_auth.remove(&p.auth);
                 self.dirty = true;
+                gone.insert(pid);
+            }
+        }
+        if !gone.is_empty() {
+            for p in self.players.values_mut() {
+                p.friends.retain(|f| !gone.contains(f));
+                p.freq_in.retain(|f| !gone.contains(f));
+                p.freq_out.retain(|f| !gone.contains(f));
             }
         }
     }
@@ -1380,5 +1507,65 @@ mod tests {
         let p = s.prog("pid-aaaaaaaa").unwrap();
         assert_eq!((p.tr, p.xp, p.ai[0], p.pvp), (1_000_000, 100_000_000, 10_000_000, [1, 2, 3]));
         assert!(s.prog("pid-nobody00").is_none());
+    }
+
+    #[test]
+    fn friends_need_both_sides_and_can_be_undone() {
+        let mut s = store();
+        for (p, n) in [("pid-aaaaaaaa", "Asha"), ("pid-bbbbbbbb", "Ben"), ("pid-cccccccc", "Cara")] {
+            s.register(p, n, 100);
+        }
+        let (a, b, c) = ("pid-aaaaaaaa", "pid-bbbbbbbb", "pid-cccccccc");
+        assert_eq!(s.pid_by_name("bEn"), Some(b), "names are found ignoring case");
+        assert_eq!(s.friend_request(a, a), Err(FriendError::Yourself));
+        assert_eq!(s.friend_request(a, "pid-nobody00"), Err(FriendError::NotFound));
+        assert_eq!(s.friend_request(a, b), Ok(FriendReply::Sent));
+        assert_eq!(s.friend_request(a, b), Ok(FriendReply::Sent), "asking twice is harmless");
+        assert_eq!(s.get(b).unwrap().freq_in, vec![a.to_owned()]);
+        assert!(s.get(a).unwrap().friends.is_empty(), "nothing is shared until accepted");
+        assert_eq!(s.friend_accept(c, a), Err(FriendError::NoRequest), "only the one asked can accept");
+        assert_eq!(s.friend_accept(b, a), Ok(()));
+        assert_eq!((s.get(a).unwrap().friends.clone(), s.get(b).unwrap().friends.clone()), (vec![b.to_owned()], vec![a.to_owned()]));
+        assert!(s.get(a).unwrap().freq_out.is_empty() && s.get(b).unwrap().freq_in.is_empty());
+        assert_eq!(s.friend_request(b, a), Ok(FriendReply::Already));
+        // Two players asking each other become friends straight away.
+        assert_eq!(s.friend_request(c, a), Ok(FriendReply::Sent));
+        assert_eq!(s.friend_request(a, c), Ok(FriendReply::Accepted));
+        assert_eq!(s.get(c).unwrap().friends, vec![a.to_owned()]);
+        // Removing works from either side and clears both lists.
+        s.friend_drop(b, a);
+        assert!(s.get(b).unwrap().friends.is_empty() && !s.get(a).unwrap().friends.contains(&b.to_owned()));
+        // Declining a request clears it on both sides.
+        s.friend_request(b, c).unwrap();
+        s.friend_drop(c, b);
+        assert!(s.get(b).unwrap().freq_out.is_empty() && s.get(c).unwrap().freq_in.is_empty());
+    }
+
+    #[test]
+    fn requests_are_capped_and_deleted_accounts_leave_friend_lists() {
+        let mut s = store();
+        s.register("pid-target00", "Target", 100);
+        for i in 0..MAX_FRIEND_REQUESTS {
+            let p = format!("pid-asker{i:03}");
+            s.register(&p, &format!("Asker{i}"), 100);
+            assert_eq!(s.friend_request(&p, "pid-target00"), Ok(FriendReply::Sent));
+        }
+        s.register("pid-onemore0", "One More", 100);
+        assert_eq!(s.friend_request("pid-onemore0", "pid-target00"), Err(FriendError::TooMany));
+        // A friend list keeps an account; an account deleted for being unused leaves every list.
+        s.friend_accept("pid-target00", "pid-asker000").unwrap();
+        s.prune(100 + UNPLAYED_TTL_SECS + 1);
+        assert!(s.get("pid-target00").is_some() && s.get("pid-asker000").is_some(), "friends count as using the account");
+        assert!(s.get("pid-asker001").is_none());
+        assert!(s.get("pid-target00").unwrap().freq_in.is_empty(), "requests from deleted accounts are gone");
+    }
+
+    #[test]
+    fn touch_moves_last_active_forward_only() {
+        let mut s = store();
+        s.register("pid-aaaaaaaa", "Asha", 100);
+        s.touch("pid-aaaaaaaa", 500);
+        s.touch("pid-aaaaaaaa", 300);
+        assert_eq!(s.get("pid-aaaaaaaa").unwrap().seen, 500);
     }
 }

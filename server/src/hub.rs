@@ -85,6 +85,10 @@ pub enum HubCmd {
     Watch { id: ConnId, code: String, m: usize },
     Unwatch { id: ConnId },
     IapVerify { id: ConnId, tx: String },
+    FriendAdd { id: ConnId, to: FriendTo },
+    FriendAccept { id: ConnId, pid: String },
+    FriendDrop { id: ConnId, pid: String },
+    Friends { id: ConnId },
     /// Apple's answer about a purchase (from a background lookup).
     IapChecked { id: ConnId, pid: String, tx: String, result: Result<(String, u32), crate::iap::IapError> },
     /// An App Store Server Notification named this transaction (maybe a refund).
@@ -96,6 +100,13 @@ pub enum HubCmd {
     LeftMatch { id: ConnId },
     Disconnect { id: ConnId },
     MatchClosed { id: MatchId, tokens: Vec<String>, conns: Vec<ConnId> },
+}
+
+/// Who a friend request is for.
+#[derive(Debug)]
+pub enum FriendTo {
+    Name(String),
+    Pid(String),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -393,6 +404,108 @@ impl Hub {
         self.conns.iter().filter(|(_, c)| c.profile.as_ref().is_some_and(|p| p.pid == pid)).map(|(&id, _)| id).collect()
     }
 
+    /// "battle" while in a match, "online" while connected, otherwise "off" with seconds since
+    /// the player was last active. Only ever shown to accepted friends.
+    fn presence(&self, pid: &str, seen: u64, now: u64) -> (&'static str, Option<u64>) {
+        let mut online = false;
+        for c in self.conns.values() {
+            if c.profile.as_ref().is_some_and(|p| p.pid == pid) {
+                if matches!(c.activity, Activity::InMatch(_)) {
+                    return ("battle", None);
+                }
+                online = true;
+            }
+        }
+        if online { ("online", None) } else { ("off", Some(now.saturating_sub(seen))) }
+    }
+
+    fn friends_json(&self, pid: &str) -> Option<String> {
+        let rec = self.store.get(pid)?;
+        let now = store::now_secs();
+        let list: Vec<Value> = rec
+            .friends
+            .iter()
+            .filter_map(|f| {
+                let r = self.store.get(f)?;
+                let (st, ago) = self.presence(f, r.seen, now);
+                Some(json!({ "pid": f, "n": r.name, "st": st, "ago": ago }))
+            })
+            .collect();
+        let names = |v: &Vec<String>| -> Vec<Value> { v.iter().filter_map(|f| self.store.get(f).map(|r| json!({ "pid": f, "n": r.name }))).collect() };
+        Some(protocol::msg(json!({ "t": "friends", "list": list, "inc": names(&rec.freq_in), "out": names(&rec.freq_out) })))
+    }
+
+    fn send_friends(&self, pid: &str) {
+        let ids = self.conns_of(pid);
+        if ids.is_empty() {
+            return;
+        }
+        if let Some(text) = self.friends_json(pid) {
+            for id in ids {
+                self.send(id, text.clone());
+            }
+        }
+    }
+
+    /// Tell `pid`'s friends who are online that `pid` came online, went offline or started a battle.
+    fn notify_friends(&self, pid: &str) {
+        let Some(friends) = self.store.get(pid).map(|r| r.friends.clone()) else { return };
+        for f in friends {
+            self.send_friends(&f);
+        }
+    }
+
+    fn handle_friend(&mut self, cmd: HubCmd) {
+        match cmd {
+            HubCmd::FriendAdd { id, to } => {
+                let Some(me) = self.pid_of(id) else { return };
+                let target = match to {
+                    FriendTo::Name(n) => self.store.pid_by_name(&n).map(str::to_owned),
+                    FriendTo::Pid(p) => self.store.get(&p).map(|_| p),
+                };
+                let Some(target) = target else { return self.send(id, protocol::error("friend_not_found")) };
+                match self.store.friend_request(&me, &target) {
+                    Ok(reply) => {
+                        let what = match reply {
+                            store::FriendReply::Sent => "sent",
+                            store::FriendReply::Accepted => "accepted",
+                            store::FriendReply::Already => "already",
+                        };
+                        let name = self.store.get(&target).map(|r| r.name.clone()).unwrap_or_default();
+                        self.send(id, protocol::msg(json!({ "t": "friend_ok", "what": what, "n": name })));
+                        self.send_friends(&me);
+                        self.send_friends(&target);
+                    }
+                    Err(e) => self.send(id, protocol::error(e.code())),
+                }
+            }
+            HubCmd::FriendAccept { id, pid } => {
+                let Some(me) = self.pid_of(id) else { return };
+                match self.store.friend_accept(&me, &pid) {
+                    Ok(()) => {
+                        let name = self.store.get(&pid).map(|r| r.name.clone()).unwrap_or_default();
+                        self.send(id, protocol::msg(json!({ "t": "friend_ok", "what": "accepted", "n": name })));
+                        self.send_friends(&me);
+                        self.send_friends(&pid);
+                    }
+                    Err(e) => self.send(id, protocol::error(e.code())),
+                }
+            }
+            HubCmd::FriendDrop { id, pid } => {
+                let Some(me) = self.pid_of(id) else { return };
+                self.store.friend_drop(&me, &pid);
+                self.send_friends(&me);
+                self.send_friends(&pid);
+            }
+            HubCmd::Friends { id } => {
+                if let Some(text) = self.pid_of(id).and_then(|p| self.friends_json(&p)) {
+                    self.send(id, text);
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn send_to_pid(&self, pid: &str, text: &str) {
         for id in self.conns_of(pid) {
             self.send(id, text.to_owned());
@@ -622,6 +735,7 @@ impl Hub {
         match cmd {
             c @ (HubCmd::CupCreate { .. } | HubCmd::CupJoin { .. } | HubCmd::CupLeave { .. } | HubCmd::CupStart { .. } | HubCmd::CupList { .. } | HubCmd::CupGet { .. } | HubCmd::CupPlay { .. } | HubCmd::Watch { .. } | HubCmd::Unwatch { .. }) => self.handle_cup(c),
             HubCmd::IapVerify { id, tx } => self.iap_verify(id, tx),
+            c @ (HubCmd::FriendAdd { .. } | HubCmd::FriendAccept { .. } | HubCmd::FriendDrop { .. } | HubCmd::Friends { .. }) => self.handle_friend(c),
             HubCmd::IapChecked { id, pid, tx, result } => self.iap_checked(id, &pid, &tx, result),
             HubCmd::IapNotice { tx } => self.iap_notice(tx),
             HubCmd::IapRevoked { tx } => {
@@ -672,6 +786,10 @@ impl Hub {
                 if let Some(me) = self.store.me_json(&login.pid, store::now_secs()) {
                     self.send(id, protocol::msg(me));
                 }
+                if let Some(text) = self.friends_json(&login.pid) {
+                    self.send(id, text);
+                }
+                self.notify_friends(&login.pid);
                 if let Some(token) = resume {
                     self.resume(id, &token);
                 }
@@ -883,7 +1001,14 @@ impl Hub {
                 self.iap_busy.remove(&id);
                 self.leave_queue(id);
                 self.close_room_of(id);
+                let pid = self.pid_of(id);
                 self.conns.remove(&id);
+                if let Some(pid) = pid {
+                    if self.conns_of(&pid).is_empty() {
+                        self.store.touch(&pid, store::now_secs());
+                        self.notify_friends(&pid);
+                    }
+                }
             }
             HubCmd::MatchClosed { id, tokens, conns } => {
                 let ended: Vec<(String, usize)> = self.cup_live.iter().filter(|(_, (mid, _))| *mid == id).map(|(k, _)| k.clone()).collect();
@@ -1053,8 +1178,12 @@ impl Hub {
         if let Some(k) = &live_cup {
             self.cup_live.insert(k.clone(), (id, mtx.clone()));
         }
+        let pids = [players[0].profile.pid.clone(), players[1].profile.pid.clone()];
         let room = MatchRoom::new(id, kind, clock, players, mrx, self.tx.clone());
         tokio::spawn(room.run());
+        for p in pids {
+            self.notify_friends(&p);
+        }
     }
 
     /// A queued player asked to play the computer instead of waiting.
@@ -1446,6 +1575,44 @@ mod tests {
         assert_eq!(find(&all_msgs(&mut rx[0]), "iap_fail").unwrap()["code"], "iap_retry");
         hub.handle(HubCmd::IapRevoked { tx: "2000001".into() });
         assert_eq!(find(&all_msgs(&mut rx[0]), "me").unwrap()["coins"], 0, "a refund takes the coins back");
+    }
+
+    #[test]
+    fn friends_see_online_battle_and_last_active_but_strangers_do_not() {
+        let (mut hub, mut rx) = hub_with_players(3, Duration::from_secs(120));
+        let hello = all_msgs(&mut rx[0]);
+        let f = find(&hello, "friends").expect("the friend list comes with the welcome");
+        assert_eq!((f["list"].as_array().unwrap().len(), f["inc"].as_array().unwrap().len()), (0, 0));
+        all_msgs(&mut rx[1]);
+        all_msgs(&mut rx[2]);
+        // P1 asks P2 by name; P2 is told at once.
+        hub.handle(HubCmd::FriendAdd { id: 1, to: FriendTo::Name("p2".into()) });
+        let m = all_msgs(&mut rx[0]);
+        assert_eq!((m[0]["t"].as_str(), m[0]["what"].as_str(), m[0]["n"].as_str()), (Some("friend_ok"), Some("sent"), Some("P2")));
+        let f = find(&m, "friends").unwrap();
+        assert_eq!(f["out"][0]["n"], "P2");
+        let f2 = find(&all_msgs(&mut rx[1]), "friends").unwrap();
+        assert_eq!(f2["inc"][0]["n"], "P1");
+        assert_eq!(f2["list"].as_array().unwrap().len(), 0, "no presence before accepting");
+        hub.handle(HubCmd::FriendAdd { id: 1, to: FriendTo::Name("Nobody".into()) });
+        assert_eq!(last_msg(&mut rx[0])["code"], "friend_not_found");
+        // P2 accepts: both now see each other online.
+        hub.handle(HubCmd::FriendAccept { id: 2, pid: "pid-00000001".into() });
+        let f2 = find(&all_msgs(&mut rx[1]), "friends").unwrap();
+        assert_eq!((f2["list"][0]["n"].as_str(), f2["list"][0]["st"].as_str()), (Some("P1"), Some("online")));
+        let f1 = find(&all_msgs(&mut rx[0]), "friends").unwrap();
+        assert_eq!(f1["list"][0]["st"], "online");
+        // P2 goes offline: P1 is told, with how long ago P2 was active.
+        hub.handle(HubCmd::Disconnect { id: 2 });
+        let f1 = find(&all_msgs(&mut rx[0]), "friends").unwrap();
+        assert_eq!(f1["list"][0]["st"], "off");
+        assert!(f1["list"][0]["ago"].as_u64().unwrap() < 5);
+        // P3 is not a friend and hears nothing about either.
+        assert!(find(&all_msgs(&mut rx[2]), "friends").is_none());
+        // Removing a friend clears it for both.
+        hub.handle(HubCmd::FriendDrop { id: 1, pid: "pid-00000002".into() });
+        assert_eq!(find(&all_msgs(&mut rx[0]), "friends").unwrap()["list"].as_array().unwrap().len(), 0);
+        assert!(hub.store.get("pid-00000002").unwrap().friends.is_empty());
     }
 
     #[test]

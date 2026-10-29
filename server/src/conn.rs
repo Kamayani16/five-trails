@@ -2,7 +2,7 @@
 //! enforces message size and rate limits, and routes messages to the hub or the
 //! player's current match.
 
-use crate::hub::{ConnCtl, HubCmd};
+use crate::hub::{ConnCtl, FriendTo, HubCmd};
 use crate::limits::{ConnGuard, TokenBucket};
 use crate::matchroom::{MatchCmd, MatchTx};
 use crate::protocol::{self, ClientMsg, MAX_MESSAGE_BYTES, PROTOCOL_VERSION};
@@ -174,6 +174,20 @@ async fn run(socket: WebSocket, app: AppState, _guard: ConnGuard) {
                     ClientMsg::Unwatch => Some(HubCmd::Unwatch { id }),
                     ClientMsg::IapVerify { tx } => Some(HubCmd::IapVerify { id, tx }),
                     ClientMsg::Bot => Some(HubCmd::Bot { id }),
+                    ClientMsg::FriendAdd { name, pid } => {
+                        let to = match (name, pid) {
+                            (Some(n), None) => protocol::clean_name(&n).map(FriendTo::Name),
+                            (None, Some(p)) => protocol::clean_pid(&p).map(FriendTo::Pid),
+                            _ => None,
+                        };
+                        match to {
+                            Some(to) => Some(HubCmd::FriendAdd { id, to }),
+                            None => { reply!(protocol::error("friend_not_found")); None }
+                        }
+                    }
+                    ClientMsg::FriendAccept { pid } => protocol::clean_pid(&pid).map(|pid| HubCmd::FriendAccept { id, pid }),
+                    ClientMsg::FriendDrop { pid } => protocol::clean_pid(&pid).map(|pid| HubCmd::FriendDrop { id, pid }),
+                    ClientMsg::Friends => Some(HubCmd::Friends { id }),
                     ClientMsg::Profile { name, tr, lv } => match protocol::clean_name(&name) {
                         Some(name) => Some(HubCmd::UpdateProfile { id, name, trophies: tr, level: lv }),
                         None => { reply!(protocol::error("bad_hello")); None }
