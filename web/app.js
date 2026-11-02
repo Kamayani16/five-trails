@@ -283,18 +283,22 @@ document.addEventListener('visibilitychange',musicSync);
 
 /* ================= FX: particles, callouts, popups ================= */
 const fx=$('fx'),fctx=fx.getContext('2d');let parts=[],fxRun=false,DPR=1;
-function fxSize(){DPR=Math.min(2,window.devicePixelRatio||1);fx.width=Math.round(innerWidth*DPR);fx.height=Math.round(innerHeight*DPR)}
-addEventListener('resize',fxSize);fxSize();
+/* The canvas is sized from the area it really covers (on iPhone that can differ from innerHeight,
+   e.g. while the browser bar moves), and every frame wipes the whole canvas, so nothing is left behind. */
+let FW=innerWidth,FH=innerHeight;
+function fxSize(){DPR=Math.min(2,window.devicePixelRatio||1);FW=fx.clientWidth||innerWidth;FH=fx.clientHeight||innerHeight;fx.width=Math.round(FW*DPR);fx.height=Math.round(FH*DPR)}
+addEventListener('resize',fxSize);addEventListener('orientationchange',()=>setTimeout(fxSize,200));if(window.visualViewport)visualViewport.addEventListener('resize',fxSize);fxSize();
+function fxClear(){fctx.setTransform(1,0,0,1,0,0);fctx.clearRect(0,0,fx.width,fx.height)}
 function burst(x,y,colors,n=16,o={}){if(reduced)return;for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=(o.sp||5)*(.35+Math.random());
  parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-(o.up??2),g:o.g??.28,life:1,dec:.016+Math.random()*.02,s:(o.s||6)*(.6+Math.random()*.8),c:colors[i%colors.length],r:Math.random()*6,vr:(Math.random()-.5)*.4,sh:o.sh||(i%3?'sq':'st')})}
  if(!fxRun){fxRun=true;requestAnimationFrame(fxLoop)}}
-function confetti(){if(reduced)return;const cs=[...COL.map(c=>c.cc),'#ffd23a','#bb73ff'];for(let i=0;i<140;i++)parts.push({x:Math.random()*innerWidth,y:-20-Math.random()*innerHeight*.5,vx:(Math.random()-.5)*2,vy:2+Math.random()*3,g:.04,life:1,dec:.0035+Math.random()*.003,s:6+Math.random()*5,c:cs[i%cs.length],r:Math.random()*6,vr:(Math.random()-.5)*.3,sh:'cf'});
+function confetti(){if(reduced)return;const cs=[...COL.map(c=>c.cc),'#ffd23a','#bb73ff'];for(let i=0;i<140;i++)parts.push({x:Math.random()*FW,y:-20-Math.random()*FH*.5,vx:(Math.random()-.5)*2,vy:2+Math.random()*3,g:.04,life:1,dec:.0035+Math.random()*.003,s:6+Math.random()*5,c:cs[i%cs.length],r:Math.random()*6,vr:(Math.random()-.5)*.3,sh:'cf'});
  if(!fxRun){fxRun=true;requestAnimationFrame(fxLoop)}}
 function star(c,r){c.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,rr=i%2?r*.45:r;c.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}c.closePath();c.fill()}
-function fxLoop(){fctx.setTransform(DPR,0,0,DPR,0,0);fctx.clearRect(0,0,innerWidth,innerHeight);parts=parts.filter(p=>p.life>0&&p.y<innerHeight+40);
+function fxLoop(){if(fx.clientWidth!==FW||fx.clientHeight!==FH)fxSize();fxClear();fctx.setTransform(DPR,0,0,DPR,0,0);parts=parts.filter(p=>p.life>0&&p.y<FH+40);
  for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.vx*=.985;p.r+=p.vr;p.life-=p.dec;fctx.globalAlpha=Math.max(0,Math.min(1,p.life*1.6));fctx.fillStyle=p.c;fctx.save();fctx.translate(p.x,p.y);fctx.rotate(p.r);
   if(p.sh==='st')star(fctx,p.s*.8);else if(p.sh==='cf')fctx.fillRect(-p.s/2,-p.s*.8,p.s,p.s*1.6);else{fctx.fillRect(-p.s/2,-p.s/2,p.s,p.s);fctx.strokeStyle='rgba(11,22,64,.6)';fctx.lineWidth=1;fctx.strokeRect(-p.s/2,-p.s/2,p.s,p.s)}fctx.restore()}
- fctx.globalAlpha=1;if(parts.length)requestAnimationFrame(fxLoop);else{fxRun=false;fctx.clearRect(0,0,innerWidth,innerHeight)}}
+ fctx.globalAlpha=1;if(parts.length)requestAnimationFrame(fxLoop);else{fxRun=false;fxClear()}}
 const centerOf=el=>{const r=el.getBoundingClientRect();return[r.left+r.width/2,r.top+r.height/2]};
 function shake(n=1){if(reduced)return;const g=$('game');g.classList.remove('shk','shk2');void g.offsetWidth;g.classList.add(n>1?'shk2':'shk')}
 let coQ=Promise.resolve();
