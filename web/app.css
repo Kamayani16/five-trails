@@ -1093,7 +1093,8 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .co-av svg{width:20px;height:20px}
 .co-h b{font-family:var(--display);font-weight:400;font-size:16px}
 .co-n{margin-left:auto;font-size:11px;color:var(--ink2);font-weight:900}
-.co-t{margin:0;font-size:14px;line-height:1.38;white-space:pre-line}
+.co-bub{display:flex;flex-direction:column}
+.co-t{margin:0;font-size:14px;line-height:1.38;white-space:pre-line;min-height:0}
 .co-btns{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
 .co-btns .linkbtn{padding:4px 0}
 .co-btns .gb[hidden],.co-btns .linkbtn[hidden]{display:none}
@@ -1105,3 +1106,20 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .tutend{text-align:center;color:var(--ink);font-size:14px}
 .introbtns:has(#introTut){display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media (prefers-reduced-motion:reduce){.co-ring{animation:none;transition:none}.co-bub{transition:none}.co-bub.nudge{animation:none}}
+/* Battle sized to the real screen: when it does not fit, step down (measured in fitGame). */
+.game.tight{gap:6px}
+.game.tight .gtop .gb.sq{height:38px;width:42px}
+.game.tight .pbar{padding-top:4px;padding-bottom:4px}.game.tight .pbar .av{width:34px;height:34px;font-size:18px}.game.tight .pscore{font-size:26px}
+.game.tight .stack{min-height:54px}.game.tight .pile{height:56px}.game.tight .stack .card{height:32px}
+.game.tight .deck{width:44px;height:58px}.game.tight .deck span{font-size:19px}.game.tight .msg{padding:7px 10px;font-size:13px}
+.game.tight .pwtray{gap:6px}.game.tight .pw{padding:3px}.game.tight .pw-ic{width:26px;height:26px}.game.tight .pw-ic svg{width:15px;height:15px}.game.tight .pw-t small{display:none}
+.game.tight .hand{padding-top:10px;min-height:60px}.game.tight .actrow{min-height:48px}.game.tight .acts .gb{font-size:17px;padding:8px 8px 12px}
+.game.tighter{gap:4px}
+.game.tighter .gtop .gb.sq{height:34px;width:38px}.game.tighter .gtag{font-size:15px}
+.game.tighter .pbar .av{width:30px;height:30px;font-size:16px}.game.tighter .pscore{font-size:22px}.game.tighter .psub{display:none}
+.game.tighter .stack{min-height:40px}.game.tighter .pile{height:44px}.game.tighter .stack .card{height:28px}
+.game.tighter .deck{width:38px;height:50px}.game.tighter .msg{padding:5px 9px;font-size:12px}
+.game.tighter .pw-ic{width:24px;height:24px}.game.tighter .pw-t b{font-size:13px}
+.game.tighter .hand{padding-top:8px;min-height:52px}.game.tighter .actrow{min-height:44px}.game.tighter .acts .gb{font-size:16px;padding:7px 8px 10px}
+.co-bub.tight{padding:8px 10px}.co-bub.tight .co-t{font-size:13px;line-height:1.3}.co-bub.tight .co-h{margin-bottom:2px}.co-bub.tight .co-btns{margin-top:4px}
+.co-bub.scroll .co-t{overflow-y:auto}

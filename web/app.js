@@ -1175,8 +1175,15 @@ function renderGame(){
  scorePops();
  prevGid=V.gid;prevSeq=V.seq;
  if(V.ov)setTimeout(M.mode==='watch'?watchResult:showResult,ev?1800:200);
- tutPaint();
+ fitGame();tutPaint();
 }
+/* Keep the whole battle on screen: if it is taller than the window, step down to tighter sizes;
+   if a tighter size is no longer needed (e.g. after rotating), step back up. */
+const gameOver=()=>document.documentElement.scrollHeight>innerHeight+1;
+function fitGame(){const g=$('game');if(!g||g.hidden)return;
+ for(let k=0;k<2&&gameOver();k++)g.classList.add(g.classList.contains('tight')?'tighter':'tight');
+ for(const c of ['tighter','tight']){if(!g.classList.contains(c))continue;g.classList.remove(c);if(gameOver()){g.classList.add(c);break}}}
+addEventListener('resize',()=>{fitGame();if(typeof tutPaint==='function')tutPaint()});if(window.visualViewport)visualViewport.addEventListener('resize',()=>{fitGame();if(typeof tutPaint==='function')tutPaint()});
 function paintWatchers(){const el=$('watchN');if(!el)return;const n=M.mode==='online'?(M.watchers||0):0;el.hidden=!n;el.innerHTML=n?`${EYEMINI}${n}`:'';el.title=n?`${n} watching`:''}
 function watchOverText(){const a=total(V.ex[0]),b=total(V.ex[1]),A=M.players[0].n,B=M.players[1].n;
  if(V.fl)return`<b>${esc(V.fl==='me'?B:A)} wins</b> · ${esc(V.fl==='me'?A:B)} ${V.why==='forfeit'?'left':'ran out of time'}`;
@@ -1460,10 +1467,18 @@ function tutPaint(){let el=$('coach');const T=M&&M.tut;
  el.querySelector('.co-t').textContent=t;el.querySelector('.co-n').textContent=`${Math.min(T.i+1,TUT.length)} / ${TUT.length}`;
  const nb=el.querySelector('.co-next');nb.hidden=!st.next;nb.textContent=st.next||'';el.querySelector('.co-skip').hidden=T.i>=TUT.length-1;
  const W=innerWidth,H=Math.max(innerHeight,document.documentElement.clientHeight);
- if(tg){const r=tg.getBoundingClientRect(),p=6;Object.assign(ring.style,{left:r.left-p+'px',top:r.top-p+'px',width:r.width+2*p+'px',height:r.height+2*p+'px'});ring.hidden=false;
-  const bw=Math.min(360,W-24);bub.style.width=bw+'px';bub.style.left=Math.max(12,Math.min(W-bw-12,r.left+r.width/2-bw/2))+'px';
-  const bh=bub.offsetHeight;if(r.top+r.height/2>H/2){bub.style.top=Math.max(12,r.top-p-bh-12)+'px'}else{bub.style.top=Math.min(H-bh-12,r.bottom+p+12)+'px'}}
- else{ring.hidden=true;const bw=Math.min(360,W-24);bub.style.width=bw+'px';bub.style.left=(W-bw)/2+'px';bub.style.top=(st.coach?H*.62:(H-bub.offsetHeight)/2)+'px'}}
+ const bw=Math.min(360,W-24);bub.style.width=bw+'px';bub.classList.remove('tight','scroll');bub.style.maxHeight='';
+ if(tg){let r=tg.getBoundingClientRect();const p=6,gap=10;
+  if(r.bottom>H-4||r.top<4){try{tg.scrollIntoView({block:'nearest'})}catch(e){}r=tg.getBoundingClientRect()}
+  Object.assign(ring.style,{left:r.left-p+'px',top:r.top-p+'px',width:r.width+2*p+'px',height:r.height+2*p+'px'});ring.hidden=false;
+  bub.style.left=Math.max(12,Math.min(W-bw-12,r.left+r.width/2-bw/2))+'px';
+  const above=r.top-p-gap-8,below=H-(r.bottom+p+gap)-8,low=r.top+r.height/2>H/2;
+  let bh=bub.offsetHeight;if(bh>(low?above:below)&&bh>(low?below:above)){bub.classList.add('tight');bh=bub.offsetHeight}
+  const up=bh<=above&&(low||bh>below)?true:bh<=below?false:above>=below;
+  const room=up?above:below;if(bh>room){bub.classList.add('scroll');bub.style.maxHeight=Math.max(120,room)+'px';bh=bub.offsetHeight}
+  bub.style.top=(up?Math.max(8,r.top-p-gap-bh):Math.min(H-bh-8,r.bottom+p+gap))+'px'}
+ else{ring.hidden=true;bub.style.left=(W-bw)/2+'px';bub.style.top=(st.coach?Math.min(H*.62,H-bub.offsetHeight-12):(H-bub.offsetHeight)/2)+'px'}}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(typeof tutOn==='function'&&tutOn())tutPaint()});
 addEventListener('resize',()=>{if(tutOn())tutPaint()});
 function tutFinish(){if(!M.tut)return;M.tut.done=true;ST.set('ft-tut',true);if(M.S&&M.S.turn===1&&!M.S.over)scheduleAi()}
 /* End of the practice round: no records, just the result and what to do next. */
