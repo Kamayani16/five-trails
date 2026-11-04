@@ -721,7 +721,7 @@ function cupMatchRow(c,x){const o=cupOpp(c,x),side=cupSide(c,x),opp=o!=null?esc(
 /* ================= App state ================= */
 let M={mode:'home'};          // mode: home | ai | queue | room | online
 let V=null, prevGid=null, prevSeq=0, aiT=null, sel=null, pending=false, PS=null;
-function show(id){for(const s of ['home','wait','game'])$(s).hidden=s!==id;$('over').hidden=true;closeSheets();closeEmo();musicSync();paintSoundHint();setTimeout(paintInvite,0)}
+function show(id){for(const s of ['home','wait','game'])$(s).hidden=s!==id;$('over').hidden=true;closeSheets();closeEmo();musicSync();paintSoundHint();setTimeout(paintInvite,0);setTimeout(tutPaint,0)}
 
 /* ================= Lobby ================= */
 let clkSet=ST.get('ft-clock',300);
@@ -751,7 +751,7 @@ function renderHome(){
   <span class="tprog">${TROPHY}<span class="bar"><i style="width:${pct}%"></i><b class="ols">${N?`${REC.tr} / ${N.at}`:`${REC.tr}`}</b></span></span></span>`;
  paintAiPick();paintMode();
  netChanged();
- renderRecords();renderRewards();paintCupNudge();renderProfile();maybeShowReward();
+ renderRecords();renderRewards();paintCupNudge();paintTutNudge();renderProfile();maybeShowReward();
 }
 function paintCupNudge(){const el=$('cupNudge');if(!el)return;let pick=null;
  for(const c of Object.values(CUPS)){if(c.state==='live'){const x=myCupMatches(c).find(cupOpenMatch);if(x){pick={c,x};break}}else if(!pick&&c.state==='lobby'&&cupNeedsMe(c))pick={c}}
@@ -780,6 +780,7 @@ function renderRecords(){const T=tot(),n=T.w+T.l+T.d,ai=arenaIdx(REC.tr);
 function renderGuide(){
  const ex=(cards,math)=>`<div class="ex"><div class="cards">${cards.map(id=>mini(id,34)).join('')}</div><div class="math">${math}</div></div>`;
 $('tab-guide').innerHTML=`
+ <button class="cn-b tutb" type="button" id="guideTut"><span class="cn-ic">${IC.book}</span><span class="cn-t"><b>Guided practice round</b><small>Learn by playing, with Coach showing each move</small></span><span class="cn-go">Start</span></button>
  <div class="pn gsec"><div class="pn-h ol">Each turn</div>
   <p><b>1. Play</b> a card to its color's trail, or discard it to that color's pile.</p>
   <p><b>2. Draw</b> from the deck or any discard pile (not the one you just discarded to).</p>
@@ -816,7 +817,7 @@ $('tab-guide').innerHTML=`
   <p>No one around? Play the computer: unranked, still counts for quests.</p>
   <p>Spend coins in the Shop: table themes for your screen, and card backs your rival sees. Three of each are free.</p>
   <button class="gb blue sm" id="replayIntro2" style="align-self:flex-start">Replay intro</button></div>`;
- $('replayIntro2').onclick=()=>{sfx('ui');openIntro()}}
+ $('replayIntro2').onclick=()=>{sfx('ui');openIntro()};$('guideTut').onclick=()=>{sfx('ui');startTutorial()}}
 let curTab='battle';
 let lbScope=ST.get('ft-lbscope','season')==='all'?'all':'season';
 const LBS={season:null,all:null};
@@ -1074,13 +1075,14 @@ function openIntro(){introI=0;closeSheets();$('intro').hidden=false;renderIntro(
 function renderIntro(){const s=INTRO[introI];const dots=`<div class="dots">${INTRO.map((_,i)=>`<i class="${i===introI?'on':''}"></i>`).join('')}</div>`;
  $('introPn').innerHTML=s.name?`<div class="islide"><h2>${s.t}</h2><div class="ivis">${avatarHTML(NAME||'E',null).replace('class="av"','class="av" style="width:84px;height:84px;font-size:44px;border-radius:22px"')}</div>
    <input id="introName" maxlength="16" placeholder="Explorer" value="${esc(NAME)}" aria-label="Your name" style="width:100%;text-align:center"><p class="note" id="introNote" aria-live="polite">Unique name picked for you. Change it any time.</p>${dots}
-   <div class="introbtns"><button class="gb go" id="introGo">Let's go!</button></div></div>`
+   <div class="introbtns">${ST.get('ft-tut',false)?'':'<button class="gb green" id="introTut">Practice round</button>'}<button class="gb go" id="introGo">${ST.get('ft-tut',false)?"Let's go!":'Skip to lobby'}</button></div>${ST.get('ft-tut',false)?'':'<p class="note">New to Five Trails? Coach shows you how to play in about 3 minutes.</p>'}</div>`
  :`<div class="islide"><h2>${s.t}</h2><div class="ivis">${s.v()}</div><p>${s.p}</p>${dots}<div class="introbtns"><button class="gb gray" id="introSkip">Skip</button><button class="gb green" id="introNext">Next</button></div></div>`;
  if(s.name){const inp=$('introName');inp.oninput=()=>{const av=$('introPn').querySelector('.av');if(av)av.firstChild.textContent=((inp.value||'E').trim()[0]||'E').toUpperCase()};
   inp.onkeydown=e=>{if(e.key==='Enter')$('introGo').click()};
-  $('introGo').onclick=()=>{const fin=()=>{ST.set('ft-intro',true);$('intro').hidden=true;$('nick').value=NAME;sfx('go');renderHome();burst(innerWidth/2,innerHeight/2,['#ffd23a','#7dffa0','#4f9dff','#ff5d6c'],30,{sp:8})};
+  const go=tut=>{const fin=()=>{ST.set('ft-intro',true);$('intro').hidden=true;$('nick').value=NAME;sfx('go');renderHome();if(tut){startTutorial();return}burst(innerWidth/2,innerHeight/2,['#ffd23a','#7dffa0','#4f9dff','#ff5d6c'],30,{sp:8})};
    if(!cleanNick(inp.value)){fin();return}
-   trySetName(inp.value,(ok,msg)=>{if(!ok){const n=$('introNote');if(n){n.textContent=msg;n.classList.add('bad')}sfx('bad');return}fin()})}}
+   trySetName(inp.value,(ok,msg)=>{if(!ok){const n=$('introNote');if(n){n.textContent=msg;n.classList.add('bad')}sfx('bad');return}fin()})};
+  $('introGo').onclick=()=>go(false);const it=$('introTut');if(it)it.onclick=()=>go(true)}
  else{$('introNext').onclick=()=>{sfx('ui');introI++;renderIntro()};$('introSkip').onclick=()=>{sfx('ui');introI=INTRO.length-1;renderIntro()}}}
 
 /* ================= Rendering the battle ================= */
@@ -1099,6 +1101,7 @@ const vsCpu=()=>M.mode==='ai'||(M.mode==='online'&&M.kind==='bot');
 function oppInfo(){const ai=arenaIdx(REC.tr);
  if(M.mode==='watch'){const p=M.players[1];return{name:p.n,lv:p.lv,tr:p.tr,cpu:false,sub:''}}
  if(M.mode==='online'&&M.kind==='bot')return{name:'Computer',lv:null,tr:null,cpu:true,sub:`${AI_TIER[(M.opp&&M.opp.tier)||0]} bot`};
+ if(M.mode==='ai'&&M.tut)return{name:'Coach',lv:null,tr:null,cpu:true,sub:'Practice round'};
  if(M.mode==='ai')return{name:'Computer',lv:null,tr:null,cpu:true,sub:M.fixed?`${AI_LVLS[String(M.tier)]} · practice`:`${AI_TIER[M.tier??ai]} bot`};
  const o=M.opp||{};const h=M.oppKey&&REC.opp[M.oppKey];return{name:o.nick||'Opponent',lv:o.lv||null,tr:o.tr??null,cpu:false,sub:`${o.tr!=null?TROPHY+(Number(o.tr)||0):''}${h?` · You ${h.w}–${h.l}`:''}`}}
 const meInfo=()=>M.mode==='watch'?{name:M.players[0].n,lv:M.players[0].lv}:({name:nick(),lv:lvlInfo(REC.xp).lv});
@@ -1172,6 +1175,7 @@ function renderGame(){
  scorePops();
  prevGid=V.gid;prevSeq=V.seq;
  if(V.ov)setTimeout(M.mode==='watch'?watchResult:showResult,ev?1800:200);
+ tutPaint();
 }
 function paintWatchers(){const el=$('watchN');if(!el)return;const n=M.mode==='online'?(M.watchers||0):0;el.hidden=!n;el.innerHTML=n?`${EYEMINI}${n}`:'';el.title=n?`${n} watching`:''}
 function watchOverText(){const a=total(V.ex[0]),b=total(V.ex[1]),A=M.players[0].n,B=M.players[1].n;
@@ -1256,7 +1260,7 @@ function renderActs(){const myT=V&&V.mt&&!V.ov&&M.mode!=='watch';let h='';$('emo
   h=`<button class="gb green ${ok?'':'dim'}" id="aPlay">Play to ${COL[c].n}${ok?` <span class="pts">${wg?'×'+(e.length+2):(d>=0?'+':'−')+Math.abs(d)}</span>`:''}</button><button class="gb gray" id="aDisc">Discard</button>`}
  else if(myT&&V.ph==='play'&&!pending)h='<button class="gb gray ghost" type="button" disabled>Pick a card</button><button class="gb gray ghost" type="button" disabled>Discard</button>';
  else if(V&&V.ov)h=`<button class="gb" id="aAgain">${M.mode==='ai'?'Play again':'Rematch'}</button>`;
- $('acts').innerHTML=h}
+ $('acts').innerHTML=h;tutPaint()}
 /* The power tray: always on screen, so you can see what is left; each needs two taps. */
 function renderPowers(){const el=$('pwTray');if(!el)return;
  if(!V||M.mode==='watch'||V.ov){el.hidden=true;return}el.hidden=false;
@@ -1267,7 +1271,7 @@ function renderPowers(){const el=$('pwTray');if(!el)return;
  el.innerHTML=P.map(x=>{const st=!x.left?'used':armed===x.k?'armed':x.ok?'ready':'wait';
   return `<button class="pw pk-${x.k} ${st}" id="${x.id}" type="button" ${st==='used'||st==='wait'?'disabled':''} aria-label="${x.n}: ${st==='used'?'used':st==='armed'?'tap again to use':st==='ready'?'ready':x.why||'not now'}"><span class="pw-ic">${x.ic}</span><span class="pw-t"><b>${x.n}</b><small>${st==='used'?'Used':st==='armed'?'Tap again':st==='ready'?'Ready':x.why||'Not now'}</small></span></button>`}).join('')}
 let armed=null,armT=null;
-function arm(k){armed=k;clearTimeout(armT);armT=setTimeout(()=>{armed=null;renderActs()},3000);sfx('select');renderActs()}
+function arm(k){if(tutOn()&&!(TUT[M.tut.i].want&&TUT[M.tut.i].want.k===k)){tutAllow(k);return}armed=k;clearTimeout(armT);armT=setTimeout(()=>{armed=null;renderActs()},3000);sfx('select');renderActs()}
 function setSel(id){sel=sel===id?null:id;document.querySelectorAll('#hand .card').forEach(el=>el.classList.toggle('sel',+el.dataset.id===sel));renderActs();if(sel!=null)sfx('select')}
 function err(text,el){sfx('bad');$('msg').className='msg err';$('msg').textContent=text;if(el){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake')}}
 
@@ -1290,7 +1294,7 @@ let shownFor=null;
 function outcome(){const me=total(V.ex[0]),them=total(V.ex[1]);return{me,them,r:V.fl?(V.fl==='me'?'l':'w'):me>them?'w':me<them?'l':'d'}}
 function finalize(){if(!V||!V.ov)return null;const{me,them,r}=outcome(),o=oppInfo();
  return recordGame(vsCpu()?'ai':'pvp',o.name,vsCpu()?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,r,M.kind==='cup'||(M.mode==='ai'&&M.fixed))}
-function showResult(){if(!V||!V.ov||M.mode==='home')return;if(shownFor===V.gid&&!$('over').hidden)return;
+function showResult(){if(!V||!V.ov||M.mode==='home')return;if(M.tut){if(shownFor===V.gid&&!$('over').hidden)return;shownFor=V.gid;tutResult();return}if(shownFor===V.gid&&!$('over').hidden)return;
  const first=shownFor!==V.gid;shownFor=V.gid;const info=finalize();const{me,them,r}=outcome(),o=oppInfo();
  if(first){sfx(r==='l'?'lose':'win');if(r==='w')confetti();if(M.mode==='ai')setTimeout(()=>aiSay(5,.75,true),900)}
  const title=r==='w'?'Victory!':r==='l'?'Defeat':'Draw';
@@ -1351,7 +1355,7 @@ function updateRmNote(){const n=$('rmNote');if(!n||!V)return;n.textContent=M.mod
 
 /* ================= Actions ================= */
 function act(kind,arg,x,el){
- if(!V||V.ov||pending||M.mode==='watch')return;armed=null;
+ if(!V||V.ov||pending||M.mode==='watch')return;if(!tutAllow(kind,arg,x)){armed=null;renderActs();return}armed=null;
  if(kind==='eye'){if(!V.mt||Date.now()<eyeUntil)return;
   if(M.mode==='ai'){if(!okEye(M.S,0))return;doEye(M.S,0);afterLocal()}
   else if(M.mode==='online'){if(NET.send({t:'move',seq:V.seq,a:'eye'}))pending=true;renderActs()}
@@ -1374,8 +1378,8 @@ function act(kind,arg,x,el){
  else if(M.mode==='online'){const mv=kind==='play'?{t:'move',seq:V.seq,a:x?'play':'disc',id:arg}:{t:'move',seq:V.seq,a:'draw',pile:arg};if(NET.send(mv))pending=true;renderActs()}
 }
 function freshView(S){V=viewFor(S,0);V.at=Date.now()}
-function afterLocal(){freshView(M.S);renderGame();if(M.mode==='ai')scheduleAi()}
-function scheduleAi(){clearTimeout(aiT);const S=M.S;if(S.over||S.turn!==1)return;
+function afterLocal(){freshView(M.S);tutAfterMove();renderGame();if(M.mode==='ai')scheduleAi()}
+function scheduleAi(){clearTimeout(aiT);const S=M.S;if(S.over||S.turn!==1)return;if(tutOn()){tutCoach(S);return}
  const alive=()=>M.mode==='ai'&&M.S===S&&!S.over&&S.turn===1;
  const rr=()=>{freshView(S);renderGame()};
  const playStep=()=>{if(!alive())return;if(Date.now()<eyeUntil){aiT=setTimeout(playStep,300);return}const b=aiChoosePlay(S,AI_NOISE[M.tier||0]);doPlay(S,1,b.id,b.x);rr();
@@ -1399,6 +1403,81 @@ function forfeit(){closeSheets();if(!V||V.ov){goHome();return}
  const{me,them}=outcome(),o=oppInfo();
  recordGame(M.mode==='ai'?'ai':'pvp',o.name,M.mode==='ai'?'ai':(M.oppKey||'n:'+o.name),me,them,V.gid,'l');
  sfx('lose');goHome()}
+
+/* ================= Guided practice round =================
+   A short, fixed deal against "Coach". Each step highlights what to tap and explains why; other
+   moves are gently refused until the lesson is done. Then the player finishes the round freely.
+   Nothing is recorded: no trophies, XP, coins or history. */
+const TC={D3:cid(0,3),D6:cid(0,6),D8:cid(0,8),D9:cid(0,9),D10:cid(0,10),SW:cid(1,0,0),S2:cid(1,2),S7:cid(1,7),S9:cid(1,9),J2:cid(2,2),J5:cid(2,5),J7:cid(2,7),J9:cid(2,9),V4:cid(3,4),V8:cid(3,8),V9:cid(3,9),V10:cid(3,10),VW:cid(3,0,0),G3:cid(4,3),G5:cid(4,5),G7:cid(4,7),G10:cid(4,10),D2:cid(0,2)};
+const TUT_COACH=[{id:TC.V8,x:true},{id:TC.S2,x:false},{id:TC.V9,x:true},{id:TC.J5,x:true}];
+const TUT=[
+ {t:"Welcome to your practice round! I'm Coach. I'll show you the moves, then you finish the round yourself. Nothing here changes your trophies.",next:"Let's go"},
+ {el:'#hand',t:'These are your 8 cards. Every colour has its own trail: Desert, Sea, Jungle, Volcano and Glacier.',next:'Next'},
+ {el:'#board',t:'This is the board. Your cards go on the bottom half of each trail, mine on the top. When the deck runs out, the most points wins.',next:'Next'},
+ {card:TC.D3,btn:'#aPlay',t:'Each turn you play one card, then draw one. Tap your Desert 3.',tb:'Now tap Play to Desert. The −17 on the button is what this trail would be worth: its total minus 20. Start low, so you have room to climb.',want:{k:'play',id:TC.D3,x:true}},
+ {el:'#deck',t:'Your turn always ends with a draw. Tap the deck.',want:{k:'draw',p:-1}},
+ {coach:true,t:'My turn. Watch the top half of the board.'},
+ {card:TC.D6,btn:'#aPlay',t:'I started a Volcano trail with an 8. Your turn! Your Desert trail has a 3, and cards must climb, so the 6 fits. Tap Desert 6.',tb:'Tap Play to Desert. Every card you add raises the trail’s score. Short trails lose points, so keep climbing!',want:{k:'play',id:TC.D6,x:true}},
+ {el:'#deck',t:'Draw from the deck again.',want:{k:'draw',p:-1}},
+ {coach:true,t:'My turn.'},
+ {card:TC.SW,btn:'#aPlay',t:"I didn't need my Sea 2, so I discarded it. Now look at your × card: a wager. Played before any numbers, it doubles that trail's score, good or bad. Tap it.",tb:'Play it to Sea, where you hold a 7 to follow it.',want:{k:'play',id:TC.SW,x:true}},
+ {el:'.pile[data-pile="1"]',t:'You can draw from a discard pile instead of the deck. Tap the Sea pile to take my Sea 2.',want:{k:'draw',p:1}},
+ {coach:true,t:'My turn.'},
+ {card:TC.J2,btn:'#aDisc',t:'I added a Volcano 9. Not every card helps you: your Jungle 2 has no partners. Tap it.',tb:'Now tap Discard. It goes face up on the Jungle pile, where anyone can take it.',want:{k:'play',id:TC.J2,x:false}},
+ {el:'#deck',t:'Draw from the deck.',want:{k:'draw',p:-1}},
+ {coach:true,t:'My turn.'},
+ {el:'#aEye',t:'Last lesson: powers. You get one of each per battle. Evil Eye shows you one of my cards. Tap it twice to use it.',want:{k:'eye'}},
+ {t:"That's the Evil Eye! Sabotage knocks one of my cards out of my hand, and Rush leaves me only 10 seconds on my next turn.\n\nYou know the basics. Finish the round your way: play a card, then draw. Good luck!",next:'Play on'}];
+function tutDeal(){const S=deal(0,0);const used=new Set();const P=[TC.D3,TC.D6,TC.D9,TC.SW,TC.S7,TC.J2,TC.V4,TC.G10],C=[TC.V8,TC.V9,TC.J5,TC.G3,TC.S2,TC.D2,TC.VW,TC.J9];
+ // drawn in this order: you, Coach, you, Coach, Coach, you, Coach
+ const top=[TC.G7,TC.D10,TC.J7,TC.V10,TC.S9,TC.G5,TC.D8];[...P,...C,...top].forEach(i=>used.add(i));
+ const rest=[...Array(60).keys()].filter(i=>!used.has(i));for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]]}
+ S.hands=[P,C];S.deck=[...rest.slice(0,15),...top];S.turn=0;S.t0=Date.now();return S}
+function startTutorial(){leaveRoom();closeSheets();$('intro').hidden=true;M={mode:'ai',tier:0,fixed:true,tut:{i:0,c:0,done:false},skipVS:true,S:tutDeal()};freshView(M.S);$('roomTag').textContent='Practice round';show('game');renderGame()}
+const tutOn=()=>!!(M&&M.mode==='ai'&&M.tut&&!M.tut.done);
+/* Is this move the one the lesson asks for? If not, say what to do instead. */
+function tutAllow(kind,arg,x){if(!tutOn())return true;const st=TUT[M.tut.i],w=st&&st.want;
+ const ok=w&&w.k===kind&&(kind==='eye'||(kind==='draw'?w.p===arg:(w.id===arg&&w.x===!!x)));
+ if(ok){M.tut.hit=true;return true}
+ sfx('bad');const b=document.querySelector('#coach .co-bub');if(b){b.classList.remove('nudge');void b.offsetWidth;b.classList.add('nudge')}return false}
+function tutAfterMove(){if(!tutOn()||!M.tut.hit)return;M.tut.hit=false;M.tut.i++;tutPaint()}
+/* Coach's scripted turns during the lesson. */
+function tutCoach(S){const T=M.tut,mv=TUT_COACH[T.c++];if(!mv){T.i++;tutPaint();return}
+ const alive=()=>M.mode==='ai'&&M.S===S&&M.tut===T&&!S.over&&S.turn===1;
+ aiT=setTimeout(()=>{if(!alive())return;doPlay(S,1,mv.id,mv.x);freshView(S);renderGame();
+  aiT=setTimeout(()=>{if(!alive())return;doDraw(S,1,-1);freshView(S);T.i++;renderGame()},1100)},1300)}
+function tutTarget(st){if(st.card!=null){if(sel===st.card&&st.btn){const b=document.querySelector(st.btn);if(b)return{el:b,t:st.tb}}return{el:document.querySelector(`#hand [data-id="${st.card}"]`),t:st.t}}
+ return{el:st.el?document.querySelector(st.el):null,t:st.t}}
+function tutPaint(){let el=$('coach');const T=M&&M.tut;
+ const hide=!tutOn()||$('game').hidden||!$('over').hidden||Date.now()<eyeUntil||!$('vs').hidden;
+ if(hide){if(el)el.hidden=true;if(tutOn()&&(Date.now()<eyeUntil||!$('vs').hidden)){clearTimeout(T.rt);T.rt=setTimeout(tutPaint,300)}return}
+ if(!el){el=document.createElement('div');el.id='coach';el.className='coach';el.innerHTML=`<div class="co-ring"></div><div class="co-bub" role="dialog" aria-live="polite"><div class="co-h"><span class="co-av">${IC.bot}</span><b>Coach</b><span class="co-n"></span></div><p class="co-t"></p><div class="co-btns"><button class="linkbtn co-skip" type="button">Skip lesson</button><button class="gb green sm co-next" type="button"></button></div></div>`;document.body.appendChild(el);
+  el.querySelector('.co-next').onclick=()=>{sfx('ui');const st=TUT[M.tut.i];M.tut.i++;if(M.tut.i>=TUT.length||(st&&st.next==='Play on'))tutFinish();tutPaint()};
+  el.querySelector('.co-skip').onclick=()=>{sfx('ui');tutFinish();tutPaint()}}
+ const st=TUT[T.i];if(!st){tutFinish();el.hidden=true;return}
+ const{el:tg,t}=tutTarget(st),ring=el.querySelector('.co-ring'),bub=el.querySelector('.co-bub');
+ el.hidden=false;el.classList.toggle('dim',!tg&&!st.coach);el.classList.toggle('quiet',!!st.coach);
+ el.querySelector('.co-t').textContent=t;el.querySelector('.co-n').textContent=`${Math.min(T.i+1,TUT.length)} / ${TUT.length}`;
+ const nb=el.querySelector('.co-next');nb.hidden=!st.next;nb.textContent=st.next||'';el.querySelector('.co-skip').hidden=T.i>=TUT.length-1;
+ const W=innerWidth,H=Math.max(innerHeight,document.documentElement.clientHeight);
+ if(tg){const r=tg.getBoundingClientRect(),p=6;Object.assign(ring.style,{left:r.left-p+'px',top:r.top-p+'px',width:r.width+2*p+'px',height:r.height+2*p+'px'});ring.hidden=false;
+  const bw=Math.min(360,W-24);bub.style.width=bw+'px';bub.style.left=Math.max(12,Math.min(W-bw-12,r.left+r.width/2-bw/2))+'px';
+  const bh=bub.offsetHeight;if(r.top+r.height/2>H/2){bub.style.top=Math.max(12,r.top-p-bh-12)+'px'}else{bub.style.top=Math.min(H-bh-12,r.bottom+p+12)+'px'}}
+ else{ring.hidden=true;const bw=Math.min(360,W-24);bub.style.width=bw+'px';bub.style.left=(W-bw)/2+'px';bub.style.top=(st.coach?H*.62:(H-bub.offsetHeight)/2)+'px'}}
+addEventListener('resize',()=>{if(tutOn())tutPaint()});
+function tutFinish(){if(!M.tut)return;M.tut.done=true;ST.set('ft-tut',true);if(M.S&&M.S.turn===1&&!M.S.over)scheduleAi()}
+/* End of the practice round: no records, just the result and what to do next. */
+function tutResult(){if($('coach'))$('coach').hidden=true;ST.set('ft-tut',true);const{me,them,r}=outcome();if(r==='w')confetti();sfx(r==='l'?'lose':'win');
+ $('over').innerHTML=`<div class="res ${r}"><div class="rib ol">${r==='w'?'You won!':r==='l'?'Nice try!':'A draw!'}</div><div class="rsub">Practice round complete</div>
+  <div class="rscore"><div class="rs-p ${r==='w'?'win':''}">${avatarHTML(nick(),lvlInfo(REC.xp).lv)}<b class="ol">${me}</b><span>You</span></div><div class="rs-vs">vs</div><div class="rs-p ${r==='l'?'win':''}">${avatarHTML('Coach',null,true)}<b class="ol">${them}</b><span>Coach</span></div></div>
+  <p class="note tutend">You know how to play! Climb your trails, use a wager when you hold high cards of that colour, and leave short trails alone. Ready for the real thing? Easy is a gentle start.</p>
+  <div class="rbtns"><button class="gb blue" id="oHome">Lobby</button><button class="gb green" id="oAgain">Play Easy</button></div><button class="linkbtn" id="oTut">Practice again</button></div>`;
+ $('over').hidden=false;
+ $('oHome').onclick=()=>{sfx('ui');goHome()};$('oTut').onclick=()=>{sfx('ui');startTutorial()};
+ $('oAgain').onclick=()=>{sfx('ui');aiLvl='0';ST.set('ft-ailvl',aiLvl);playMode='ai';ST.set('ft-mode','ai');startAi()}}
+function paintTutNudge(){const el=$('tutNudge');if(!el)return;const T0=tot(),show=!ST.get('ft-tut',false)&&T0.w+T0.l+T0.d===0;el.hidden=!show;if(!show){el.innerHTML='';return}
+ el.innerHTML=`<button class="cn-b tutb" type="button"><span class="cn-ic">${IC.book}</span><span class="cn-t"><b>New here? Learn in 3 minutes</b><small>A guided practice round with Coach</small></span><span class="cn-go">Start</span></button>`;
+ el.querySelector('button').onclick=()=>{sfx('ui');startTutorial()}}
 
 /* ================= Mode: vs computer ================= */
 function leaveRoom(){clearTimeout(aiT)}

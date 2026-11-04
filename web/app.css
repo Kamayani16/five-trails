@@ -1077,3 +1077,31 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .frinv{display:flex;flex-direction:column}
 .frinv[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){.invbar{animation:none}}
+/* Guided practice round */
+.coach{position:fixed;inset:0;z-index:70;pointer-events:none}
+.coach[hidden]{display:none}
+.coach.dim{background:rgba(4,10,40,.55)}
+.co-ring{position:fixed;border-radius:16px;border:3px solid var(--gold);box-shadow:0 0 0 200vmax rgba(4,10,40,.55),0 0 18px 4px rgba(255,210,58,.7);transition:left .25s var(--ease),top .25s var(--ease),width .25s var(--ease),height .25s var(--ease);animation:coRing 1.4s ease-in-out infinite}
+.co-ring[hidden]{display:none}
+.coach.quiet .co-ring{display:none}
+@keyframes coRing{50%{box-shadow:0 0 0 200vmax rgba(4,10,40,.55),0 0 26px 8px rgba(255,210,58,.95)}}
+.co-bub{position:fixed;pointer-events:auto;box-sizing:border-box;padding:10px 12px 10px;border-radius:18px;border:3px solid var(--ol);background:var(--paper);color:var(--ink);box-shadow:0 5px 0 var(--ol),0 14px 30px rgba(0,0,0,.35);transition:top .25s var(--ease),left .25s var(--ease)}
+.co-bub.nudge{animation:coNudge .4s}
+@keyframes coNudge{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.co-h{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.co-av{width:28px;height:28px;border-radius:9px;border:2.5px solid var(--ol);background:linear-gradient(180deg,#c9d7f5,#8496c4);display:grid;place-items:center}
+.co-av svg{width:20px;height:20px}
+.co-h b{font-family:var(--display);font-weight:400;font-size:16px}
+.co-n{margin-left:auto;font-size:11px;color:var(--ink2);font-weight:900}
+.co-t{margin:0;font-size:14px;line-height:1.38;white-space:pre-line}
+.co-btns{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+.co-btns .linkbtn{padding:4px 0}
+.co-btns .gb[hidden],.co-btns .linkbtn[hidden]{display:none}
+.co-btns .gb{margin-left:auto}
+.coach.quiet .co-bub{opacity:.96}
+.tutb .cn-ic{background:linear-gradient(180deg,var(--go),var(--go2))}
+.tutb{box-shadow:0 0 0 3px var(--mint),0 3px 0 var(--ol)}
+#tab-guide .tutb{margin-bottom:2px}
+.tutend{text-align:center;color:var(--ink);font-size:14px}
+.introbtns:has(#introTut){display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (prefers-reduced-motion:reduce){.co-ring{animation:none;transition:none}.co-bub{transition:none}.co-bub.nudge{animation:none}}
