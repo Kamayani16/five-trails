@@ -1098,7 +1098,9 @@ html,body,button,a,input,label,.card,.hand,.board{touch-action:manipulation}
 .co-btns{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
 .co-btns .linkbtn{padding:4px 0}
 .co-btns .gb[hidden],.co-btns .linkbtn[hidden]{display:none}
-.co-btns .gb{margin-left:auto}
+.co-btns .co-next{margin-left:auto}
+.co-back{display:flex;align-items:center;gap:3px;font-size:14px!important;padding:5px 10px 7px!important}
+.co-back svg{width:14px;height:14px}
 .coach.quiet .co-bub{opacity:.96}
 .tutb .cn-ic{background:linear-gradient(180deg,var(--go),var(--go2))}
 .tutb{box-shadow:0 0 0 3px var(--mint),0 3px 0 var(--ol)}

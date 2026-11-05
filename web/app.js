@@ -66,6 +66,7 @@ const IC={
  sndOn:SV('<path d="M4 9h4l5-4v14l-5-4H4Z" fill="#fff"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>'),
  sndOff:SV('<path d="M4 9h4l5-4v14l-5-4H4Z" fill="#fff"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/>'),
  clock:`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8.5" fill="#fff" stroke="${OLC}" stroke-width="2.2"/><path d="M12 8.5V13l3 2" fill="none" stroke="${OLC}" stroke-width="2.2" stroke-linecap="round"/><path d="M9.5 2.5h5" stroke="${OLC}" stroke-width="2.4" stroke-linecap="round"/></svg>`,
+ back:SV('<path d="M15 5 8 12l7 7"/>','none',3.2),
  bag:SV('<path d="M4.5 8h15l-1.3 12.5H5.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>'),
  user:SV('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
  play:SV('<path d="M7 4.5v15l12-7.5Z"/>','currentColor',2.2),
@@ -1440,7 +1441,7 @@ function tutDeal(){const S=deal(0,0);const used=new Set();const P=[TC.D3,TC.D6,T
  const top=[TC.G7,TC.D10,TC.J7,TC.V10,TC.S9,TC.G5,TC.D8];[...P,...C,...top].forEach(i=>used.add(i));
  const rest=[...Array(60).keys()].filter(i=>!used.has(i));for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]]}
  S.hands=[P,C];S.deck=[...rest.slice(0,15),...top];S.turn=0;S.t0=Date.now();return S}
-function startTutorial(){leaveRoom();closeSheets();$('intro').hidden=true;M={mode:'ai',tier:0,fixed:true,tut:{i:0,c:0,done:false},skipVS:true,S:tutDeal()};freshView(M.S);$('roomTag').textContent='Practice round';show('game');renderGame()}
+function startTutorial(){leaveRoom();closeSheets();$('intro').hidden=true;M={mode:'ai',tier:0,fixed:true,tut:{i:0,c:0,done:false,snaps:{}},skipVS:true,S:tutDeal()};freshView(M.S);$('roomTag').textContent='Practice round';show('game');renderGame()}
 const tutOn=()=>!!(M&&M.mode==='ai'&&M.tut&&!M.tut.done);
 /* Is this move the one the lesson asks for? If not, say what to do instead. */
 function tutAllow(kind,arg,x){if(!tutOn())return true;const st=TUT[M.tut.i],w=st&&st.want;
@@ -1458,10 +1459,13 @@ function tutTarget(st){if(st.card!=null){if(sel===st.card&&st.btn){const b=docum
 function tutPaint(){let el=$('coach');const T=M&&M.tut;
  const hide=!tutOn()||$('game').hidden||!$('over').hidden||Date.now()<eyeUntil||!$('vs').hidden;
  if(hide){if(el)el.hidden=true;if(tutOn()&&(Date.now()<eyeUntil||!$('vs').hidden)){clearTimeout(T.rt);T.rt=setTimeout(tutPaint,300)}return}
- if(!el){el=document.createElement('div');el.id='coach';el.className='coach';el.innerHTML=`<div class="co-ring"></div><div class="co-bub" role="dialog" aria-live="polite"><div class="co-h"><span class="co-av">${IC.bot}</span><b>Coach</b><span class="co-n"></span></div><p class="co-t"></p><div class="co-btns"><button class="linkbtn co-skip" type="button">Skip lesson</button><button class="gb green sm co-next" type="button"></button></div></div>`;document.body.appendChild(el);
+ if(!el){el=document.createElement('div');el.id='coach';el.className='coach';el.innerHTML=`<div class="co-ring"></div><div class="co-bub" role="dialog" aria-live="polite"><div class="co-h"><span class="co-av">${IC.bot}</span><b>Coach</b><span class="co-n"></span></div><p class="co-t"></p><div class="co-btns"><button class="gb gray sm co-back" type="button" aria-label="Back to the previous step">${IC.back}Back</button><button class="linkbtn co-skip" type="button">Skip lesson</button><button class="gb green sm co-next" type="button"></button></div></div>`;document.body.appendChild(el);
   el.querySelector('.co-next').onclick=()=>{sfx('ui');const st=TUT[M.tut.i];M.tut.i++;if(M.tut.i>=TUT.length||(st&&st.next==='Play on'))tutFinish();tutPaint()};
-  el.querySelector('.co-skip').onclick=()=>{sfx('ui');tutFinish();tutPaint()}}
+  el.querySelector('.co-skip').onclick=()=>{sfx('ui');tutFinish();tutPaint()};
+  el.querySelector('.co-back').onclick=()=>{sfx('ui');tutBack()}}
  const st=TUT[T.i];if(!st){tutFinish();el.hidden=true;return}
+ if(!st.coach&&!T.snaps[T.i])T.snaps[T.i]={c:T.c,S:tutClone(M.S)};
+ el.querySelector('.co-back').hidden=st.coach||tutPrev()<0;
  const{el:tg,t}=tutTarget(st),ring=el.querySelector('.co-ring'),bub=el.querySelector('.co-bub');
  el.hidden=false;el.classList.toggle('dim',!tg&&!st.coach);el.classList.toggle('quiet',!!st.coach);
  el.querySelector('.co-t').textContent=t;el.querySelector('.co-n').textContent=`${Math.min(T.i+1,TUT.length)} / ${TUT.length}`;
@@ -1480,6 +1484,13 @@ function tutPaint(){let el=$('coach');const T=M&&M.tut;
  else{ring.hidden=true;bub.style.left=(W-bw)/2+'px';bub.style.top=(st.coach?Math.min(H*.62,H-bub.offsetHeight-12):(H-bub.offsetHeight)/2)+'px'}}
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(typeof tutOn==='function'&&tutOn())tutPaint()});
 addEventListener('resize',()=>{if(tutOn())tutPaint()});
+/* Back: return to the previous lesson step, with the cards exactly as they were then. */
+const tutClone=o=>typeof structuredClone==='function'?structuredClone(o):JSON.parse(JSON.stringify(o));
+function tutPrev(){const T=M.tut;for(let j=T.i-1;j>=0;j--)if(!TUT[j].coach&&T.snaps[j])return j;return -1}
+function tutBack(){if(!tutOn())return;const T=M.tut,j=tutPrev();if(j<0)return;const sn=T.snaps[j];
+ clearTimeout(aiT);for(const k of Object.keys(T.snaps))if(+k>j)delete T.snaps[k];
+ T.i=j;T.c=sn.c;T.hit=false;M.S=tutClone(sn.S);sel=null;armed=null;clearTimeout(armT);M.placed=null;M.drawn=null;eyeUntil=0;
+ freshView(M.S);prevSeq=V.seq;renderGame()}
 function tutFinish(){if(!M.tut)return;M.tut.done=true;ST.set('ft-tut',true);if(M.S&&M.S.turn===1&&!M.S.over)scheduleAi()}
 /* End of the practice round: no records, just the result and what to do next. */
 function tutResult(){if($('coach'))$('coach').hidden=true;ST.set('ft-tut',true);const{me,them,r}=outcome();if(r==='w')confetti();sfx(r==='l'?'lose':'win');
