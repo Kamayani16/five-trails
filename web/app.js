@@ -1270,7 +1270,7 @@ function renderActs(){const myT=V&&V.mt&&!V.ov&&M.mode!=='watch';let h='';$('emo
  if(M.mode==='watch'){$('acts').innerHTML=V&&V.ov?'':'<span class="watchnote">You are watching. Hands stay hidden.</span>';return}
  if(myT&&V.ph==='play'&&sel!=null&&!pending){const c=cC(sel),e=V.ex[0][c],ok=canE(e,sel),d=expScore([...e,sel])-expScore(e),wg=cV(sel)===0;
   h=`<button class="gb green ${ok?'':'dim'}" id="aPlay">Play to ${COL[c].n}${ok?` <span class="pts">${wg?'×'+(e.length+2):(d>=0?'+':'−')+Math.abs(d)}</span>`:''}</button><button class="gb gray" id="aDisc">Discard</button>`}
- else if(myT&&V.ph==='play'&&!pending)h='<button class="gb gray ghost" type="button" disabled>Pick a card</button><button class="gb gray ghost" type="button" disabled>Discard</button>';
+ else if(myT&&V.ph==='play'&&!pending)h='<button class="gb gray ghost tip" type="button" disabled>Drag a card up, or tap it twice</button><button class="gb gray ghost" type="button" disabled>Discard</button>';
  else if(V&&V.ov)h=`<button class="gb" id="aAgain">${M.mode==='ai'?'Play again':'Rematch'}</button>`;
  $('acts').innerHTML=h;tutPaint()}
 /* The power tray: always on screen, so you can see what is left; each needs two taps. */
@@ -1285,6 +1285,38 @@ function renderPowers(){const el=$('pwTray');if(!el)return;
 let armed=null,armT=null;
 function arm(k){if(tutOn()&&!(TUT[M.tut.i].want&&TUT[M.tut.i].want.k===k)){tutAllow(k);return}armed=k;clearTimeout(armT);armT=setTimeout(()=>{armed=null;renderActs()},3000);sfx('select');renderActs()}
 function setSel(id){sel=sel===id?null:id;document.querySelectorAll('#hand .card').forEach(el=>el.classList.toggle('sel',+el.dataset.id===sel));renderActs();if(sel!=null)sfx('select')}
+/* ---- Quick play: drag a card onto the board to play it, onto its pile to discard it;
+   or tap the picked card again to play it. Play/Discard buttons stay as a fallback. ---- */
+let DRAG=null,dragEndAt=0;
+const canPick=()=>V&&V.mt&&V.ph==='play'&&!V.ov&&!pending&&M.mode!=='watch';
+function dropAt(x,y,id){const g=DRAG&&DRAG.ghost;if(g)g.style.visibility='hidden';const el=document.elementFromPoint(x,y);if(g)g.style.visibility='';if(!el)return null;
+ const c=cC(id),pl=el.closest('.pile');if(pl)return +pl.dataset.pile===c?{k:'disc',el:pl}:null;
+ if(el.closest('#board'))return{k:'play',el:document.querySelector(`#board .stack.me[data-exp="${c}"]`)||el.closest('#board')};
+ return null}
+function dragLabel(t,id){if(!t)return'';if(t.k==='disc')return'Discard';const c=cC(id),e=V.ex[0][c];if(!canE(e,id))return'Can’t play here';
+ const d=expScore([...e,id])-expScore(e);return cV(id)===0?`Play ×${e.length+2}`:`Play ${d>=0?'+':'−'}${Math.abs(d)}`}
+function dragMove(e){const D=DRAG;if(!D||e.pointerId!==D.pid)return;const dx=e.clientX-D.x0,dy=e.clientY-D.y0;
+ if(!D.on){if(Math.hypot(dx,dy)<8)return;D.on=true;if(sel!==D.id)setSel(D.id);
+  const r=D.el.getBoundingClientRect(),g=document.createElement('div'),cl=D.el.cloneNode(true);g.className='dragghost';cl.classList.remove('sel','lifted');cl.removeAttribute('data-id');cl.classList.add('dg-c');
+  Object.assign(g.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});g.appendChild(cl);g.insertAdjacentHTML('beforeend','<span class="dg-l" hidden></span>');
+  document.body.appendChild(g);D.ghost=g;D.r=r;D.el.classList.add('lifted');document.body.classList.add('dragging')}
+ D.ghost.style.transform=`translate(${dx}px,${dy}px) scale(1.12) rotate(${Math.max(-8,Math.min(8,dx/14))}deg)`;
+ const t=dropAt(e.clientX,e.clientY,D.id),tgEl=t&&t.el;
+ if(D.tg!==tgEl){if(D.tg)D.tg.classList.remove('droptg');D.tg=tgEl;if(tgEl)tgEl.classList.add('droptg')}
+ const l=D.ghost.querySelector('.dg-l'),txt=dragLabel(t,D.id);l.hidden=!txt;l.textContent=txt;l.classList.toggle('bad',/Can’t/.test(txt))}
+function dragEnd(e){const D=DRAG;if(!D||e.pointerId!==D.pid)return;DRAG=null;
+ removeEventListener('pointermove',dragMove);removeEventListener('pointerup',dragEnd);removeEventListener('pointercancel',dragEnd);
+ if(D.tg)D.tg.classList.remove('droptg');document.body.classList.remove('dragging');if(!D.on)return;
+ dragEndAt=Date.now();const t=e.type==='pointerup'?dropAt(e.clientX,e.clientY,D.id):null;
+ const back=()=>{D.el.classList.remove('lifted');if(D.ghost)D.ghost.remove()};
+ if(!t){back();return}
+ // let the card fly from where it was dropped
+ const gr=D.ghost.getBoundingClientRect();D.el.style.transition='none';D.el.style.transform=`translate(${gr.left-D.r.left}px,${gr.top-D.r.top}px)`;D.el.classList.remove('lifted');D.ghost.remove();
+ act('play',D.id,t.k==='play');
+ if(D.el.isConnected){D.el.style.transform='';requestAnimationFrame(()=>{D.el.style.transition=''})}}
+document.addEventListener('pointerdown',e=>{const hc=e.target.closest&&e.target.closest('#hand .card');if(!hc||!canPick()||e.button>0||DRAG)return;
+ DRAG={pid:e.pointerId,id:+hc.dataset.id,el:hc,x0:e.clientX,y0:e.clientY,on:false,tg:null};
+ addEventListener('pointermove',dragMove,{passive:true});addEventListener('pointerup',dragEnd);addEventListener('pointercancel',dragEnd)});
 function err(text,el){sfx('bad');$('msg').className='msg err';$('msg').textContent=text;if(el){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake')}}
 
 /* ================= Emotes ================= */
@@ -1541,7 +1573,7 @@ document.addEventListener('click',e=>{
  const em=t.closest('[data-emo]');if(em){sendEmote(+em.dataset.emo);return}
  if(t.closest('#emoMute')){emoMute=!emoMute;renderEmo();return}
  if(!$('emoPn').hidden&&!t.closest('#emoPn')&&!t.closest('#emoBtn'))closeEmo();
- const hc=t.closest('#hand .card');if(hc){if(V&&V.mt&&V.ph==='play'&&!V.ov&&!pending)setSel(+hc.dataset.id);return}
+ const hc=t.closest('#hand .card');if(hc){if(Date.now()-dragEndAt<350)return;if(canPick()){const id=+hc.dataset.id;if(sel===id)return act('play',id,true);setSel(id)}return}
  if(t.closest('#aPlay'))return act('play',sel,true);
  if(t.closest('#aDisc'))return act('play',sel,false);
  if(t.closest('#aAgain')){sfx('ui');return again()}
@@ -1551,6 +1583,8 @@ document.addEventListener('click',e=>{
  const pl=t.closest('.pile');
  if(pl){const c=+pl.dataset.pile;if(V&&V.ph==='play'&&sel!=null&&cC(sel)===c)return act('play',sel,false,pl);return act('draw',c,false,pl)}
  const ex=t.closest('.stack.me');if(ex&&sel!=null&&cC(sel)===+ex.dataset.exp)return act('play',sel,true);
+ // tapping an empty spot puts the picked card back
+ if(sel!=null&&t.closest('#game')&&!t.closest('button,a,input,.pile,.stack,#hand,#emoPn'))setSel(sel);
 });
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('#hand .card,.pile')){e.preventDefault();e.target.click()}
  if(e.key==='Escape'){closeEmo();if(!$('friendSheet').hidden||!$('setSheet').hidden||!$('leaveSheet').hidden)closeSheets()}});

@@ -253,6 +253,18 @@ input::placeholder{color:#9aa8cf}
 .hand .card .ci{width:clamp(10px,2.6vw,14px);height:clamp(10px,2.6vw,14px)}
 .hand .card:hover{transform:translateY(-4px)}
 .hand .card.sel{transform:translateY(-14px) scale(1.06);box-shadow:0 0 0 2px var(--ol),inset 0 0 0 2.5px #fff,0 0 0 5px var(--gold),0 12px 18px rgba(0,0,0,.45);z-index:2}
+/* Quick play: dragging cards */
+#hand .card{touch-action:none;-webkit-user-select:none;user-select:none}
+#hand .card.lifted{opacity:.25;transform:none!important}
+.dragghost{position:fixed;z-index:80;margin:0;pointer-events:none;will-change:transform}
+.dragghost .dg-c{width:100%;height:100%;margin:0;transform:none!important;transition:none!important;box-shadow:0 0 0 2px var(--ol),inset 0 0 0 2.5px #fff,0 0 0 5px var(--gold),0 18px 28px rgba(0,0,0,.5)!important}
+.dragghost .dg-l{position:absolute;z-index:2;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);white-space:nowrap;font-family:var(--display);font-size:15px;padding:3px 10px 5px;border-radius:999px;border:2.5px solid var(--ol);background:linear-gradient(180deg,var(--go),var(--go2));color:#fff;text-shadow:0 2px 0 var(--ol)}
+.dragghost .dg-l.bad{background:linear-gradient(180deg,#ff8a7a,var(--red2))}
+.dragghost .dg-l[hidden]{display:none}
+body.dragging,body.dragging *{cursor:grabbing!important}
+.stack.me.droptg{outline:3px dashed var(--gold);outline-offset:2px;border-radius:10px;background:rgba(255,210,58,.18)}
+.pile.droptg{outline:3px dashed #fff;outline-offset:2px}
+.acts .gb.ghost.tip{font-size:15px;white-space:normal;line-height:1.1}
 .hand.off .card{cursor:default}
 .shake{animation:shk .35s}
 @keyframes shk{20%,60%{translate:-6px 0}40%,80%{translate:6px 0}}
