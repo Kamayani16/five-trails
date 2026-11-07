@@ -528,7 +528,7 @@ const ERRS={invite_not_friend:'You can only invite friends.',invite_too_soon:'Yo
  opponent_left:'Your opponent has left.',opponent_away:'Waiting for your opponent to reconnect.',rate_limited:'Slow down a little.',replaced:'This battle continued in another tab.',
  code_taken:'That room code is already in use. Pick another one.',bad_code:'A room code is exactly 5 letters.',name_taken:'That name is taken. Try another.',
  no_chest:'No chest is ready yet.',quest_not_done:'Finish that quest first.',already_claimed:'Already collected.',bad_quest:'That quest is not available any more.',
- bot_unavailable:'The computer is not available yet. Keep waiting a little.',not_enough_coins:'Not enough coins yet.',cup_not_found:'No cup has that code. Check it and try again.',cup_full:'That cup is full (6 players).',cup_started:'That cup has already started.',cup_not_host:'Only the host can start the cup.',cup_too_few:'A cup needs at least 3 players to start.',cup_not_your_match:'That is not your match.',cup_match_closed:'That match is already decided.',cup_too_many:'You are in 5 cups already. Finish one first.',cup_bad_name:'Give the cup a name (up to 24 letters).',cup_no_rematch:'Cup matches are one game each. Head back to the cup.',bad_format:'Pick round robin or knockout.',not_live:'That match is not being played right now.',watch_full:'Too many people are watching that match.',already_owned:'You already own that.',not_for_sale:'That one is not sold.',item_locked:'Win more trophies to unlock that.',bad_item:'That item is not available.',unknown_key:'No account has that recovery code.'};
+ bot_unavailable:'Start a quick match first.',not_enough_coins:'Not enough coins yet.',cup_not_found:'No cup has that code. Check it and try again.',cup_full:'That cup is full (6 players).',cup_started:'That cup has already started.',cup_not_host:'Only the host can start the cup.',cup_too_few:'A cup needs at least 3 players to start.',cup_not_your_match:'That is not your match.',cup_match_closed:'That match is already decided.',cup_too_many:'You are in 5 cups already. Finish one first.',cup_bad_name:'Give the cup a name (up to 24 letters).',cup_no_rematch:'Cup matches are one game each. Head back to the cup.',bad_format:'Pick round robin or knockout.',not_live:'That match is not being played right now.',watch_full:'Too many people are watching that match.',already_owned:'You already own that.',not_for_sale:'That one is not sold.',item_locked:'Win more trophies to unlock that.',bad_item:'That item is not available.',unknown_key:'No account has that recovery code.'};
 function onServer(m){switch(m.t){
  case 'welcome':onWelcome(m);break;
  case 'name':if(typeof m.name==='string'&&m.name){commitName(m.name);ST.set('ft-nick-pending',false);nameReply(true)}break;
@@ -558,7 +558,7 @@ function onServer(m){switch(m.t){
  case 'bot_offer':if(M.mode==='queue'){$('botOffer').hidden=false;sfx('join')}break;
  case 'leaderboard':{const l=cleanLB(m);LBS[l.scope]=l;if(curTab==='leaders')renderLeaders();break}
  case 'stats':NET.stats=m.stats||null;netChanged();break;
- case 'queued':M={mode:'queue'};showWait('Finding an opponent','','Looking for a player near your trophies…');break;
+ case 'queued':M={mode:'queue'};showWait('Finding an opponent','','Looking for a player near your trophies…');$('botOffer').hidden=false;break;
  case 'unqueued':case 'room_closed':if(M.mode==='queue'||M.mode==='room')goHome(true);break;
  case 'room':M={mode:'room',code:String(m.code||'').replace(/[^A-Z]/g,''),expires:Date.now()+(Math.max(10,Number(m.ttl)||120))*1000};showWait('Room code',M.code,'Send this code to a friend. Waiting for them…');break;
  case 'room_expired':if(M.mode==='room'){goHome(true);toast('Nobody joined in time, so the room closed. Create a new one any time.')}break;
@@ -607,14 +607,14 @@ function onMatch(m){const v=m.view,o=m.opp;if(!v||typeof v!=='object'||!o)return
  Object.assign(M,{opp,oppKey:'p:'+opp.pid,kind:m.kind==='room'?'room':m.kind==='bot'?'bot':m.kind==='cup'?'cup':'quick',cupM:Number.isInteger(m.cupMatch)?m.cupMatch:null,code:typeof m.code==='string'?m.code.replace(/[^A-Z]/g,''):null,
   oppHere:m.oppConnected!==false,oppLeft:false,earned:null,watchers:0,closed:false,reconnecting:false,iWantRm:null,theyWantRm:null});
  V=v;V.at=Date.now();pending=false;sel=null;
- $('roomTag').textContent=M.kind==='room'?'Room '+M.code:M.kind==='bot'?'Computer battle':M.kind==='cup'?(CUPS[M.code]?CUPS[M.code].name:'Cup match'):'Quick match';
+ $('roomTag').textContent=M.kind==='room'?'Room '+M.code:M.kind==='bot'?'Bot battle':M.kind==='cup'?(CUPS[M.code]?CUPS[M.code].name:'Cup match'):'Quick match';
  if($('game').hidden)show('game');
  renderGame()}
 function netDown(wasReady){if(M.mode==='queue'||M.mode==='room'||M.mode==='cupwait'){goHome(true);toast('Lost connection to the game server.')}
  else if(M.mode==='online'){if(V&&V.ov){M.closed=true;updateRmNote()}else{M.reconnecting=true;if(V)renderGame()}}}
 function netChanged(){const ok=NET.ready,s=NET.stats;
  ['quickBtn','create','join','joinCode'].forEach(id=>{const e=$(id);if(e)e.disabled=!ok});
- $('onlineLine').innerHTML=!SERVER_URL?'<span class="netdot"></span>Needs the game server':ok?`<span class="netdot on"></span>${s?Number(s.online)||0:1} online now`:'<span class="netdot wait"></span>Connecting…';
+ $('onlineLine').innerHTML=!SERVER_URL?'<span class="netdot"></span>Needs the game server':ok?`<span class="netdot on"></span>${s?Number(s.online)||0:1} online now${s&&Number(s.bots)>0?` · ${Number(s.bots)} bots ready to play`:''}`:'<span class="netdot wait"></span>Connecting…';
  const rt=$('roomTtlNote');if(rt){const m=Math.round((NET.roomTtl||120)/60*10)/10;rt.textContent=`Anyone with the code can join, so share it only with your friend. The room closes after ${m>=1?m+(m===1?' minute':' minutes'):(NET.roomTtl||120)+' seconds'} if nobody joins.`}
  $('roomNote').textContent=!SERVER_URL?'Open this page from the game server address to play online.':ok?(s?`${Number(s.online)||0} online · ${Number(s.searching)||0} searching · ${Number(s.playing)||0} in battle. Quick match uses your clock setting.`:'Connected.'):'Connecting to the game server…'}
 function showWait(label,code,msg){show('wait');$('botOffer').hidden=true;$('waitLbl').textContent=label;$('waitCode').textContent=code||'';$('waitCode').hidden=!code;$('waitMsg').textContent=msg;
@@ -741,7 +741,7 @@ function paintMode(){const ai=arenaIdx(REC.tr);
  $('lvRow').hidden=playMode!=='ai';$('onlineLine').hidden=playMode==='ai';
  const n=$('aiNote'),sm=$('aiTier');
  if(playMode==='ai'){sm.textContent=aiLvl==='auto'?`vs Computer · ${AI_TIER[ai]}`:`vs ${AI_LVLS[aiLvl]} computer`;n.textContent=aiLvl==='auto'?'Auto matches your arena · wins and losses move trophies':'Practice · earns XP, trophies stay put'}
- else if(playMode==='online'){sm.textContent='Quick match · ranked';n.textContent='Win +30 trophies, lose −20. Nobody around? Play the computer meanwhile.'}
+ else if(playMode==='online'){sm.textContent='Quick match · ranked';n.textContent='Ranked against people: win +30, lose −20. Nobody around? A bot steps in (unranked).'}
  else{sm.textContent='Create or join a room';n.textContent='Make a room and share the code, or type the code your friend sent.'}}
 function quickMatch(){if(NET.ready)sendProfile();if(NET.send({t:'queue',clock:clkSet}))closeSheets()}
 function playNow(){sfx('ui');if(playMode==='ai'){startAi();return}
@@ -819,7 +819,7 @@ $('tab-guide').innerHTML=`
   <p>Every finished online battle pays coins: 15 for a win, 8 for a draw, 5 for a loss (half against the computer), up to 150 a day.</p>
   <p>A free chest every few hours (bank of 2), plus daily and weekly quests. Saved on the server.</p>
   <p>Quick matches feed a monthly season; top players win coins when it ends.</p>
-  <p>No one around? Play the computer: unranked, still counts for quests.</p>
+  <p>No one around? Twelve bots are always online, from easy Pip to sharp Oracle. Tap <b>Play a bot now</b> while you wait, or one steps in after a short wait. Bot battles are unranked and still count for quests.</p>
   <p>Spend coins in the Shop: table themes for your screen, and card backs your rival sees. Three of each are free.</p>
   <button class="gb blue sm" id="replayIntro2" style="align-self:flex-start">Replay intro</button></div>`;
  $('replayIntro2').onclick=()=>{sfx('ui');openIntro()};$('guideTut').onclick=()=>{sfx('ui');startTutorial()}}
@@ -1105,7 +1105,7 @@ function ghost(html,from,to,fade){if(reduced||!from||!to)return;const g=document
 const vsCpu=()=>M.mode==='ai'||(M.mode==='online'&&M.kind==='bot');
 function oppInfo(){const ai=arenaIdx(REC.tr);
  if(M.mode==='watch'){const p=M.players[1];return{name:p.n,lv:p.lv,tr:p.tr,cpu:false,sub:''}}
- if(M.mode==='online'&&M.kind==='bot')return{name:'Computer',lv:null,tr:null,cpu:true,sub:`${AI_TIER[(M.opp&&M.opp.tier)||0]} bot`};
+ if(M.mode==='online'&&M.kind==='bot')return{name:(M.opp&&M.opp.nick)||'Bot',lv:null,tr:null,cpu:true,sub:`Bot · ${AI_TIER[(M.opp&&M.opp.tier)||0]}`};
  if(M.mode==='ai'&&M.tut)return{name:'Coach',lv:null,tr:null,cpu:true,sub:'Practice round'};
  if(M.mode==='ai')return{name:'Computer',lv:null,tr:null,cpu:true,sub:M.fixed?`${AI_LVLS[String(M.tier)]} · practice`:`${AI_TIER[M.tier??ai]} bot`};
  const o=M.opp||{};const h=M.oppKey&&REC.opp[M.oppKey];return{name:o.nick||'Opponent',lv:o.lv||null,tr:o.tr??null,cpu:false,sub:`${o.tr!=null?TROPHY+(Number(o.tr)||0):''}${h?` · You ${h.w}–${h.l}`:''}`}}
@@ -1227,7 +1227,7 @@ function dealAnim(){const deckR=rectOf($('deck'));let i=0;document.querySelector
  document.querySelectorAll('#oppHand .back').forEach((el,j)=>animateFrom(el,deckR,j*70));sfx('deal');
  setTimeout(()=>{if(!V||V.ov)return;const g=$('msg');g.classList.remove('pulse');void g.offsetWidth;g.classList.add('pulse');if(V.mt)sfx('go');aiSay(0,.5)},650)}
 function vsSplash(cb){const o=$('vs'),opp=oppInfo(),me_=meInfo(),ai=arenaIdx(REC.tr);
- const tag=M.mode==='ai'?(M.fixed?`${AI_LVLS[String(M.tier)]||AI_TIER[M.tier]} computer · Practice`:`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`):M.kind==='cup'?`${esc(CUPS[M.code]?CUPS[M.code].name:'Cup')} · Cup match`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:M.kind==='bot'?'Computer battle · Unranked':'Quick match · Ranked';
+ const tag=M.mode==='ai'?(M.fixed?`${AI_LVLS[String(M.tier)]||AI_TIER[M.tier]} computer · Practice`:`${ARENAS[M.tier??ai].n} · ${AI_TIER[M.tier??ai]} computer`):M.kind==='cup'?`${esc(CUPS[M.code]?CUPS[M.code].name:'Cup')} · Cup match`:M.kind==='room'?`Room ${M.code||''} · Friendly battle`:M.kind==='bot'?`${esc((M.opp&&M.opp.nick)||'Bot')} (bot) · Unranked`:'Quick match · Ranked';
  o.innerHTML=`<div class="vs-in">
   <div class="vs-band top"><div class="vs-pl">${avatarHTML(opp.name,opp.lv,opp.cpu)}<div><div class="vs-n ol">${esc(opp.name)}</div><div class="vs-t ol">${opp.cpu?esc(opp.sub):TROPHY+(Number(opp.tr)||0)}</div></div></div></div>
   <div class="vs-mid ol">VS</div>
@@ -1441,7 +1441,7 @@ function again(){$('over').hidden=true;
  showResult()}
 function askLeave(){if(M.mode==='watch'){stopWatching(true);return}
  if(V&&!V.ov&&(M.mode==='ai'||M.mode==='online')){
-  $('leaveMsg').textContent=vsCpu()?'Leaving a battle against the computer is free. It will not count as a win or a loss.':'Leaving now counts as a loss.';openSheet('leaveSheet')}else goHome()}
+  $('leaveMsg').textContent=vsCpu()?(M.kind==='bot'?'Leaving a bot battle is free.':'Leaving a battle against the computer is free.')+' It will not count as a win or a loss.':'Leaving now counts as a loss.';openSheet('leaveSheet')}else goHome()}
 function forfeit(){closeSheets();if(!V||V.ov){goHome();return}
  if(vsCpu()){goHome();return} // a battle against the computer: nothing is recorded and no trophies change
  const{me,them}=outcome(),o=oppInfo();

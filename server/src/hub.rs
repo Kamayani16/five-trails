@@ -38,7 +38,7 @@ const CUP_CHECK_EVERY: Duration = Duration::from_secs(30);
 const CUPS_LISTED: usize = 12;
 /// After this long in the queue, anyone with the same clock setting is a fair match.
 const QUEUE_OPEN_AFTER: Duration = Duration::from_secs(20);
-/// After this long in the queue the player is offered a game against the computer.
+/// After this long in the queue without a match, one of the always-online bots steps in.
 pub const BOT_OFFER_AFTER: Duration = Duration::from_secs(20);
 
 /// Messages from the hub or a match to one connection task.
@@ -137,8 +137,6 @@ struct QueueEntry {
     clock: u32,
     trophies: u32,
     since: Instant,
-    /// The computer has been offered.
-    offered: bool,
 }
 
 struct Room {
@@ -168,7 +166,7 @@ pub struct Hub {
     ranking_dirty: bool,
     /// How long a private room waits for a friend before closing.
     room_ttl: Duration,
-    /// How long a queued player waits before the computer is offered.
+    /// How long a queued player waits before a bot steps in.
     bot_offer_after: Duration,
     last_cup_check: Instant,
     /// Cup matches being played now: (cup, match) -> the match task.
@@ -323,7 +321,7 @@ impl Hub {
         });
     }
 
-    /// Change how long a queued player waits before the computer is offered.
+    /// Change how long a queued player waits before a bot steps in.
     pub fn with_bot_wait(mut self, wait: Duration) -> Self {
         self.bot_offer_after = wait;
         self
@@ -352,7 +350,7 @@ impl Hub {
     fn stats_json(&self) -> serde_json::Value {
         let online = self.conns.values().filter(|c| c.profile.is_some()).count();
         let playing = self.conns.values().filter(|c| matches!(c.activity, Activity::InMatch(_))).count();
-        json!({ "online": online, "searching": self.queue.len(), "playing": playing })
+        json!({ "online": online, "searching": self.queue.len(), "playing": playing, "bots": bot::PERSONAS.len() })
     }
 
     /// Rebuild the leaderboard snapshot if something changed and it is not too fresh.
@@ -1023,7 +1021,7 @@ impl Hub {
                     return self.send(id, protocol::error("busy"));
                 }
                 c.activity = Activity::Queued;
-                self.queue.push(QueueEntry { id, clock, trophies, since: Instant::now(), offered: false });
+                self.queue.push(QueueEntry { id, clock, trophies, since: Instant::now() });
                 self.send(id, protocol::msg(json!({ "t": "queued", "clock": clock })));
                 self.matchmake();
             }
@@ -1284,9 +1282,9 @@ impl Hub {
     }
 
     /// A queued player asked to play the computer instead of waiting.
+    /// Pair a queued player with one of the always-online bots (on request, or after waiting).
     fn start_bot_for(&mut self, id: ConnId) {
-        let waited_enough = self.queue.iter().find(|q| q.id == id).is_some_and(|q| q.since.elapsed() >= self.bot_offer_after * 3 / 4);
-        if !waited_enough {
+        if !self.queue.iter().any(|q| q.id == id) {
             return self.send(id, protocol::error("bot_unavailable"));
         }
         let Some(entry) = self.queue.iter().position(|q| q.id == id).map(|i| self.queue.remove(i)) else { return };
@@ -1298,8 +1296,9 @@ impl Hub {
         let (mtx, mrx) = mpsc::channel(64);
         let token = random_token();
         let _ = c.tx.try_send(ConnCtl::Joined { tx: mtx.clone(), seat: 0 });
-        let tier = bot::tier_for(profile.trophies);
-        let players = [Player::new(profile.clone(), token.clone(), id, c.tx.clone()), Player::bot("Computer", profile.trophies)];
+        let persona = bot::persona_for(profile.trophies, &mut rand::thread_rng());
+        let tier = persona.tier;
+        let players = [Player::new(profile.clone(), token.clone(), id, c.tx.clone()), Player::bot_persona(persona.name, bot::persona_trophies(persona), persona.level, persona.back)];
         c.activity = Activity::InMatch(match_id);
         self.resumes.insert(token, (match_id, mtx, 0));
         let room = MatchRoom::new(match_id, MatchKind::Bot(tier), entry.clock, players, mrx, self.tx.clone());
@@ -1309,17 +1308,11 @@ impl Hub {
     fn tick(&mut self) {
         self.matchmake();
         let now = Instant::now();
-        // Offer the computer to anyone who has waited a while.
-        let mut offers = Vec::new();
+        // Nobody found in time: one of the always-online bots steps in.
         let offer_after = self.bot_offer_after;
-        for q in &mut self.queue {
-            if !q.offered && now.duration_since(q.since) >= offer_after {
-                q.offered = true;
-                offers.push(q.id);
-            }
-        }
-        for id in offers {
-            self.send(id, protocol::msg(json!({ "t": "bot_offer" })));
+        let due: Vec<ConnId> = self.queue.iter().filter(|q| now.duration_since(q.since) >= offer_after).map(|q| q.id).collect();
+        for id in due {
+            self.start_bot_for(id);
         }
         // A new month: pay out last season's rewards and tell everyone online.
         let before = self.store.season_id();
@@ -1840,29 +1833,59 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn waiting_players_are_offered_the_computer_and_can_take_it() {
+    async fn a_named_bot_can_be_played_at_once_while_waiting() {
         let (mut hub, mut rx) = hub_with_players(1, Duration::from_secs(120));
         all_msgs(&mut rx[0]);
         hub.handle(HubCmd::Queue { id: 1, clock: 0 });
         assert_eq!(last_msg(&mut rx[0])["t"], "queued");
-        // Too early: refused, and still waiting.
-        hub.handle(HubCmd::Bot { id: 1 });
-        assert_eq!(last_msg(&mut rx[0])["code"], "bot_unavailable");
-        assert_eq!(hub.queue.len(), 1);
-        // After a wait the offer arrives, once.
-        hub.queue[0].since = Instant::now().checked_sub(Duration::from_secs(30)).unwrap();
-        hub.tick();
-        assert_eq!(last_msg(&mut rx[0])["t"], "bot_offer");
-        hub.tick();
-        assert!(all_msgs(&mut rx[0]).iter().all(|m| m["t"] != "bot_offer"), "offered only once");
+        // Bots are always online: no need to wait.
         hub.handle(HubCmd::Bot { id: 1 });
         tokio::time::sleep(Duration::from_millis(50)).await; // let the match task start
         let m = last_msg(&mut rx[0]);
         assert_eq!((m["t"].as_str(), m["kind"].as_str(), m["opp"]["bot"].as_bool()), (Some("match"), Some("bot"), Some(true)));
+        let name = m["opp"]["name"].as_str().unwrap();
+        let p = bot::PERSONAS.iter().find(|p| p.name == name).expect("the opponent is one of the 12 bots");
+        assert!(p.tier <= 1, "a new player meets an easy bot, got {name} (tier {})", p.tier);
+        assert_eq!((m["opp"]["lv"].as_u64(), m["opp"]["back"].as_str()), (Some(p.level as u64), Some(p.back)));
         assert!(hub.queue.is_empty());
         // Asking again when not queued does nothing harmful.
         hub.handle(HubCmd::Bot { id: 1 });
         assert_eq!(last_msg(&mut rx[0])["code"], "bot_unavailable");
+    }
+
+    #[tokio::test]
+    async fn nobody_around_means_a_bot_steps_in_after_the_wait() {
+        let (mut hub, mut rx) = hub_with_players(1, Duration::from_secs(120));
+        all_msgs(&mut rx[0]);
+        hub.handle(HubCmd::Queue { id: 1, clock: 0 });
+        hub.tick();
+        assert_eq!(hub.queue.len(), 1, "still looking for a person");
+        hub.queue[0].since = Instant::now().checked_sub(Duration::from_secs(30)).unwrap();
+        hub.tick();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let m = last_msg(&mut rx[0]);
+        assert_eq!((m["t"].as_str(), m["kind"].as_str(), m["opp"]["bot"].as_bool()), (Some("match"), Some("bot"), Some(true)));
+        assert!(hub.queue.is_empty());
+    }
+
+    #[test]
+    fn twelve_bots_cover_every_arena_and_match_the_player() {
+        assert_eq!(bot::PERSONAS.len(), 12);
+        for t in 0..bot::TIERS {
+            assert!(bot::PERSONAS.iter().any(|p| p.tier == t), "a bot for tier {t}");
+        }
+        let mut rng = rand::thread_rng();
+        for tr in [0u32, 120, 300, 500, 800, 1200, 2000] {
+            let t = bot::tier_for(tr) as i64;
+            for _ in 0..50 {
+                let p = bot::persona_for(tr, &mut rng);
+                assert!((p.tier as i64 - t).abs() <= 1, "{tr} trophies got {}", p.name);
+            }
+        }
+        let mut names: Vec<_> = bot::PERSONAS.iter().map(|p| p.name).collect();
+        names.sort();
+        names.dedup();
+        assert_eq!(names.len(), 12, "names are unique");
     }
 
     #[test]
