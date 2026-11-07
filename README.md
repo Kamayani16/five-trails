@@ -121,7 +121,7 @@ cargo clippy --all-targets -- -D warnings
 | `FT_DATA_DIR` | `data` | Folder for `players.json` (names and leaderboard). Use `memory` to keep nothing on disk. Back this folder up and keep it on a persistent disk |
 | `FT_DAY_OFFSET_MINUTES` | `330` | Minutes added to UTC to decide when a day, week (Monday) and season (calendar month) rolls over; 330 = India |
 | `FT_CHEST_SECS` | `21600` | Seconds between free chests (10 to 86400). Up to 2 are banked |
-| `FT_BOT_AFTER_SECS` | `20` | Seconds in the quick-match queue before a computer battle is offered (2 to 300) |
+| `FT_BOT_AFTER_SECS` | `20` | Seconds in the quick-match queue without finding a person before one of the 12 always-online bots steps in (2 to 300). Players can also tap "Play a bot now" at any time while waiting. |
 | `FT_ROOM_TTL_SECS` | `120` | How long a private room waits for a friend before closing (10 to 3600) |
 | `RUST_LOG` | `info` | Log level |
 

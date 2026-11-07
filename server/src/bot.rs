@@ -14,6 +14,42 @@ const TIER_AT: [u32; 7] = [0, 100, 250, 450, 700, 1000, 1400];
 const NOISE: [f32; 7] = [8.0, 6.0, 4.5, 3.2, 2.0, 1.0, 0.3];
 pub const TIERS: usize = TIER_AT.len();
 
+/// The bots that are always online for quick matches. Each has a fixed strength (tier), a level
+/// and a card back, and is always shown to players as a bot.
+pub struct Persona {
+    pub name: &'static str,
+    pub tier: usize,
+    pub level: u32,
+    pub back: &'static str,
+}
+
+pub const PERSONAS: [Persona; 12] = [
+    Persona { name: "Pip", tier: 0, level: 2, back: "stripes" },
+    Persona { name: "Sprocket", tier: 0, level: 4, back: "dots" },
+    Persona { name: "Clank", tier: 1, level: 7, back: "dots" },
+    Persona { name: "Widget", tier: 1, level: 9, back: "chevron" },
+    Persona { name: "Nova", tier: 2, level: 12, back: "chevron" },
+    Persona { name: "Gizmo", tier: 2, level: 14, back: "paws" },
+    Persona { name: "Cobalt", tier: 3, level: 18, back: "paws" },
+    Persona { name: "Quark", tier: 3, level: 21, back: "flames" },
+    Persona { name: "Tesla", tier: 4, level: 26, back: "flames" },
+    Persona { name: "Vector", tier: 4, level: 29, back: "circuit" },
+    Persona { name: "Cipher", tier: 5, level: 35, back: "circuit" },
+    Persona { name: "Oracle", tier: 6, level: 42, back: "crest" },
+];
+
+/// A bot for a player with these trophies: one of the bots at their arena's tier or one either side.
+pub fn persona_for(trophies: u32, rng: &mut impl Rng) -> &'static Persona {
+    let t = tier_for(trophies) as i64;
+    let near: Vec<&Persona> = PERSONAS.iter().filter(|p| (p.tier as i64 - t).abs() <= 1).collect();
+    near[rng.gen_range(0..near.len())]
+}
+
+/// Trophies shown for a bot: the start of its tier's arena.
+pub fn persona_trophies(p: &Persona) -> u32 {
+    TIER_AT[p.tier.min(TIER_AT.len() - 1)]
+}
+
 pub fn tier_for(trophies: u32) -> usize {
     TIER_AT.iter().rposition(|&at| trophies >= at).unwrap_or(0)
 }
